@@ -11,9 +11,14 @@ use threads;
 use Interpolation 'arg:@->$' => \&argument;
 use Time::HiRes qw(gettimeofday tv_interval);
 
+use Cwd qw(abs_path);
+use FindBin;
+use lib abs_path("$FindBin::Bin/../lib");
+
 my $TOOLS = $ENV{'TOOLS'};
 my $ANNOT = $ENV{'ANNOT'};
 
+require "4CHelper.pl";
 require "$TOOLS/Perlsub.pl";
 #require "$TOOLS/PSLhelpers.pl";
 
@@ -42,7 +47,7 @@ my $outdir;
 my $max_threads = 4;
 
 # Global variables
-my %expt_hash;
+my %meta_hash;
 my %stats; 
 my $genome2bit;
 
@@ -60,7 +65,7 @@ check_existance_of_files;
 
 my @threads = ();
 
-foreach my $expt_id (sort keys %expt_hash) {
+foreach my $expt_id (sort keys %meta_hash) {
 
     while (1) {
 
@@ -76,7 +81,7 @@ foreach my $expt_id (sort keys %expt_hash) {
             my $thr = threads->create( sub {
                         my $t0_expt = [gettimeofday];
                         print "\nStarting $expt_id\n";
-                        process_experiment($expt_id);
+                        process_experiment($expt_id, $meta_hash{$expt_id} );
                         my $t1 = tv_interval($t0_expt);
                         printf("\nFinished %s with %d reads in %.2f seconds.\n", $expt_id, $stats{$expt_id}->{final},$t1);
                     });
@@ -105,8 +110,11 @@ printf("\nFinished all processes in %.2f seconds.\n", $t1);
 # End of program
 #
 
-sub process_experiment ($) {
-#	create_sequence_files;
+sub process_experiment ($$) {
+
+	my $expt = shift;
+	my $expt_hash = shift;
+	create_sequence_files ($outdir,$expt,$expt_hash);
 #
 #	align_to_sequence_files;
 #
@@ -130,14 +138,14 @@ sub read_in_meta_file {
 
 	while (my $row_ref = $csv->getline_hr($meta)) {
 
-		$expt_hash{$row_ref->{experiment}."_".$row_ref->{seqrun}} = $row_ref;
+		$meta_hash{$row_ref->{experiment}."_".$row_ref->{seqrun}} = $row_ref;
 	}
 	#print join("\t",@header)."\n";
-	#foreach my $expt (sort keys %expt_hash) {
-	#	my $chr = $expt_hash{$expt}->{Chr};
-	#	my $brksite = $expt_hash{$expt}->{Brksite};
-	#	my $strand = $expt_hash{$expt}->{Strand};
-	#	my %hash = %{$expt_hash{$expt}};
+	#foreach my $expt (sort keys %meta_hash) {
+	#	my $chr = $meta_hash{$expt}->{Chr};
+	#	my $brksite = $meta_hash{$expt}->{Brksite};
+	#	my $strand = $meta_hash{$expt}->{Strand};
+	#	my %hash = %{$meta_hash{$expt}};
 	#	print join("\t", @hash{@header} )."\n";
 	#}
 
@@ -145,7 +153,7 @@ sub read_in_meta_file {
 
 sub check_existance_of_files {
 	print "\nSearching for files...\n";
-	foreach my $expt_id (sort keys %expt_hash) {
+	foreach my $expt_id (sort keys %meta_hash) {
 		my $file = $indir."/".$expt_id;
 		my @exts = qw(.fa .fasta .fq .fastq);
 		foreach my $ext (@exts) {
@@ -154,14 +162,14 @@ sub check_existance_of_files {
 					(my $next = $ext) =~ s/q/a/;
 					print "Converting $file to fasta format\n";
 					System("fastq_to_fasta -Q33 -n -i $file$ext -o $file$next") or croak "Error: could not execute fastq_to_fastq";
-					$expt_hash{$expt_id}->{file} = $file.$next;
+					$meta_hash{$expt_id}->{file} = $file.$next;
 				} else {
-					$expt_hash{$expt_id}->{file} = $file.$ext;
+					$meta_hash{$expt_id}->{file} = $file.$ext;
 				}
 				last;
 			}
 		}
-		croak "Error: Could not locate reads file $file in $indir" unless (defined $expt_hash{$expt_id}->{file});
+		croak "Error: Could not locate reads file $file in $indir" unless (defined $meta_hash{$expt_id}->{file});
 	}
 	print "Done.\n";
 }
