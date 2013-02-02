@@ -54,8 +54,8 @@ my %meta_hash;
 my %stats; 
 my $genome2bit;
 my $defaultblatopt = "-mask=lower";
-my $defaultredblatopt = "-tileSize=8 -oneOff=1 -minMatch=1 -minScore=20";
-my $defaultblublatopt = "-tileSize=8 -oneOff=1 -minMatch=1 -minScore=20";
+my $defaultredblatopt = "-tileSize=8 -oneOff=1 -minMatch=1 -minScore=12";
+my $defaultblublatopt = "-tileSize=8 -oneOff=1 -minMatch=1 -minScore=12";
 
 #
 # Start of Program
@@ -138,7 +138,7 @@ sub process_experiment ($$) {
 
 	align_to_genome($expt_id,$expt_hash,$blatopt);
 
- 	make_tlxl($expt_id,$expt_hash); 
+# 	make_tlxl($expt_id,$expt_hash); 
 #
 # filter_reads;
 }

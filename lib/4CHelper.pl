@@ -1,4 +1,5 @@
-
+use strict;
+use warnings;
 
 sub manage_blat_options ($$) {
 
@@ -194,14 +195,14 @@ sub align_to_sequence_files ($$$$) {
 	compressHeader($expt_hash->{blupsl},1);
 
 
-	System(join(" ","blat",$expt_hash->{redpfa},$expt_hash->{raw},$expt_hash->{redppsl},$redblatopts))
+	System(join(" ","blat",$expt_hash->{redpfa},$expt_hash->{raw},$expt_hash->{redppsl},$redblatopt))
 									or croak "Error: $expt_id failed during blat to red primer";
-	compressHeader($expt_hash->{redppsl});
+	compressHeader($expt_hash->{redppsl},1);
 
 
-	System(join(" ","blat",$expt_hash->{blupfa},$expt_hash->{raw},$expt_hash->{bluppsl},$blublatopts))
+	System(join(" ","blat",$expt_hash->{blupfa},$expt_hash->{raw},$expt_hash->{bluppsl},$blublatopt))
 									or croak "Error: $expt_id failed during blat to blu primer";
-	compressHeader($expt_hash->{bluppsl});
+	compressHeader($expt_hash->{bluppsl},1);
 
 }
 
@@ -244,7 +245,6 @@ sub make_tlxl ($$) {
 	$expt_hash->{rawidx} = $expt_hash->{raw} . ".idx";
 	my $rawidxio = IO::File->new(">".$expt_hash->{rawidx});
 	build_index($rawio,$rawidxio);
-	$rawidxio->close;
 	# Then read line numbers for each read into the query hash
 	seek($rawio,0,0);
 	my $line_no = 1;
@@ -264,7 +264,6 @@ sub make_tlxl ($$) {
 	$expt_hash->{redidx} = $expt_hash->{redpsl} . ".idx";
 	my $redidxio = IO::File->new(">".$expt_hash->{redidx});
 	build_index($redio,$redidxio);
-	$redidxio->close;
 	# Then read line numbers for each read into the query hash
 	seek($redio,0,0);
 	my $header = $redcsv->getline_hr($redio); 
@@ -289,7 +288,6 @@ sub make_tlxl ($$) {
 	$expt_hash->{redpidx} = $expt_hash->{redppsl} . ".idx";
 	my $redpidxio = IO::File->new(">".$expt_hash->{redpidx});
 	build_index($redpio,$redpidxio);
-	$redpidxio->close;
 	# Then read line numbers for each read into the query hash
 	seek($redpio,0,0);
 	my $header = $redpcsv->getline_hr($redpio); 
@@ -315,7 +313,6 @@ sub make_tlxl ($$) {
 	$expt_hash->{bluidx} = $expt_hash->{blupsl} . ".idx";
 	my $bluidxio = IO::File->new(">".$expt_hash->{bluidx});
 	build_index($bluio,$bluidxio);
-	$bluidxio->close;
 	# Then read line numbers for each read into the query hash
 	seek($bluio,0,0);
 	my $header = $blucsv->getline_hr($bluio); 
@@ -340,7 +337,6 @@ sub make_tlxl ($$) {
 	$expt_hash->{blupidx} = $expt_hash->{bluppsl} . ".idx";
 	my $blupidxio = IO::File->new(">".$expt_hash->{blupidx});
 	build_index($blupio,$blupidxio);
-	$blupidxio->close;
 	# Then read line numbers for each read into the query hash
 	seek($blupio,0,0);
 	my $header = $blupcsv->getline_hr($blupio); 
@@ -362,7 +358,7 @@ sub make_tlxl ($$) {
 	$pslheader = $pslcsv->getline($pslio);
 	$pslcsv->column_names(@$pslheader);
 	# Create bedfile
-	(my $bedfile = $expt_hash->{psl}) =~ s/\.pslx$/_marg.bed/;
+	(my $bedfile = $expt_hash->{psl}) =~ s/\.psl$/_marg.bed/;
 	my $bedio = IO::File->new(">$bedfile");
 	# Read through pslx line by line writing margin coordinates and Qname to the bedfile
 	while (my $psl = $pslcsv->getline_hr($pslio)) {
@@ -372,6 +368,8 @@ sub make_tlxl ($$) {
 		my $tstart = $psl->{Tstart};
 		my $tend = $psl->{Tend};
 		my $junction = $strand == "+" ? $tstart : $tend;
+		my $rev_marg = 10;
+		my $for_marg = 6;
 		if ($strand eq "+") {
 			$bedio->print(join("\t",$tname,$junction-$rev_marg,$junction+$for_marg,"$qname:$tname:$tstart-$tend")."\n");
 		} else {
@@ -495,7 +493,7 @@ sub make_tlxl ($$) {
 
 		$tlxlio->print(join("\t",$qname,$tname,$tstart,$tend,$strand,$qstart,$qend,
 
-			$margin,,$raw))
+			$margin,$raw))
 	}
 
 
