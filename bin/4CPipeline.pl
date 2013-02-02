@@ -15,12 +15,12 @@ use Cwd qw(abs_path);
 use FindBin;
 use lib abs_path("$FindBin::Bin/../lib");
 
-my $TOOLS = $ENV{'TOOLS'};
-my $ANNOT = $ENV{'ANNOT'};
+my $GENOME_DB = $ENV{'GENOME_DB'};
+defined $GENOME_DB or croak "Error: set environment variable GENOME_DB";
 
 require "4CHelper.pl";
-require "$TOOLS/Perlsub.pl";
-#require "$TOOLS/PSLhelpers.pl";
+require "Perlsub.pl";
+require "pslHelper.pl";
 
 # Flush output after every write
 select( (select(STDOUT), $| = 1 )[0] );
@@ -36,7 +36,7 @@ select( (select(STDOUT), $| = 1 )[0] );
 sub parse_command_line;
 sub read_in_meta_file;
 sub check_existance_of_files;
-sub process_experiment;
+sub process_experiment ($$);
 
 
 # Global flags and arguments, 
@@ -45,11 +45,17 @@ my $meta_file;
 my $indir;
 my $outdir;
 my $max_threads = 4;
+my $userblatopt;
+my $userredblatopt;
+my $userblublatopt;
 
-# Global variables
+# Global variabless
 my %meta_hash;
 my %stats; 
 my $genome2bit;
+my $defaultblatopt = "-mask=lower";
+my $defaultredblatopt = "-tileSize=8 -oneOff=1 -minMatch=1 -minScore=20";
+my $defaultblublatopt = "-tileSize=8 -oneOff=1 -minMatch=1 -minScore=20";
 
 #
 # Start of Program
@@ -59,9 +65,17 @@ parse_command_line;
 
 my $t0 = [gettimeofday];
 
+my $redblatopt = manage_blat_options($defaultredblatopt,$userredblatopt);
+my $blublatopt = manage_blat_options($defaultblublatopt,$userblublatopt);
+my $blatopt = manage_blat_options($defaultblatopt,$userblatopt);
+
 read_in_meta_file;
 
 check_existance_of_files;
+
+
+
+prepare_reference_genomes ($GENOME_DB, \%meta_hash);
 
 my @threads = ();
 
@@ -81,6 +95,9 @@ foreach my $expt_id (sort keys %meta_hash) {
             my $thr = threads->create( sub {
                         my $t0_expt = [gettimeofday];
                         print "\nStarting $expt_id\n";
+                        unless (-d $meta_hash{$expt_id}->{exptdir}) {
+                        	mkdir $meta_hash{$expt_id}->{exptdir} or croak "Error: cannot create experiment directory";
+                        }
                         process_experiment($expt_id, $meta_hash{$expt_id} );
                         my $t1 = tv_interval($t0_expt);
                         printf("\nFinished %s with %d reads in %.2f seconds.\n", $expt_id, $stats{$expt_id}->{final},$t1);
@@ -112,15 +129,16 @@ printf("\nFinished all processes in %.2f seconds.\n", $t1);
 
 sub process_experiment ($$) {
 
-	my $expt = shift;
+	my $expt_id = shift;
 	my $expt_hash = shift;
-	create_sequence_files ($outdir,$expt,$expt_hash);
-#
-#	align_to_sequence_files;
-#
-#	align_to_genome;
-#
-# combine_to_tlx; 
+
+	create_sequence_files ($expt_id,$expt_hash);
+
+	align_to_sequence_files($expt_id,$expt_hash,$redblatopt,$blublatopt);
+
+	align_to_genome($expt_id,$expt_hash,$blatopt);
+
+ 	make_tlxl($expt_id,$expt_hash); 
 #
 # filter_reads;
 }
@@ -136,9 +154,11 @@ sub read_in_meta_file {
 	my @header = @$header_ref;
 	$csv->column_names(@header);
 
-	while (my $row_ref = $csv->getline_hr($meta)) {
+	while (my $row = $csv->getline_hr($meta)) {
+		my $expt_id = $row->{experiment}."_".$row->{seqrun};
+		$meta_hash{$expt_id} = $row;
+		$meta_hash{$expt_id}->{exptdir} = "$outdir/$expt_id";
 
-		$meta_hash{$row_ref->{experiment}."_".$row_ref->{seqrun}} = $row_ref;
 	}
 	#print join("\t",@header)."\n";
 	#foreach my $expt (sort keys %meta_hash) {
@@ -162,20 +182,16 @@ sub check_existance_of_files {
 					(my $next = $ext) =~ s/q/a/;
 					print "Converting $file to fasta format\n";
 					System("fastq_to_fasta -Q33 -n -i $file$ext -o $file$next") or croak "Error: could not execute fastq_to_fastq";
-					$meta_hash{$expt_id}->{file} = $file.$next;
+					$meta_hash{$expt_id}->{raw} = $file.$next;
 				} else {
-					$meta_hash{$expt_id}->{file} = $file.$ext;
+					$meta_hash{$expt_id}->{raw} = $file.$ext;
 				}
 				last;
 			}
 		}
-		croak "Error: Could not locate reads file $file in $indir" unless (defined $meta_hash{$expt_id}->{file});
+		croak "Error: Could not locate reads file $file in $indir" unless (defined $meta_hash{$expt_id}->{raw});
 	}
 	print "Done.\n";
-}
-
-sub create_sequence_files {
-
 }
 
 sub parse_command_line {
@@ -228,6 +244,9 @@ $arg{"metafile","File containing meta data for one experiment per row - follow c
 $arg{"indir","Directory containing all input sequence files"}
 $arg{"outdir","Directory for results files"}
 $arg{"--threads","Number of threads to run bowtie on","$max_threads"}
+$arg{"--blatopt","",$defaultblatopt}
+$arg{"--redblatopt","",$defaultredblatopt}
+$arg{"--blublatopt","",$defaultblublatopt}
 $arg{"--help","This helpful help screen."}
 
 
