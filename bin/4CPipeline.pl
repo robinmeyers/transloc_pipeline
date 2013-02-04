@@ -45,15 +45,15 @@ my $meta_file;
 my $indir;
 my $outdir;
 my $max_threads = 4;
-my $userblatopt;
-my $userredblatopt;
-my $userblublatopt;
+my $userblatopt = "";
+my $userredblatopt = "";
+my $userblublatopt = "";
 
 # Global variabless
 my %meta_hash;
 my %stats; 
 my $genome2bit;
-my $defaultblatopt = "-mask=lower";
+my $defaultblatopt = "-mask=lower -minIdentity=95";
 my $defaultredblatopt = "-tileSize=8 -oneOff=1 -minMatch=1 -minScore=12";
 my $defaultblublatopt = "-tileSize=8 -oneOff=1 -minMatch=1 -minScore=12";
 
@@ -100,7 +100,7 @@ foreach my $expt_id (sort keys %meta_hash) {
                         }
                         process_experiment($expt_id, $meta_hash{$expt_id} );
                         my $t1 = tv_interval($t0_expt);
-                        printf("\nFinished %s with %d reads in %.2f seconds.\n", $expt_id, $stats{$expt_id}->{final},$t1);
+                        printf("\nFinished %s in %.2f seconds.\n", $expt_id,$t1);
                     });
             push(@threads,$thr);
             sleep(1);
@@ -138,7 +138,7 @@ sub process_experiment ($$) {
 
 	align_to_genome($expt_id,$expt_hash,$blatopt);
 
-# 	make_tlxl($expt_id,$expt_hash); 
+ 	make_tlxl($expt_id,$expt_hash); 
 #
 # filter_reads;
 }

@@ -7,7 +7,7 @@ sub manage_blat_options ($$) {
 	my $useroptstr = shift;
 
 	my @defaultopt = split(/\s+/,$defaultoptstr);
-	my @useropt = split(/\s+/,$useropt);
+	my @useropt = split(/\s+/,$useroptstr);
 
 	my %opt_hash;
 	my $optkey;
@@ -243,12 +243,13 @@ sub make_tlxl ($$) {
 	my $rawio = IO::File->new("<".$expt_hash->{raw});
 	# Create index
 	$expt_hash->{rawidx} = $expt_hash->{raw} . ".idx";
-	my $rawidxio = IO::File->new(">".$expt_hash->{rawidx});
+	my $rawidxio = IO::File->new("+>".$expt_hash->{rawidx});
 	build_index($rawio,$rawidxio);
 	# Then read line numbers for each read into the query hash
 	seek($rawio,0,0);
 	my $line_no = 1;
-	while ( (my $qname, my $seq) = read_fasta($rawio) ) {
+	while ( (my $seq_id, my $seq) = read_fasta($rawio) ) {
+		(my $qname = $seq_id) =~ s/^\s*(\S+)\s.*$/$1/;
 		croak "Error: multiple raw sequences with same ID in $expt_id" if defined $query{$qname};
 		$query{$qname}->{rawidx} = $line_no + 1;
 		$line_no += 2;
@@ -257,17 +258,16 @@ sub make_tlxl ($$) {
 	# Build red sequence alignment index
 	# Open the red alignment file
 	my $redio = IO::File->new("<".$expt_hash->{redpsl});
-	my $redcsv = Text::CSV->new({sep_char => "\t"});
-	$redheader = $redcsv->getline($redio);
-	$redcsv->column_names(@$redheader);
 	# Create index file
 	$expt_hash->{redidx} = $expt_hash->{redpsl} . ".idx";
-	my $redidxio = IO::File->new(">".$expt_hash->{redidx});
+	my $redidxio = IO::File->new("+>".$expt_hash->{redidx});
 	build_index($redio,$redidxio);
 	# Then read line numbers for each read into the query hash
 	seek($redio,0,0);
-	my $header = $redcsv->getline_hr($redio); 
-	my $line_no = 2;
+	my $redcsv = Text::CSV->new({sep_char => "\t"});
+	my $header = $redcsv->getline($redio);
+	$redcsv->column_names(@$header);
+	$line_no = 2;
 	while ( my $row = $redcsv->getline_hr($redio) ) {
 		my $qname = $row->{Qname};
 		unless (defined $query{$qname}->{redidx}) {
@@ -281,17 +281,16 @@ sub make_tlxl ($$) {
 	# Build red primer alignment index
 	# Open red primer alignment file
 	my $redpio = IO::File->new("<".$expt_hash->{redppsl});
-	my $redpcsv = Text::CSV->new({sep_char => "\t"});
-	$redpheader = $redpcsv->getline($redpio);
-	$redpcsv->column_names(@$redpheader);
 	# Create index file
 	$expt_hash->{redpidx} = $expt_hash->{redppsl} . ".idx";
-	my $redpidxio = IO::File->new(">".$expt_hash->{redpidx});
+	my $redpidxio = IO::File->new("+>".$expt_hash->{redpidx});
 	build_index($redpio,$redpidxio);
 	# Then read line numbers for each read into the query hash
 	seek($redpio,0,0);
-	my $header = $redpcsv->getline_hr($redpio); 
-	my $line_no = 2;
+	my $redpcsv = Text::CSV->new({sep_char => "\t"});
+	$header = $redpcsv->getline($redpio);
+	$redpcsv->column_names(@$header);
+	$line_no = 2;
 	while ( my $row = $redpcsv->getline_hr($redpio) ) {
 		my $qname = $row->{Qname};
 		unless (defined $query{$qname}->{redpidx}) {
@@ -305,18 +304,16 @@ sub make_tlxl ($$) {
 	# Build blu sequence alignment index
 	# Open blu alignment file
 	my $bluio = IO::File->new("<".$expt_hash->{blupsl});
-	my $blucsv = Text::CSV->new({sep_char => "\t"});
-	$bluheader = $blucsv->getline($bluio);
-	$blucsv->column_names(@$bluheader);
-
-
+	# Create index file
 	$expt_hash->{bluidx} = $expt_hash->{blupsl} . ".idx";
-	my $bluidxio = IO::File->new(">".$expt_hash->{bluidx});
+	my $bluidxio = IO::File->new("+>".$expt_hash->{bluidx});
 	build_index($bluio,$bluidxio);
 	# Then read line numbers for each read into the query hash
 	seek($bluio,0,0);
-	my $header = $blucsv->getline_hr($bluio); 
-	my $line_no = 2;
+	my $blucsv = Text::CSV->new({sep_char => "\t"});
+	$header = $blucsv->getline($bluio);
+	$blucsv->column_names(@$header);
+	$line_no = 2;
 	while ( my $row = $blucsv->getline_hr($bluio) ) {
 		my $qname = $row->{Qname};
 		unless (defined $query{$qname}->{bluidx}) {
@@ -330,17 +327,16 @@ sub make_tlxl ($$) {
 	# Build blu primer alignment index
 	# Open blu primer file
 	my $blupio = IO::File->new("<".$expt_hash->{bluppsl});
-	my $blupcsv = Text::CSV->new({sep_char => "\t"});
-	$blupheader = $blupcsv->getline($blupio);
-	$blupcsv->column_names(@$blupheader);
 	# Create index
 	$expt_hash->{blupidx} = $expt_hash->{bluppsl} . ".idx";
-	my $blupidxio = IO::File->new(">".$expt_hash->{blupidx});
+	my $blupidxio = IO::File->new("+>".$expt_hash->{blupidx});
 	build_index($blupio,$blupidxio);
 	# Then read line numbers for each read into the query hash
 	seek($blupio,0,0);
-	my $header = $blupcsv->getline_hr($blupio); 
-	my $line_no = 2;
+	my $blupcsv = Text::CSV->new({sep_char => "\t"});
+	$header = $blupcsv->getline($blupio);
+	$blupcsv->column_names(@$header);
+	$line_no = 2;
 	while ( my $row = $blupcsv->getline_hr($blupio) ) {
 		my $qname = $row->{Qname};
 		unless (defined $query{$qname}->{blupidx}) {
@@ -355,8 +351,8 @@ sub make_tlxl ($$) {
 	# Open alignment file
 	my $pslio = IO::File->new("<".$expt_hash->{psl});
 	my $pslcsv = Text::CSV->new({sep_char => "\t"});
-	$pslheader = $pslcsv->getline($pslio);
-	$pslcsv->column_names(@$pslheader);
+	$header = $pslcsv->getline($pslio);
+	$pslcsv->column_names(@$header);
 	# Create bedfile
 	(my $bedfile = $expt_hash->{psl}) =~ s/\.psl$/_marg.bed/;
 	my $bedio = IO::File->new(">$bedfile");
@@ -367,7 +363,7 @@ sub make_tlxl ($$) {
 		my $strand = $psl->{strand};
 		my $tstart = $psl->{Tstart};
 		my $tend = $psl->{Tend};
-		my $junction = $strand == "+" ? $tstart : $tend;
+		my $junction = $strand eq "+" ? $tstart : $tend;
 		my $rev_marg = 10;
 		my $for_marg = 6;
 		if ($strand eq "+") {
@@ -411,11 +407,8 @@ sub make_tlxl ($$) {
 	$expt_hash->{tlxl} = $expt_hash->{exptdir} . "/" . $expt_id . ".tlxl";
 	my $tlxlio = IO::File->new(">".$expt_hash->{tlxl});
 	my @tlxlheader = qw( Qname Tname Tstart Tend Strand Qstart Qend Match Mismatch
-		BlockSizes Tstarts Qstarts 
-		RedQstart RedQend RedpQstart RedpQend RedBlockSizes RedTstarts RedQstarts
-		BluQstart BluQend BlupQstart BlupQend BluBlockSizes BluTstarts BluQstarts
-		Raw);
-	$tlxlio->print(join("\t",@tlxlheader));
+		RedQstart RedQend BluQstart BluQend Margin Raw);
+	$tlxlio->print(join("\t",@tlxlheader)."\n");
 
 	
 
@@ -423,80 +416,93 @@ sub make_tlxl ($$) {
 	# Finally read in genome alignments line by line
 
 	seek($pslio,0,0);
-	my $header = $pslcsv->getline($pslio);
+	$header = $pslcsv->getline($pslio);
 
 	my $margio = IO::File->new("<".$expt_hash->{margfa});
 
 
 	while (my $psl = $pslcsv->getline_hr($pslio)) {
 		my $qname = $psl->{Qname};
-		my $strand = $psl->{strand};
-		my $tstart = $psl->{Tstart};
-		my $tend = $psl->{Tend};
-		my $junction = $strand == "+" ? $tstart : $tend;
+		
+
 		# Retrieve sequence
 		my $raw = line_with_index($rawio,$rawidxio,$query{$qname}->{rawidx});
+
 		# Retrieve reference sequence around junction margin
 		my ($seqid,$margin) = read_fasta($margio);
-
-
-		foreach my $line (@margidxs) {
-			my $seqid = line_with_index($margio,$margidxio,$line-1);
-			my ($margqname,$margtname,$margtstart,$margtend) = ($seqid =~ /(\S+):(\w+):(\d+)-(\d+)/);
-			next unless $margtname eq $tname && $margtstart eq $tstart && $margtend eq $tend;
-			$margin = line_with_index($margio,$margidxio,$line);
-		}
+		my ($red_aln,$redp_aln,$blu_aln,$blup_aln);
 		# Retrieve red sequence alignments
-		my @redidxs = split(",",$query{$qname}->{redidx});
-		my ($red_aln, $red_curr);
-		foreach my $line (@redidxs) {
-				$red_curr = line_with_index_hr($redio,$redcsv,$redidxio,$line);
-			unless (defined $redaln) {
-				$red_aln = $red_curr;
-			} else {
-				$red_aln = $red_curr if $red_curr->{match} > $red_aln->{match};
+		if (defined $query{$qname}->{redidx}) {
+			my @redidxs = split(",",$query{$qname}->{redidx});
+			foreach my $line (@redidxs) {
+				my $red_curr = line_with_index_hr($redio,$redcsv,$redidxio,$line);
+				unless (defined $red_aln) {
+					$red_aln = $red_curr;
+				} else {
+					$red_aln = $red_curr if $red_curr->{match} > $red_aln->{match};
+				}
 			}
 		}
 		# Retrieve red primer alignments
-		my @redpidxs = split(",",$query{$qname}->{redpidx});
-		my ($redp_aln, $redp_curr);
-		foreach my $line (@redpidxs) {
-				$redp_curr = line_with_index_hr($redpio,$redpcsv,$redpidxio,$line);
-			unless (defined $redpaln) {
-				$redp_aln = $redp_curr;
-			} else {
-				$redp_aln = $redp_curr if $redp_curr->{match} > $redp_aln->{match};
+		if (defined $query{$qname}->{redpidx}) {
+			my @redpidxs = split(",",$query{$qname}->{redpidx});
+			foreach my $line (@redpidxs) {
+				my $redp_curr = line_with_index_hr($redpio,$redpcsv,$redpidxio,$line);
+				unless (defined $redp_aln) {
+					$redp_aln = $redp_curr;
+				} else {
+					$redp_aln = $redp_curr if $redp_curr->{match} > $redp_aln->{match};
+				}
 			}
 		}
 		# Retrieve blu sequence alignments
-		my @bluidxs = split(",",$query{$qname}->{bluidx});
-		my ($blu_aln, $blu_curr);
-		foreach my $line (@bluidxs) {
-				$blu_curr = line_with_index_hr($bluio,$blucsv,$bluidxio,$line);
-			unless (defined $blualn) {
-				$blu_aln = $blu_curr;
-			} else {
-				$blu_aln = $blu_curr if $blu_curr->{match} > $blu_aln->{match};
+		if (defined $query{$qname}->{bluidx}) {
+			my @bluidxs = split(",",$query{$qname}->{bluidx});
+			foreach my $line (@bluidxs) {
+				my $blu_curr = line_with_index_hr($bluio,$blucsv,$bluidxio,$line);
+				unless (defined $blu_aln) {
+					$blu_aln = $blu_curr;
+				} else {
+					$blu_aln = $blu_curr if $blu_curr->{match} > $blu_aln->{match};
+				}
 			}
 		}
 		# Retrieve blu primer alignments
-		my @blupidxs = split(",",$query{$qname}->{blupidx});
-		my ($blup_aln, $blup_curr);
-		foreach my $line (@blupidxs) {
-				$blup_curr = line_with_index_hr($blupio,$blupcsv,$blupidxio,$line);
-			unless (defined $blupaln) {
-				$blup_aln = $blup_curr;
-			} else {
-				$blup_aln = $blup_curr if $blup_curr->{match} > $blup_aln->{match};
+		if (defined $query{$qname}->{blupidx}) {
+			my @blupidxs = split(",",$query{$qname}->{blupidx});
+			foreach my $line (@blupidxs) {
+				my $blup_curr = line_with_index_hr($blupio,$blupcsv,$blupidxio,$line);
+				unless (defined $blup_aln) {
+					$blup_aln = $blup_curr;
+				} else {
+					$blup_aln = $blup_curr if $blup_curr->{match} > $blup_aln->{match};
+				}
 			}
 		}
 
-		$tlxlio->print(join("\t",$qname,$tname,$tstart,$tend,$strand,$qstart,$qend,
+		unless (defined $red_aln) {
+			$red_aln = {Qstart => "", Qend => ""};
+		}
+		unless (defined $blu_aln) {
+			$blu_aln = {Qstart => "", Qend => ""};
+		}
 
-			$margin,$raw))
+		$tlxlio->print(join("\t",	$psl->{Qname} ,
+															$psl->{Tname} ,
+															$psl->{Tstart} ,
+															$psl->{Tend} ,
+															$psl->{strand} ,
+															$psl->{Qstart} ,
+															$psl->{Qend} ,
+															$psl->{match} ,
+															$psl->{'mis-match'} ,
+															$red_aln->{Qstart} ,
+															$red_aln->{Qend} ,
+															$blu_aln->{Qstart} ,
+															$blu_aln->{Qend} ,
+															$margin,
+															$raw ));
 	}
-
-
 }
 
 
