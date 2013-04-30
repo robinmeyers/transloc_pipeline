@@ -18,7 +18,7 @@ use lib abs_path("$FindBin::Bin/../lib");
 my $GENOME_DB = $ENV{'GENOME_DB'};
 defined $GENOME_DB or croak "Error: set environment variable GENOME_DB";
 
-require "4CHelper.pl";
+require "PipelineHelper.pl";
 require "Perlsub.pl";
 require "pslHelper.pl";
 
@@ -46,16 +46,14 @@ my $indir;
 my $outdir;
 my $max_threads = 4;
 my $userblatopt = "";
-my $userredblatopt = "";
-my $userblublatopt = "";
+my $userblastopt = "";
 
 # Global variabless
 my %meta_hash;
 my %stats; 
 my $genome2bit;
-my $defaultblatopt = "-mask=lower -minIdentity=95";
-my $defaultredblatopt = "-tileSize=8 -oneOff=1 -minMatch=1 -minScore=12";
-my $defaultblublatopt = "-tileSize=8 -oneOff=1 -minMatch=1 -minScore=12";
+my $defaultblatopt = "-mask=lower -minIdentity=95 -maxIntron=500";
+my $defaultblastopt = "-task blastn-short -outfmt 6 -strand plus -gapopen 2 -gapextend 1 -reward 1 -penalty -2";
 
 #
 # Start of Program
@@ -65,9 +63,9 @@ parse_command_line;
 
 my $t0 = [gettimeofday];
 
-my $redblatopt = manage_blat_options($defaultredblatopt,$userredblatopt);
-my $blublatopt = manage_blat_options($defaultblublatopt,$userblublatopt);
 my $blatopt = manage_blat_options($defaultblatopt,$userblatopt);
+
+my $blastopt = manage_blast_options($defaultblastopt,$userblastopt);
 
 read_in_meta_file;
 
@@ -134,13 +132,22 @@ sub process_experiment ($$) {
 
 	create_sequence_files ($expt_id,$expt_hash);
 
-	align_to_sequence_files($expt_id,$expt_hash,$redblatopt,$blublatopt);
+	blast_to_sequence_files($expt_id,$expt_hash,$blastopt);
 
 	align_to_genome($expt_id,$expt_hash,$blatopt);
 
- 	make_tlxl($expt_id,$expt_hash); 
-#
-# filter_reads;
+ 	make_tlxl($expt_id,$expt_hash);
+
+ 	($expt_hash->{tlx} = $expt_hash->{tlxl}) =~ s/tlxl$/tlx/;
+
+ 	System(join(" ","Rscript $FindBin::Bin/../R/4CFilter.R",
+ 		$expt_hash->{tlxl},$expt_hash->{tlx},$expt_hash->{redrest},$expt_hash->{blurest}));
+
+ 	System(join(" ","tlxToBed.pl",$expt_hash->{tlx},"--bgbw --assembly",$expt_hash->{assembly}));
+
+
+#	System("cp $expt_id->{tlxl}")
+#	System("Rscript 4CFilter.R filter_reads;
 }
 
 sub read_in_meta_file {
@@ -200,7 +207,9 @@ sub parse_command_line {
 	usage() if (scalar @ARGV == 0);
 
 	my $result = GetOptions ( 
-														"threads" => \$max_threads ,
+														"threads=i" => \$max_threads ,
+														"blatopt=s" => \$userblatopt ,
+														"blastopt=s" => \$userblastopt ,
 														"help" => \$help
 
 				            			);
@@ -245,8 +254,7 @@ $arg{"indir","Directory containing all input sequence files"}
 $arg{"outdir","Directory for results files"}
 $arg{"--threads","Number of threads to run bowtie on","$max_threads"}
 $arg{"--blatopt","",$defaultblatopt}
-$arg{"--redblatopt","",$defaultredblatopt}
-$arg{"--blublatopt","",$defaultblublatopt}
+$arg{"--blastopt","",$defaultblastopt}
 $arg{"--help","This helpful help screen."}
 
 
