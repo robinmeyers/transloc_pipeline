@@ -8,6 +8,8 @@ use IO::Handle;
 use IO::File;
 use CGI;
 use List::Util qw(sum);
+use IPC::System::Simple qw(system capture);
+
 
 # from Perl Cookbook http://docstore.mik.ua/orelly/perl/cookbook/ch08_09.htm
 # usage: build_index(*DATA_HANDLE, *INDEX_HANDLE)
@@ -87,7 +89,7 @@ sub read_fastq ($) {
 	my $seq_name = $fh->getline();
 	return () unless defined $seq_name;
 	chomp($seq_name);
-	croak "Error: unexpected format - missing '\@' symbol in sequence header $seq_name" unless $seq_name =~ /^\@.*$/;
+	croak "Error: unexpected format - missing '\@' symbol in sequence header $seq_name" unless $seq_name =~ s/^\@//;
 	my $seq_bases = $fh->getline();
 	croak "Error: bad input file, expecting line with sequences" unless defined $seq_bases;
 	croak "Error: unexpected base in sequence $seq_bases" unless $seq_bases =~ /^[AGCTagctNn]*$/;
@@ -304,7 +306,13 @@ sub min_ref
 }
 
 
-
+sub check_undef ($;$) {
+  my $val = shift;
+  my $replace = shift;
+  $replace = defined $replace ? $replace : "";
+  $val = defined $val ? $val : $replace;
+  return $val;
+}
 
 
 sub reverseComplement ($) {
@@ -356,14 +364,23 @@ sub readChromsizeFile ($) {
 }
 
 #invert exit status of system call
-sub System ($) {
-	my $cmd = shift;
-	print "$cmd\n";
-	my $status = system($cmd);
-	return !$status;
+sub System ($;$) {
+  my $cmd = shift;
+  my $quiet = shift;
+  $quiet = 0 unless defined $quiet;
+  print "$cmd\n" unless $quiet;
+  my $status = system($cmd);
+  return !$status;
 }
 
-
+sub Capture ($;$) {
+  my $cmd = shift;
+  my $quiet = shift;
+  $quiet = 0 unless defined $quiet;
+  print "$cmd\n" unless $quiet;
+  my @output = capture($cmd);
+  return @output;
+}
 
 
 sub dateFileFormat

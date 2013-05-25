@@ -292,47 +292,6 @@ sub blast_to_sequence_files ($$$) {
 }
 
 
-sub align_to_sequence_files ($$$$) {
-
-  my $expt_id = shift;
-  my $expt_hash = shift;
-  my $redblatopt = shift;
-  my $blublatopt = shift;
-
-
-  my $aligndir = $expt_hash->{exptdir} . "/alignments";
-
-  unless (-d $aligndir) {
-    mkdir $aligndir or croak "Error: could not create alignments directory for $expt_id";
-  }
-
-  $expt_hash->{redpsl} = "$aligndir/red.psl";
-  $expt_hash->{redppsl} = "$aligndir/redp.psl";
-  $expt_hash->{blupsl} = "$aligndir/blu.psl";
-  $expt_hash->{bluppsl} = "$aligndir/blup.psl";
-
-
-  System(join(" ","blat",$expt_hash->{redfa},$expt_hash->{raw},$expt_hash->{redpsl},$redblatopt))
-                  or croak "Error: $expt_id failed during blat to red sequence";
-  compressHeader($expt_hash->{redpsl},1);
-
-
-  System(join(" ","blat",$expt_hash->{blufa},$expt_hash->{raw},$expt_hash->{blupsl},$blublatopt))
-                  or croak "Error: $expt_id failed during blat to blu sequence";
-  compressHeader($expt_hash->{blupsl},1);
-
-
-  System(join(" ","blat",$expt_hash->{redpfa},$expt_hash->{raw},$expt_hash->{redppsl},$redblatopt))
-                  or croak "Error: $expt_id failed during blat to red primer";
-  compressHeader($expt_hash->{redppsl},1);
-
-
-  System(join(" ","blat",$expt_hash->{blupfa},$expt_hash->{raw},$expt_hash->{bluppsl},$blublatopt))
-                  or croak "Error: $expt_id failed during blat to blu primer";
-  compressHeader($expt_hash->{bluppsl},1);
-
-}
-
 
 sub align_to_genome ($$$) {
 
