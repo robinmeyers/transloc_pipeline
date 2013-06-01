@@ -174,7 +174,7 @@ sub read_in_meta_file {
 		$meta{$expt_id}->{exptdir} = "$outdir/$expt_id";
 
 	}
-	print join("\t",qw(Expt Chr Start End Strand))."\n";
+	print join("\t",qw(Expt Researcher Chr Start End Strand))."\n";
 	foreach my $expt (sort keys %meta) {
     print join("\t",$expt,$meta{$expt}->{researcher},
                           $meta{$expt}->{chr},
