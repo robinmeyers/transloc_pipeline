@@ -1,6 +1,7 @@
 use strict;
 use warnings;
 use Switch;
+use Bio::Factory::EMBOSS;
 use List::Util qw(min max);
 
 sub manage_program_options ($$) {
@@ -366,6 +367,34 @@ sub merge_alignments ($$$) {
 
 }
 
+sub sw_align_pairs ($$$) {
+  my $R1_aln = shift;
+  my $R2_aln = shift;
+  my $tmpdir = shift;
+
+  my $f = Bio::Factory::EMBOSS -> new();
+  my $water = $f->program('water');
+
+  my $R1_seq = $R1_aln->query->seq;
+  my $R2_seq = $R2_aln->query->seq;
+
+  (my $R1_id = $R1_seq->id) =~ s/\W/_/g;
+
+  my $tmpout = join("/",$tmpdir,$R1_id).".water";
+
+  $water->run({ -asequence => $R1_seq,
+                -bsequence => $R2_seq,
+                -gapopen   => '4.0',
+                -gapextend => '2.0',
+                -datafile  => 'EDNASIMPLE4',
+                -outfile   => $tmpout });
+
+  return "";
+
+
+
+}
+
 
 sub tlx_header {
   my @tlx_header = ( qw(Qname Rname Junction Strand Rstart Rend),
@@ -386,237 +415,6 @@ sub tlxl_header {
 }
 
 
-sub create_tlx_entry ($$$$$$) {
-  my $fh = shift;
-  my $aln = shift;
-  my $R1_brk_aln = shift;
-  my $R2_brk_aln = shift;
-  my $sam = shift;
-  my $sam_brk = shift;
-  
-  my $R1_aln = $aln->{R1_aln};
-  my $R2_aln = $aln->{R2_aln};
-
-  my ($R1_Qstart,$R1_Qend,$R2_Qstart,$R2_Qend);
-  my ($R1_BrkQstart,$R1_BrkQend,$R2_BrkQstart,$R2_BrkQend);
-
-  if (defined $R1_aln) {
-    $R1_Qstart = $R1_aln->reversed ? $R1_aln->l_qseq - $R1_aln->query->end + 1 : $R1_aln->query->start;
-    $R1_Qend = $R1_aln->reversed ? $R1_aln->l_qseq - $R1_aln->query->start + 1 : $R1_aln->query->end;
-  }
-
-  if (defined $R2_aln) {
-    $R2_Qstart = $R2_aln->reversed ? $R2_aln->query->start : $R2_aln->l_qseq - $R2_aln->query->end + 1;
-    $R2_Qend = $R2_aln->reversed ? $R2_aln->query->end : $R2_aln->l_qseq - $R2_aln->query->start + 1;
-  }
-  unless ($R1_brk_aln->unmapped) {
-    $R1_BrkQstart = $R1_brk_aln->query->start;
-    $R1_BrkQend = $R1_brk_aln->query->end;
-  }
-  unless ($R2_brk_aln->unmapped) {
-    $R2_BrkQstart = $R2_brk_aln->query->start;
-    $R2_BrkQend = $R2_brk_aln->query->end;
-  }
-
-  my @tlx_header = tlx_header();
-  my $ori = $aln->{orientation};
-  my $entry = {};
-
-  $entry->{Qname} = $R1_brk_aln->query->name;
-
-
-  switch ($ori) {
-    
-    case 1 {
-      $entry->{Orientation} = 1;
-      $entry->{MapQ} = $R1_aln->qual;
-      $entry->{Rname} = $R1_aln->seq_id;
-      $entry->{Strand} = $R1_aln->strand;
-      $entry->{Rstart} = $R1_aln->strand == 1 ? $R1_aln->start : $R2_aln->start;
-      $entry->{Rend} = $R1_aln->strand == 1 ? $R2_aln->end : $R1_aln->end;
-      $entry->{Junction} = $entry->{Strand} == 1 ? $entry->{Rstart} : $entry->{Rend};
-
-
-      my $left = substr($R1_brk_aln->query->seq->seq,0,$R1_Qstart - 1);
-      my $mid = merge_alignments($R1_aln,$R2_aln,$sam);
-      $mid = $entry->{Strand} == 1 ? $mid : reverseComplement($mid);
-      my $right = substr($R2_brk_aln->query->seq->seq,$R2_Qend);
-      $entry->{Seq} = $left . $mid . $right;
-      $entry->{Qlen} = length($entry->{Seq});
-
-      $entry->{BrkRstart} = $R1_brk_aln->start;
-      $entry->{BrkQstart} = $R1_BrkQstart;
-
-      if ($R2_brk_aln->end > $R1_brk_aln->end) {
-        $entry->{BrkRend} = $R2_brk_aln->end;
-
-        if ($R1_aln->strand == 1) {
-          $entry->{BrkQend} = $R1_Qstart + ( $R2_aln->start - $R1_aln->start ) - ( $R2_Qstart - $R2_BrkQend );
-        } else {
-          $entry->{BrkQend} = $R1_Qstart + ( $R1_aln->end - $R2_aln->end ) - ( $R2_Qstart - $R2_BrkQend );
-        }
-
-      } else {
-        $entry->{BrkRend} = $R1_brk_aln->end;
-        $entry->{BrkQend} = $R1_BrkQend;
-      }
-   
-      $entry->{Qstart} = length($left) + 1;
-      $entry->{Qend} = length($left.$mid);
-
-    }
-
-    case 2 {
-      $entry->{Orientation} = 2;
-      $entry->{MapQ} = $R1_aln->qual;
-      $entry->{Rname} = $R1_aln->seq_id;
-      $entry->{Strand} = $R1_aln->strand;
-      $entry->{Rstart} = $R1_aln->strand == 1 ? $R1_aln->start : $R2_aln->start;
-      $entry->{Rend} = $R1_aln->strand == 1 ? $R2_aln->end : $R1_aln->end;
-      $entry->{Junction} = $entry->{Strand} == 1 ? $entry->{Rstart} : $entry->{Rend};
-
-
-
-      my $left = substr($R1_brk_aln->query->seq->seq,0,$R1_Qstart - 1);
-      my $mid = merge_alignments($R1_aln,$R2_aln,$sam);
-      $mid = $entry->{Strand} == 1 ? $mid : reverseComplement($mid);
-      my $right = substr(reverseComplement($R2_brk_aln->query->seq->seq),$R2_Qend);
-      $entry->{Seq} = $left . $mid . $right;
-      $entry->{Qlen} = length($entry->{Seq});
-
-
-
-      $entry->{BrkRstart} = $R1_brk_aln->start;
-      $entry->{BrkRend} = $R1_brk_aln->end;
-      $entry->{BrkQstart} = $R1_BrkQstart;
-      $entry->{BrkQend} = $R1_BrkQend;
-      $entry->{Qstart} = length($left) + 1;
-      $entry->{Qend} = length($left.$mid);
-
-    }
-
-    case 3 {
-      $entry->{Orientation} = 3;
-      $entry->{MapQ} = $R2_aln->qual;
-      $entry->{Rname} = $R2_aln->seq_id;
-      $entry->{Strand} = $R2_aln->strand * -1;
-      $entry->{Rstart} = $R2_aln->start;
-      $entry->{Rend} = $R2_aln->end;
-      $entry->{Junction} = $entry->{Strand} == 1 ? $entry->{Rstart} : $entry->{Rend};
-
-
-      my $left = substr($R1_brk_aln->query->seq->seq,0,$R1_BrkQstart - 1);
-      my $mid = merge_alignments($R1_brk_aln,$R2_brk_aln,$sam_brk);
-      my $right = substr($R2_brk_aln->query->seq->seq,$R2_BrkQend);
-
-      $entry->{Seq} = $left . $mid . $right;
-      $entry->{Qlen} = length($entry->{Seq});
-
-
-      $entry->{BrkRstart} = $R1_brk_aln->start;
-      $entry->{BrkQstart} = $R1_BrkQstart;
-
-      $entry->{BrkRend} = $R2_brk_aln->end;
-      $entry->{BrkQend} = length($left.$mid);
-   
-      $entry->{Qstart} = $entry->{BrkQend} + $R2_Qstart - $R2_BrkQend;
-      $entry->{Qend} = $entry->{BrkQend} + $R2_Qend - $R2_BrkQend;
-
-
-    }
-
-    case 4 {
-      $entry->{Orientation} = 4;
-      $entry->{MapQ} = $R1_aln->qual;
-      $entry->{Rname} = $R1_aln->seq_id;
-      $entry->{Strand} = $R1_aln->strand;
-      $entry->{Rstart} = $R1_aln->start;
-      $entry->{Rend} = $R1_aln->end;
-      $entry->{Junction} = $entry->{Strand} == 1 ? $entry->{Rstart} : $entry->{Rend};
-
-      $entry->{Seq} = $R1_brk_aln->query->seq->seq;
-      $entry->{BrkRstart} = $R1_brk_aln->start;
-      $entry->{BrkQstart} = $R1_BrkQstart;
-      $entry->{BrkRend} = $R1_brk_aln->end;
-      $entry->{BrkQend} = $R1_BrkQend;
-      $entry->{Qstart} = $R1_Qstart;
-      $entry->{Qend} = $R1_Qend;
-    }
-
-  }
-
-  $fh->print(join("\t",map(check_undef($_,""),@{$entry}{@tlx_header}))."\n");
-
-}
-
-sub create_tlxl_entry ($$$$$) {
-  my $fh = shift;
-  my $aln = shift;
-  my $R1_brk_aln = shift;
-  my $R2_brk_aln = shift;
-  my $filter = shift;
-
-  my $R1_aln = $aln->{R1_aln};
-  my $R2_aln = $aln->{R2_aln};
-
-
-  my @tlxl_header = tlxl_header();
-
-  my $entry = {};
-
-  $entry->{Qname} = $R1_brk_aln->query->name;
-  $entry->{Filter} = $filter if defined $filter;
-  $entry->{R1_seq} = $R1_brk_aln->query->seq->seq;
-  $entry->{R2_seq} = $R2_brk_aln->reversed ? $R2_brk_aln->query->seq->seq : reverseComplement($R2_brk_aln->query->seq->seq);
-
-
-  unless ($R1_brk_aln->unmapped) {
-    $entry->{R1_BrkQstart} = $R1_brk_aln->query->start;
-    $entry->{R1_BrkQend} = $R1_brk_aln->query->end;
-    $entry->{R1_BrkRstart} = $R1_brk_aln->start;
-    $entry->{R1_BrkRend} = $R1_brk_aln->end;
-    $entry->{R1_BrkCigar} = $R1_brk_aln->cigar_str;
-  }
-  unless ($R2_brk_aln->unmapped) {
-    $entry->{R2_BrkQstart} = $R2_brk_aln->query->start;
-    $entry->{R2_BrkQend} = $R2_brk_aln->query->end;
-    $entry->{R2_BrkRstart} = $R2_brk_aln->start;
-    $entry->{R2_BrkRend} = $R2_brk_aln->end;
-    $entry->{R2_BrkCigar} = $R2_brk_aln->cigar_str;
-  }
-
-  if (defined $R1_aln) {
-    $entry->{Rname} = $R1_aln->seq_id;
-    $entry->{Strand} = $R1_aln->strand;
-    $entry->{MapQ} = $R1_aln->qual;
-
-    $entry->{R1_Qstart} = $R1_aln->reversed ? $R1_aln->l_qseq - $R1_aln->query->end + 1 : $R1_aln->query->start;
-    $entry->{R1_Qend} = $R1_aln->reversed ? $R1_aln->l_qseq - $R1_aln->query->start + 1 : $R1_aln->query->end;
-    $entry->{R1_Rstart} = $R1_aln->start;
-    $entry->{R1_Rend} = $R1_aln->end;
-    $entry->{R1_Cigar} = $R1_aln->cigar_str;
-  }
-
-  if (defined $R2_aln) {
-    if ($R2_aln->munmapped) {
-      $entry->{Rname} = $R2_aln->seq_id;
-      $entry->{Strand} = -1 * $R2_aln->strand;
-      $entry->{MapQ} = $R2_aln->qual;
-    }
-
-    unless (defined $R1_aln && ! $R1_aln->proper_pair) {
-      $entry->{R2_Qstart} = $R2_aln->reversed ? $R2_aln->query->start : $R2_aln->l_qseq - $R2_aln->query->end + 1;
-      $entry->{R2_Qend} = $R2_aln->reversed ? $R2_aln->query->end : $R2_aln->l_qseq - $R2_aln->query->start + 1;
-      $entry->{R2_Rstart} = $R2_aln->start;
-      $entry->{R2_Rend} = $R2_aln->end;
-      $entry->{R2_Cigar} = $R2_aln->cigar_str;
-    }
-  }
-
-  $fh->print(join("\t",map(check_undef($_,""),@{$entry}{@tlxl_header}))."\n");
-
-
-}
 
 
 sub make_raw_fastq_idx ($) {

@@ -97,3 +97,21 @@ catv <- function(verbose, ...) {
     cat(...);
   }
 }
+
+getCytoColor <- function() {
+  cytocolor <- c()
+  
+  cytocolor["gpos100"]  <- rgb(0,0,0,max=255)
+  cytocolor["gpos"]     <- rgb(0,0,0,max=255)
+  cytocolor["gpos75"]   <- rgb(130,130,130,max=255)
+  cytocolor["gpos66"]   <- rgb(160,160,160,max=255)
+  cytocolor["gpos50"]   <- rgb(200,200,200,max=255)
+  cytocolor["gpos33"]   <- rgb(210,210,210,max=255)
+  cytocolor["gpos25"]   <- rgb(200,200,200,max=255)
+  cytocolor["gvar"]     <- rgb(220,220,220,max=255)
+  cytocolor["gneg"]     <- rgb(255,255,255,max=255)
+  cytocolor["acen"]     <- rgb(217,47,39,max=255)
+  cytocolor["stalk"]    <- rgb(100,127,164,max=255)
+  
+  return(cytocolor)
+}
