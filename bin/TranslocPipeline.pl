@@ -140,7 +140,7 @@ sub process_experiment ($) {
   #prepare_reference_genomes
 
   my $tl_cmd = join(" ","TranslocAlign.pl --read1",$expt_hash->{R1},"--read2",$expt_hash->{R2},"--workdir",$expt_hash->{exptdir},
-                    "--assembly",$expt_hash->{assembly},"--threads $expt_threads --bt2opt $user_bowtie_opt --bt2brkopt $user_bowtie_breaksite_opt");
+                    "--assembly",$expt_hash->{assembly},"--threads $expt_threads --bt2opt \"$user_bowtie_opt\" --bt2brkopt \"$user_bowtie_breaksite_opt\"");
 
   my $bsubopt = manage_program_options($default_bsub_opt,$user_bsub_opt);
 
@@ -238,7 +238,7 @@ sub parse_command_line {
 
 	my $result = GetOptions ( 
 														"threads=i" => \$pipeline_threads ,
-														"bowtieopt=s" => \$user_bowtie_opt ,
+														"bowtie2opt=s" => \$user_bowtie_opt ,
 														"help" => \$help
 
 				            			);
@@ -282,7 +282,7 @@ $arg{"metafile","File containing meta data for one experiment per row - follow c
 $arg{"seqdir","Directory containing all input sequence files"}
 $arg{"outdir","Directory for results files"}
 $arg{"--threads","Number of threads to run bowtie on","$pipeline_threads"}
-$arg{"--bowtieopt"," "}
+$arg{"--bowtie2opt"," "}
 $arg{"--help","This helpful help screen."}
 
 
