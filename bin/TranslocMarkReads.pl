@@ -56,7 +56,7 @@ my $rev_primer = "";
 
 # Global variables
 my %tlx;
-my @qnames;
+my @qids;
 my @qseqs;
 
 #
@@ -75,9 +75,9 @@ align_to_primers;
 my $htmlfh = IO::File->new(">$htmlfile") or croak "Error: cannot write to html file $htmlfile";
 print_html_header($htmlfh);
 
-foreach my $qname (@qnames) {
+foreach my $qid (@qids) {
 
-  write_marked_read($htmlfh,$tlx{$qname});
+  write_marked_read($htmlfh,$tlx{$qid});
 
 }
 
@@ -188,15 +188,18 @@ sub read_in_translocations {
   my $header = $csv->getline($tlxfh);
   $csv->column_names(@$header);
 
+  my $ct = 0;
+
   while (my $tl = $csv->getline_hr($tlxfh)) {
 
     (my $qname = $tl->{Qname}) =~ s/\W/_/g;
+    my $qid = "q_".++$ct;
 
-    $tlx{$qname} = $tl;
+    $tlx{$qid} = $tl;
 
-    push(@qnames,$qname);
+    push(@qids,$qid);
 
-    push(@qseqs,Bio::PrimarySeq->new( -id => $qname,
+    push(@qseqs,Bio::PrimarySeq->new( -id => $qid,
                                      -seq => $tl->{Seq} ));
 
   }
@@ -214,7 +217,7 @@ sub align_to_primers {
 
 
   unless ($for_primer eq "") {
-    # my $for_seq = Bio::PrimarySeq->new( -id => "forward_primer", -seq => $for_primer);
+    my $for_seq = Bio::PrimarySeq->new( -id => "forward_primer", -seq => $for_primer);
 
     # my $fac = Bio::Tools::Run::StandAloneBlastPlus->new( -subject => $for_seq);
 
@@ -225,28 +228,51 @@ sub align_to_primers {
 
     # while ( my $hit)
 
-
-
     (my $for_water = $tlxfile) =~ s/\.tlx/_for.water/;
     $water->run({ -asequence => $for_seq,
                   -bsequence    => \@qseqs,
                   -gapopen   => '10.0',
                   -gapextend => '0.5',
-                  -outfile   => $for_water,
-                  -aformat3 => 'fasta'});
-    my $for_aln = Bio::SeqIO->new( -format => 'fasta',
+                  -outfile   => $for_water});
+    my $alnio = Bio::AlignIO->new( -format => 'emboss',
                                    -file   => $for_water);
-    while ( my $seq = $for_aln->next_seq ) {
-      my $qname = $seq->id;
-      next if $qname =~ /primer/;
-      (my $subseq = $seq->seq) =~ s/-//g;
-      
-      next if $subseq ne $for_seq->seq && levenshtein($subseq,$for_seq->seq) < 3;
+    while (my $for_aln = $alnio->next_aln) {
 
-      my $start = index($tlx{$qname}->{Seq},$subseq);
-      $tlx{$qname}->{ForQstart} = $start + 1;
-      $tlx{$qname}->{ForQend} = $start + length($subseq);
+      next unless $for_aln->percentage_identity > 90 && $for_aln->length >= length($for_primer) - 3;
+
+      my $qseq = $for_aln->get_seq_by_pos(2);
+      my $qid = $qseq->id;
+
+      next if exists $tlx{$qid}->{ForQstart};
+
+      $tlx{$qid}->{ForQstart} = $qseq->start;
+      $tlx{$qid}->{ForQend} = $qseq->end;
     }
+
+
+    # (my $for_water = $tlxfile) =~ s/\.tlx/_for.water/;
+    # $water->run({ -asequence => $for_seq,
+    #               -bsequence    => \@qseqs,
+    #               -gapopen   => '10.0',
+    #               -gapextend => '0.5',
+    #               -outfile   => $for_water,
+    #               -aformat3 => 'fasta'});
+
+    
+
+    # my $for_aln = Bio::SeqIO->new( -format => 'fasta',
+    #                                -file   => $for_water);
+    # while ( my $seq = $for_aln->next_seq ) {
+    #   my $qname = $seq->id;
+    #   next if $qname =~ /primer/;
+    #   (my $subseq = $seq->seq) =~ s/-//g;
+      
+    #   next if $subseq ne $for_seq->seq && levenshtein($subseq,$for_seq->seq) < 3;
+
+    #   my $start = index($tlx{$qname}->{Seq},$subseq);
+    #   $tlx{$qname}->{ForQstart} = $start + 1;
+    #   $tlx{$qname}->{ForQend} = $start + length($subseq);
+    # }
 
     unlink $for_water;
 
@@ -254,25 +280,47 @@ sub align_to_primers {
 
   unless ($rev_primer eq "") {
     my $rev_seq = Bio::PrimarySeq->new( -id => "reverse_primer", -seq => $rev_primer);
+    # (my $rev_water = $tlxfile) =~ s/\.tlx/_rev.water/;
+    # $water->run({ -asequence => $rev_seq,
+    #               -bsequence    => \@qseqs,
+    #               -gapopen   => '10.0',
+    #               -gapextend => '0.5',
+    #               -outfile   => $rev_water,
+    #               -aformat3 => 'fasta'});
+    # my $rev_aln = Bio::SeqIO->new( -format => 'fasta',
+    #                                -file   => $rev_water);
+    # while ( my $seq = $rev_aln->next_seq ) {
+    #   my $qname = $seq->id;
+    #   next if $qname =~ /primer/;
+    #   (my $subseq = $seq->seq) =~ s/-//g;
+
+    #   next if $subseq ne $rev_seq->seq && levenshtein($subseq,$rev_seq->seq) < 3;
+      
+    #   my $start = index($tlx{$qname}->{Seq},$subseq);
+    #   $tlx{$qname}->{RevQstart} = $start + 1;
+    #   $tlx{$qname}->{RevQend} = $start + length($subseq);
+    # }
+
+
     (my $rev_water = $tlxfile) =~ s/\.tlx/_rev.water/;
     $water->run({ -asequence => $rev_seq,
                   -bsequence    => \@qseqs,
                   -gapopen   => '10.0',
                   -gapextend => '0.5',
-                  -outfile   => $rev_water,
-                  -aformat3 => 'fasta'});
-    my $rev_aln = Bio::SeqIO->new( -format => 'fasta',
+                  -outfile   => $rev_water});
+    my $alnio = Bio::AlignIO->new( -format => 'emboss',
                                    -file   => $rev_water);
-    while ( my $seq = $rev_aln->next_seq ) {
-      my $qname = $seq->id;
-      next if $qname =~ /primer/;
-      (my $subseq = $seq->seq) =~ s/-//g;
+    while (my $rev_aln = $alnio->next_aln) {
 
-      next if $subseq ne $rev_seq->seq && levenshtein($subseq,$rev_seq->seq) < 3;
-      
-      my $start = index($tlx{$qname}->{Seq},$subseq);
-      $tlx{$qname}->{RevQstart} = $start + 1;
-      $tlx{$qname}->{RevQend} = $start + length($subseq);
+      next unless $rev_aln->percentage_identity > 90 && $rev_aln->length >= length($rev_primer) - 3;
+
+      my $qseq = $rev_aln->get_seq_by_pos(2);
+      my $qid = $qseq->id;
+
+      next if exists $tlx{$qid}->{RevQstart};
+
+      $tlx{$qid}->{RevQstart} = $qseq->start;
+      $tlx{$qid}->{RevQend} = $qseq->end;
     }
 
   unlink $rev_water;
@@ -362,10 +410,10 @@ Usage: $0 arg1 arg2 arg3 ...
 
 Arguments (defaults in parentheses):
 
-$arg{"tlxfile",""}
-$arg{"htmlfile",""}
-$arg{"--for","",$for_primer}
-$arg{"--rev","$rev_primer"}
+$arg{"tlxfile"," "}
+$arg{"htmlfile"," "}
+$arg{"--for"," ",$for_primer}
+$arg{"--rev"," ",$rev_primer}
 $arg{"--help","This helpful help screen."}
 
 
