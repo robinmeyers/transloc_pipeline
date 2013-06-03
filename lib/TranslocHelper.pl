@@ -385,7 +385,7 @@ sub sw_align_pairs ($$$) {
   $water->run({ -asequence => $R1_seq,
                 -bsequence => $R2_seq,
                 -gapopen   => '4.0',
-                -gapextend => '2.0',
+                -gapextend => '4.0',
                 -datafile  => 'EDNASIMPLE4',
                 -outfile   => $tmpout });
 
