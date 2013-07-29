@@ -3,7 +3,7 @@
 if (commandArgs()[1] != "RStudio") {
   
   ARGS <- c(
-    "tlxfile", "character", "file path of bowtie ref tags",
+    "tlxfile", "character", "",
     "output","character", "file path to plot to"
   )
   

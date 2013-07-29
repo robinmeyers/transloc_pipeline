@@ -27,7 +27,7 @@ source_local <- function(fname){
 
 source_local("Rsub.R")
 source_local("calcGeneExpr.R")
-require(snow,quietly=T,warn.conflicts=F)
+require(parallel,quietly=T,warn.conflicts=F)
 require(plyr,quietly=T,warn.conflicts=F)
 
 parseArgs("GeneExpression.R", ARGS, OPTS)
@@ -54,12 +54,12 @@ colnames(nonmap) <- c("Tname","Tstart","Tend")
 lambda <- lambda/1000
 
 cat("\nCalculating activity for",nrow(refgene),"genes on",tags$Tname[1],"with",nodes,"compute nodes\n")
-cl <- makeSOCKcluster(rep("localhost",nodes))
-clusterExport(cl,c("refgene","tags","nonmap","tagsize","lambda","alpha","bedCount","bedIntersect"))
+# cl <- makeSOCKcluster(rep("localhost",nodes))
+# clusterExport(cl,c("refgene","tags","nonmap","tagsize","lambda","alpha","bedCount","bedIntersect"))
 
 ngenes <- nrow(refgene)
 
-summary <- ldply(clusterApplyLB(cl, 1:ngenes, calcGeneExpr))
+summary <- ldply(mclapply(1:ngenes, calcGeneExpr, mc.cores=nodes))
 
 write.table(summary,output,sep="\t",quote=F,row.names=F)
 
@@ -76,16 +76,16 @@ if (! is.na(profile_file) ) {
   x2 <- x1 + binsize - 1
   bins <- data.frame(x1=x1,x2=x2)
 
-  clusterExport(cl, c("summary","bins","binsize"))
+#   clusterExport(cl, c("summary","bins","binsize"))
 
 
-  profile <- ldply(clusterApplyLB(cl, 1:ngenes, profileGene))
+  profile <- ldply(mclapply(1:ngenes, profileGene,mc.cores=nodes))
 
   write.table(profile,profile_file,sep="\t",quote=F,row.names=F)
 
 }
 
-stopCluster(cl)
+# stopCluster(cl)
 
 
 

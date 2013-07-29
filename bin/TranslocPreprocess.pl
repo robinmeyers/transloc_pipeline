@@ -54,10 +54,10 @@ my $max_threads = 4;
 my $bc_len = 10;
 my $bc_mismatch = 2;
 my $adapt_max_dif = 20;
-my $quality = 20;
+my $quality = 15;
 my $window = 10;
 my $minlen = 30;
-my $skipjoin;
+my $join;
 my $join_max_dif = 10;
 my $join_min_ol = 30;
 my $skipclean;
@@ -153,17 +153,17 @@ sub read_in_meta_file {
 	my $metafh = IO::File->new("<$meta_file") or croak "Error: could not read meta file $meta_file";
 	my $csv = Text::CSV->new({sep_char => "\t"});
 	my $header = $csv->getline($metafh);
-	$csv->column_names(@$header);
+	$csv->column_names( map { lc } @$header );
 
 
 	while (my $expt = $csv->getline_hr($metafh)) {
 
-		$meta{$expt->{expt}} = $expt;
+		$meta{$expt->{experiment}} = $expt;
 		
 		my %temp_stats_hash :shared;
 		$temp_stats_hash{totreads} = 0;
 		
-		$stats{$expt->{expt}} = \%temp_stats_hash;
+		$stats{$expt->{experiment}} = \%temp_stats_hash;
 	}
 
 	$metafh->close;
@@ -177,7 +177,7 @@ sub create_barcode_file {
 	foreach my $expt (sort keys %meta) {
 		$meta{$expt}->{R1} = "$outdir/multx/${expt}_R1.fq.gz";
 		$meta{$expt}->{R2} = "$outdir/multx/${expt}_R2.fq.gz";
-		my $barcode = substr($meta{$expt}->{mid}.$meta{$expt}->{fprim},0,$bc_len);
+		my $barcode = substr($meta{$expt}->{mid}.$meta{$expt}->{primer},0,$bc_len);
 		$bcfh->print(join("\t",$expt,$barcode)."\n");
 		print "$expt $barcode\n";
 	}
@@ -255,7 +255,7 @@ sub process_experiment ($) {
 
 	System("echo \"Finished fastq-mcf on $expt in $t1_mcf seconds\" >> $logfile",1);
 
-	unless ($skipjoin) {
+	if ($join) {
 		$meta{$expt}->{R1join} = "$outdir/join/${expt}_R1.fq.gz";
 		$meta{$expt}->{R2join} = "$outdir/join/${expt}_R2.fq.gz";
 		$meta{$expt}->{join} = "$outdir/join/${expt}_join.fq.gz";
@@ -299,7 +299,7 @@ sub write_stats_file {
 sub clean_up {
 
 	print "\nCleaning up\n";
-	if ($skipjoin) {
+	unless ($join) {
 		System("mv $outdir/mcf/* $outdir/",1);
 	} else {
 		System("mv $outdir/join/* $outdir/",1);
@@ -322,7 +322,7 @@ sub parse_command_line {
 				"bclen=i" => \$bc_len,
 				"bcmismatch=i" => \$bc_mismatch,
 				"adapt_max_dif=i" => \$adapt_max_dif,
-				"skipjoin" => \$skipjoin,
+				"join" => \$join,
 				"join_max_dif=i" => \$join_max_dif,
 				"join_min_ol=i" => \$join_min_ol,
 				"quality=i" => \$quality,
@@ -377,7 +377,7 @@ $arg{"--bclen","Number of bases to use from primer file for de-multiplexing",$bc
 $arg{"--bcmismatch","Number of mismatches allowed in de-multiplexing",$bc_mismatch}
 $arg{"--adapter","Fasta file of adapter sequences"}
 $arg{"--adapt_max_dif","Maximum percent difference for match with adapter",$adapt_max_dif}
-$arg{"--skipjoin","Stitch reads together using fastq-join"}
+$arg{"--join","Stitch reads together using fastq-join"}
 $arg{"--join_max_dif","Maximum percent difference between reads for quality-trimmed stitching",$join_max_dif}
 $arg{"--join_min_ol","Minimum basepair overlap between two reads for quality-trimmed stitching",$join_min_ol}
 $arg{"--quality","Minimum quality score threshold",$quality}

@@ -1,8 +1,64 @@
 use strict;
 use warnings;
 use Switch;
+use Data::Dumper;
+use Bio::SeqIO;
+use Bio::AlignIO;
 use Bio::Factory::EMBOSS;
+use Bio::DB::Fasta;
 use List::Util qw(min max);
+use List::MoreUtils qw(firstidx);
+
+sub prepare_reference_genomes ($) {
+
+
+  my $meta_ref = shift;
+  my @masks = ();
+
+  my $GENOME_DB = $ENV{'GENOME_DB'};
+  my $BOWTIE2_INDEXES = $ENV{'BOWTIE2_INDEXES'};
+
+  foreach my $expt_id (sort keys %$meta_ref) {
+    my $assembly = $meta_ref->{$expt_id}->{assembly};
+    my $assemdir = "$GENOME_DB/$assembly";
+    croak "Error: could not find reference genome directory $GENOME_DB/$assembly" unless (-d $assemdir);
+
+    my $cleanFa = "$assemdir/$assembly.fa";
+
+    my $mask = $meta_ref->{$expt_id}->{mask};
+    next unless ($mask =~ /\S/);
+    (my $mask_stub = $assembly."_mask_".$mask) =~ s/[:,\s]+/_/g;
+    my $maskdir = "$GENOME_DB/$mask_stub";
+    mkdir $maskdir or croak "Error: could not create directory for masked genome";
+    my $maskFa = "$maskdir/$mask_stub.fa";
+    $meta_ref->{$expt_id}->{mask_assembly} = $mask_stub;
+
+    my $beddir = "$assemdir/maskBED";
+    my $bedfile = "$beddir/$mask_stub.bed"; 
+
+    unless (-r $bedfile) {
+      unless (-d $beddir) {
+        mkdir $beddir or croak "Error: cannot create maskBED directory";
+      }
+      my $bed_fh = IO::File->new(">$bedfile");
+      my @loci = split( /\s*,\s*/ , $mask );
+      foreach my $locus (@loci) {
+        (my $chr, my $start, my $end) = ($locus =~ /(chr\w+):(\d+)-(\d+)/);
+        $bed_fh->print(join("\t",$chr,$start,$end)."\n");
+      }
+      $bed_fh->close;
+    }
+
+    unless (-r $maskFa) {
+      System("maskFastaFromBed -fi $cleanFa -fo $maskFa -bed $bedfile");
+    }
+
+    unless (-r "$BOWTIE2_INDEXES/$mask_stub.1.bt2") {     
+      System("bowtie2-build $maskFa $BOWTIE2_INDEXES/$mask_stub");
+    }
+  }
+
+}
 
 sub manage_program_options ($$) {
 
@@ -58,391 +114,695 @@ sub manage_program_options ($$) {
 
 }
 
+sub sam_file_is_empty ($) {
+  my $file = shift;
+  my $fh = IO::File->new("<$file");
 
-
-sub find_orientations ($$$) {
-  my $alns = shift;
-  my $R1_brk_aln = shift;
-  my $R2_brk_aln = shift;
-
-  foreach my $aln (@$alns) {
-
-    my $R1_aln = $aln->{R1_aln};
-    my $R2_aln = $aln->{R2_aln};
-
-    my ($R1_Qstart,$R1_Qend,$R2_Qstart,$R2_Qend);
-
-    if (defined $R1_aln) {
-      $R1_Qstart = $R1_aln->reversed ? $R1_aln->l_qseq - $R1_aln->query->end + 1 : $R1_aln->query->start;
-      $R1_Qend = $R1_aln->reversed ? $R1_aln->l_qseq - $R1_aln->query->start + 1 : $R1_aln->query->end;
-    }
-
-    if (defined $R2_aln) {
-      $R2_Qstart = $R2_aln->reversed ? $R2_aln->query->start : $R2_aln->l_qseq - $R2_aln->query->end + 1;
-      $R2_Qend = $R2_aln->reversed ? $R2_aln->query->end : $R2_aln->l_qseq - $R2_aln->query->start + 1;
-    }
-
-    # Test for orientation #1
-    if ($R1_brk_aln->proper_pair && defined $R1_aln && $R1_aln->proper_pair) {
-
-      if ($R1_brk_aln->query->end < $R1_Qend && $R2_brk_aln->query->end < $R2_Qend) {
-        $aln->{orientation} = 1;
-        next;
-      }
-
-    }
-
-    # Test for orientation #2
-    if ( ! $R1_brk_aln->unmapped && defined $R1_aln && $R1_aln->proper_pair) {
-
-      if ($R1_brk_aln->query->end < $R1_Qend) {
-        $aln->{orientation} = 2;
-        next;
-      }
-
-    }
-
-    # Test for orientation #3
-    if ( $R1_brk_aln->proper_pair && defined $R2_aln) {
-
-      if ($R2_brk_aln->query->end < $R2_Qend) {
-        $aln->{orientation} = 3;
-        next;
-      }
-
-    }
-
-    # Test for orientation #4
-    if ( ! $R1_brk_aln->unmapped && defined $R1_aln) {
-
-      next if (! $R2_brk_aln->unmapped && $R2_brk_aln->start <= $R1_brk_aln->end);
-
-      if ($R1_brk_aln->query->end < $R1_Qend) {
-        $aln->{orientation} = 4;
-        next;
-      }
-
-    }
-
-    $aln->{orientation} = 0;
+  while (my $line = $fh->getline) {
+    next unless $line =~ /\S/;
+    next if $line =~ /^@/;
+    $fh->close;
+    return(0);
   }
+  $fh->close;
+  return(1);
 
 }
-
-sub filter_mapquals ($$$) {
-  my $alns = shift;
-  my $R1_brk_aln = shift;
-  my $R2_brk_aln = shift;
-
-  my $threshold = 5;
-
-  my $mapq;
-
-  foreach my $aln (@$alns) {
-
-    next unless defined $aln->{orientation} && $aln->{orientation} > 0;
-
-    my $R1_aln = $aln->{R1_aln};
-    my $R2_aln = $aln->{R2_aln};
-
-    if (defined $mapq) {
-      $aln->{mapq} = 0;
-      next;
-    }
-
-    if (defined $R1_aln && $R1_aln->qual > $threshold) {
-      $mapq = $R1_aln->qual;
-      $aln->{mapq} = $R1_aln->qual;
-    } elsif (defined $R2_aln && $R2_aln->qual > $threshold) {
-      $mapq = $R2_aln->qual;
-      $aln->{mapq} = $R2_aln->qual;
-    } else {
-      $aln->{mapq} = 0;
-    }
-
-  }
-
-}
-
-sub merge_alignments ($$$) {
-  my $aln1 = shift;
-  my $aln2 = shift;
-  my $ref = shift;
-
-  if ($aln1->reversed) {
-    ($aln1,$aln2) = ($aln2,$aln1);
-  }
-
-  my $rname = $aln1->seq_id;
-  my $rstart = $aln1->start;
-  my $rend = $aln2->end;
-
-  my @refseq = split("",$ref->seq($rname,$rstart,$rend));
-
-  my $cigar1ref = $aln1->cigar_array;
-  my @cigar1 = ();
-  foreach my $i (@$cigar1ref) {
-    next if $i->[0] eq "S";
-    push(@cigar1,split("",($i->[0] x $i->[1])));
-  }
-
-  my $cigar2ref = $aln2->cigar_array;
-  my @cigar2 = ();
-  foreach my $i (@$cigar2ref) {
-    next if $i->[0] eq "S";
-    push(@cigar2,split("",($i->[0] x $i->[1])));
-  }
-
-
-  my @qseq1 = split("",substr($aln1->qseq,$aln1->query->start-1,$aln1->query->length));
-  my @qseq2 = split("",substr($aln2->qseq,$aln2->query->start-1,$aln2->query->length));
-
-  my @qual1 = @{$aln1->qscore}[$aln1->query->start-1..$aln1->query->end-1];
-  my @qual2 = @{$aln2->qscore}[$aln2->query->start-1..$aln2->query->end-1];
-  
-  print $aln1->start ." ".$aln1->end."\n";
-  print join("",@cigar1)."\n";
-  print join("",@qseq1)."\n";
-  print join(" ",@qual1)."\n\n";
-  print $aln2->start ." ".$aln2->end."\n";
-  print join("",@cigar2)."\n";
-  print join("",@qseq2)."\n";
-  print join(" ",@qual2)."\n\n";
-
-
-  print "$rstart $rend\n";
-  print join("",@refseq)."\n";
-
-
-  my $pos1 = 0;
-  my $cpos1 = 0;
-  my $pos2 = 0;
-  my $cpos2 = 0;
-  my $rpos = $rstart;
-
-  my @consensus = ();
-  my @quality = ();
-
-  while ( $rpos <= $aln1->end && $rpos < $aln2->start  && $rpos <= $rend) {
-
-    my $c1 = $cigar1[$cpos1++];
-
-    switch ($c1) {
-      case "D" { $rpos++; }
-      case "I" { push(@consensus,$qseq1[$pos1++]); }
-      case "M" { push(@consensus,$qseq1[$pos1++]); $rpos++; }
-      else { croak "Error: unrecognized character in CIGAR string $c1"; }
-    }
-
-  }
-
-  while ( $rpos > $aln1->end && $rpos < $aln2->start  && $rpos <= $rend) {
-    push(@consensus,lc($refseq[$rpos++ - $rstart]));
-  }
-
-  while ($rpos <= $aln1->end && $rpos >= $aln2->start && $rpos <= $rend) {
-
-    my $c1 = $cigar1[$cpos1++];
-    my $c2 = $cigar2[$cpos2++];
-
-    print join("\t",$rpos,$c1,$c2,$pos1,$pos2)."\n";
-
-    switch ($c1) {
-      case "D" {
-        switch ($c2) {
-          case "D" { $rpos++; }
-          case "I" {
-            if (mean(@qual1[max(0,$pos1-2)..min($pos1+2,$#qual1)]) >=
-                mean(@qual2[max(0,$pos2-2)..min($pos2+2,$#qual2)])) {
-              $pos2++;              
-              $cpos1--;
-            } else {
-              push(@consensus,$qseq2[$pos2++]);
-              $cpos1--;
-            }
-           }
-          case "M" { 
-            if (mean(@qual1[max(0,$pos1-2)..min($pos1+2,$#qual1)]) >=
-                mean(@qual2[max(0,$pos2-2)..min($pos2+2,$#qual2)])) {
-              $rpos++;
-            } else {
-              push(@consensus,$qseq2[$pos2++]);
-              $rpos++;
-            }
-          }
-          else { croak "Error: unrecognized character '$c2' in CIGAR string"; }
-        }
-      }
-      case "I" {
-        switch ($c2) {
-          case "D" { $pos1++; $cpos2--;
-            if (mean(@qual1[max(0,$pos1-2)..min($pos1+2,$#qual1)]) >=
-                mean(@qual2[max(0,$pos2-2)..min($pos2+2,$#qual2)])) {
-              push(@consensus,$qseq1[$pos1++]);
-              $cpos2--;
-            } else {
-              $pos1++;
-              $cpos2--;
-            }
-          }
-          case "I" {
-            if (mean(@qual1[max(0,$pos1-2)..min($pos1+2,$#qual1)]) >=
-                mean(@qual2[max(0,$pos2-2)..min($pos2+2,$#qual2)])) {
-              push(@consensus,$qseq1[$pos1++]);
-              $pos2++;
-            } else {
-              push(@consensus,$qseq2[$pos2++]);
-              $pos1++;
-            }
-          }
-          case "M" {
-            if (mean(@qual1[max(0,$pos1-2)..min($pos1+2,$#qual1)]) >=
-                mean(@qual2[max(0,$pos2-2)..min($pos2+2,$#qual2)])) {
-              push(@consensus,$qseq1[$pos1++]);
-              $cpos2--;
-            } else {
-              $pos1++;
-              $cpos2--;
-            }
-          }
-          else { croak "Error: unrecognized character '$c2' in CIGAR string"; }
-        }
-      }
-      case "M" {
-        switch ($c2) {
-          case "D" {
-            if (mean(@qual1[max(0,$pos1-2)..min($pos1+2,$#qual1)]) >=
-                mean(@qual2[max(0,$pos2-2)..min($pos2+2,$#qual2)])) {
-              push(@consensus,$qseq1[$pos1++]);
-              $rpos++;
-            } else {
-              $rpos++;
-            }
-          }
-          case "I" {
-            if (mean(@qual1[max(0,$pos1-2)..min($pos1+2,$#qual1)]) >=
-                mean(@qual2[max(0,$pos2-2)..min($pos2+2,$#qual2)])) {
-              $pos2++;
-              $cpos1--;
-            } else {
-              push(@consensus,$qseq2[$pos2++]);
-              $cpos1--;
-            }
-          }
-          case "M" { 
-            if (mean(@qual1[max(0,$pos1-2)..min($pos1+2,$#qual1)]) >=
-                mean(@qual2[max(0,$pos2-2)..min($pos2+2,$#qual2)])) {
-              push(@consensus,$qseq1[$pos1++]);
-              $pos2++;
-              $rpos++;
-            } else {
-              push(@consensus,$qseq2[$pos2++]);
-              $pos1++;
-              $rpos++;
-            }
-          }
-          else { croak "Error: unrecognized character '$c2' in CIGAR string" ; }
-        }
-      }
-      else { croak "Error: unrecognized character '$c1' in CIGAR string"; }
-    }
-
-  }
-
-  while ( $rpos >= $aln2->start && $rpos <= $rend ) {
-    
-    my $c2 = $cigar2[$cpos2++];
-
-    switch ($c2) {
-      case "D" { $rpos++; }
-      case "I" { push(@consensus,$qseq2[$pos2++]); }
-      case "M" { push(@consensus,$qseq2[$pos2++]); $rpos++; }
-      else { croak "Error: unrecognized character in CIGAR string $c2"; }
-    }
-  } 
-
-  print "\n".join("",@consensus)."\n\n\n";
-
-  return(join("",@consensus));
-
-}
-
-sub sw_align_pairs ($$$) {
-  my $R1_aln = shift;
-  my $R2_aln = shift;
-  my $tmpdir = shift;
-
-  my $f = Bio::Factory::EMBOSS -> new();
-  my $water = $f->program('water');
-
-  my $R1_seq = $R1_aln->query->seq;
-  my $R2_seq = $R2_aln->query->seq;
-
-  (my $R1_id = $R1_seq->id) =~ s/\W/_/g;
-
-  my $tmpout = join("/",$tmpdir,$R1_id).".water";
-
-  $water->run({ -asequence => $R1_seq,
-                -bsequence => $R2_seq,
-                -gapopen   => '4.0',
-                -gapextend => '4.0',
-                -datafile  => 'EDNASIMPLE4',
-                -outfile   => $tmpout });
-
-  return "";
-
-
-
-}
-
 
 sub tlx_header {
   my @tlx_header = ( qw(Qname Rname Junction Strand Rstart Rend),
-                      qw(BrkRstart BrkRend BrkQstart BrkQend Qstart Qend),
-                      qw(Qlen MapQ Orientation Seq) );
+                      qw(B_Rname B_Rstart B_Rend B_Strand B_Qstart B_Qend),
+                      qw(Qstart Qend Qlen Seq JuncSeq) );
   return (@tlx_header);
 }
 
+sub tlx_filter_header {
+  my @tlx_header = tlx_header();
+  splice(@tlx_header,1,0,("Filter"));
+  return(@tlx_header);
+}
 
 sub tlxl_header {
-  my @tlxl_header = ( qw(Qname Filter MapQ Rname Strand),
-                      qw(R1_BrkRstart R1_BrkRend R1_Rstart R1_Rend),
-                      qw(R1_BrkQstart R1_BrkQend R1_Qstart R1_Qend),
-                      qw(R2_BrkRstart R2_BrkRend R2_Rstart R2_Rend),
-                      qw(R2_BrkQstart R2_BrkQend R2_Qstart R2_Qend),
-                      qw(R1_BrkCigar R1_Cigar R2_BrkCigar R2_Cigar R1_seq R2_seq) );
+  my @tlxl_header = ( qw(Qname OCS_score Rname Strand),
+                      qw(R1_Rstart R1_Rend R1_Qstart R1_Qend R1_Qlen),
+                      qw(R2_Rstart R2_Rend R2_Qstart R2_Qend R2_Qlen),
+                      qw(R1_Rgap R2_Rgap R1_Cigar R2_Cigar) );
   return (@tlxl_header);
 }
 
+sub write_entry ($$$) {
+
+  my $fh = shift;
+  my $entry = shift;
+  my $header = shift;
 
 
-
-sub make_raw_fastq_idx ($) {
-  my $fq = shift;
-
+  $fh->print(join("\t",map(check_undef($_,""),@{$entry}{@$header}))."\n");
   
-
-  my $fqfh = IO::File->new("<$fq");
-  my $idx = "$fq.idx";
-  my $idxfh = IO::File->new("+>$idx");
-
-  build_index($fqfh,$idxfh);
-
-  seek($fqfh,0,0);
+}
 
 
-  my %fqidx;
-  my $line_no = 1;
+sub print_aln ($) {
+  my $aln = shift;
+  print $aln->{Qstart}."-".$aln->{Qend}." ".$aln->{Rname}.":".$aln->{Rstart}."-".$aln->{Rend}.":".$aln->{Strand}."\n";
+}
 
-  while ( my @seq = read_fastq($fqfh) ) {
-    (my $qname) = $seq[0] =~ /^\s*(\S+)\s*/;
-    croak "Error: multiple sequences with same ID in $fq" if defined $fqidx{$qname};
-    $fqidx{$qname} = $line_no + 1;
-    $line_no += 4;
+sub find_genomic_distance ($$$) {
+  my $aln1 = shift;
+  my $aln2 = shift;
+  my $brk_hash = shift;
+
+  my $chr1 = $aln1->{Rname};
+  my $junc1 = $aln1->{Strand} == 1 ? $aln1->{Rend} : $aln1->{Rstart};
+  my $chr2 = $aln2->{Rname};
+  my $junc2 = $aln2->{Strand} == 1 ? $aln2->{Rstart} : $aln2->{Rend};
+
+  my $g_dist;
+
+  if ($chr1 eq "Breaksite" && $chr2 eq $brk_hash->{chr}) {
+    if ($brk_hash->{strand} eq "+") {
+      $g_dist = min($brk_hash->{len} - $junc1 + abs($junc2 - $brk_hash->{end}) , $junc1 + abs($brk_hash->{start} - $junc2)); 
+    } else {
+      $g_dist = min($junc1 + abs($junc2 - $brk_hash->{end}) , $brk_hash->{len} - $junc1 + abs($brk_hash->{start} - $junc2));
+    }
+  } elsif ($chr2 eq "Breaksite" && $chr1 eq $brk_hash->{chr}) {
+    if ($brk_hash->{strand} eq "+") {
+      $g_dist = min($brk_hash->{len} - $junc2 + abs($junc1 - $brk_hash->{end}) , $junc2 + abs($brk_hash->{start} - $junc1)); 
+    } else {
+      $g_dist = min($junc2 + abs($junc1 - $brk_hash->{end}) , $brk_hash->{len} - $junc2 + abs($brk_hash->{start} - $junc1));
+    }
+  } elsif ($aln1->{Rname} eq $aln2->{Rname}) {
+    $g_dist = abs($junc2 - $junc1);
+  } else {
+    return undef;
   }
 
-  return(\%fqidx);
+  return max(1,$g_dist);
 }
+
+sub wrap_alignment ($$) {
+
+  my $aln = shift;
+  my $pe = shift;
+  my $wrapper = { aln => $aln,
+                  Qname => $aln->qname,
+                  Rname => $aln->seq_id,
+                  Rstart => $aln->start,
+                  Rend => $aln->end,
+                  test => 1 };
+
+  if ($pe eq "R1") {
+    $wrapper->{Strand} = $aln->strand;
+  } elsif ($pe eq "R2") {
+    $wrapper->{Strand} = -1 * $aln->strand;
+  } else {
+    croak "Error: second argument to wrap_alignment must be either \"R1\" or \"R2\"";
+  }
+
+  $wrapper->{Qstart} = $wrapper->{Strand} == 1 ? $aln->query->start : $aln->l_qseq - $aln->query->end + 1;
+  $wrapper->{Qend} = $wrapper->{Strand} == 1 ? $aln->query->end : $aln->l_qseq - $aln->query->start + 1;
+
+  return $wrapper;
+
+}
+
+sub pair_is_proper ($$$) {
+  my $R1 = shift;
+  my $R2 = shift;
+  my $max_frag_len = shift;
+
+  return 0 unless $R1->{Rname} eq $R2->{Rname};
+  return 0 unless $R1->{Strand} == $R2->{Strand};
+
+
+  if ($R1->{Strand} == 1) {
+    return 0 unless $R1->{Rstart} < $R2->{Rend};
+    return 0 if $R2->{Rend} - $R1->{Rstart} + 1 > $max_frag_len;
+    return 0 if $R1->{Rstart} > $R2->{Rstart};
+    return 0 if $R1->{Rend} > $R2->{Rend};
+  } else {
+    return 0 unless $R2->{Rstart} < $R1->{Rend};
+    return 0 if $R1->{Rend} - $R2->{Rstart} + 1 > $max_frag_len;
+    return 0 if $R2->{Rstart} > $R1->{Rstart};
+    return 0 if $R2->{Rend} > $R1->{Rend};
+  }
+
+  return 1;
+
+}
+
+sub create_tlxl_entries ($) {
+
+  my $OCS_ref = shift;
+  my @OCS = @$OCS_ref;
+
+  my @tlxls = ();
+
+
+  unless ( defined $OCS[0]->{R1}->{aln} ) {
+    my $tlxl = { Qname => $OCS[0]->{R1}->{Qname},
+                 R1_Seq => $OCS[0]->{R1}->{Seq},
+                 R2_Seq => $OCS[0]->{R2}->{Seq} };
+    return [$tlxl];
+  }
+
+
+  foreach my $Qseg (@OCS[0..$#OCS]) {
+    my $tlxl = {};
+
+    if (defined $Qseg->{R1}) {
+      $tlxl->{Qname} = $Qseg->{R1}->{Qname};
+      $tlxl->{OCS_score} = $Qseg->{score};
+      $tlxl->{R1_Qstart} = $Qseg->{R1}->{Qstart};
+      $tlxl->{R1_Qend} = $Qseg->{R1}->{Qend};
+      $tlxl->{R1_Qlen} = $Qseg->{R1}->{aln}->l_qseq;
+      $tlxl->{Rname} = $Qseg->{R1}->{Rname};
+      $tlxl->{Strand} = $Qseg->{R1}->{Strand};
+      $tlxl->{R1_Rstart} = $Qseg->{R1}->{Rstart};
+      $tlxl->{R1_Rend} = $Qseg->{R1}->{Rend};
+      $tlxl->{R1_Rgap} = $Qseg->{R1_Rgap};
+      my $cigar_ref = $Qseg->{R1}->{aln}->cigar_array;
+      $tlxl->{R1_Cigar} = $Qseg->{R1}->{aln}->reversed ? join("",reverse map {join("",@$_)} @$cigar_ref) :
+                                                         join("",map {join("",@$_)} @$cigar_ref);
+      $tlxl->{R1_Seq} = $Qseg->{R1}->{aln}->reversed ? reverseComplement($Qseg->{R1}->{aln}->qseq) : $Qseg->{R1}->{aln}->qseq;
+      $tlxl->{R1_aln} = $Qseg->{R1}->{aln};
+    }
+
+    if (defined $Qseg->{R2}) {
+
+      unless (defined $Qseg->{R1}) {
+        $tlxl->{Qname} = $Qseg->{R2}->{Qname};
+        $tlxl->{OCS_score} = $Qseg->{score};
+        $tlxl->{Rname} = $Qseg->{R2}->{Rname};
+        $tlxl->{Strand} = $Qseg->{R2}->{Strand};        
+      }
+      $tlxl->{R2_Qstart} = $Qseg->{R2}->{Qstart};
+      $tlxl->{R2_Qend} = $Qseg->{R2}->{Qend};
+      $tlxl->{R2_Qlen} = $Qseg->{R2}->{aln}->l_qseq;
+      $tlxl->{R2_Rstart} = $Qseg->{R2}->{Rstart};
+      $tlxl->{R2_Rend} = $Qseg->{R2}->{Rend};
+      $tlxl->{R2_Rgap} = $Qseg->{R2_Rgap};
+      my $cigar_ref = $Qseg->{R2}->{aln}->cigar_array;
+      $tlxl->{R2_Cigar} = $Qseg->{R2}->{aln}->reversed ? join("",map {join("",@$_)} @$cigar_ref) :
+                                                         join("",reverse map {join("",@$_)} @$cigar_ref);
+      $tlxl->{R2_Seq} = $Qseg->{R2}->{aln}->reversed ? $Qseg->{R2}->{aln}->qseq : reverseComplement($Qseg->{R2}->{aln}->qseq);
+      $tlxl->{R2_aln} = $Qseg->{R2}->{aln};
+    }
+
+    push(@tlxls,$tlxl);
+
+  }
+
+  return \@tlxls;
+
+}
+
+sub create_tlx_entries ($$) {
+
+  my $tlxls = shift;
+  my $refs = shift;
+  my $mar = 2;
+
+  unless (defined $tlxls->[0]->{R1_aln}) {
+    my $tlx = {};
+    $tlx->{Qname} = $tlxls->[0]->{Qname};
+    $tlx->{Filter} = "Unaligned";
+    $tlxls->[0]->{tlx} = $tlx;
+    return;
+  }
+
+  my @Qseq = ();
+  my @R1_map = ();
+  my @R2_map = ();
+
+  my $R1_Qpos = 0;
+  my $R2_Qpos = 0;
+
+  my @R1_Qseq = split("",$tlxls->[0]->{R1_Seq});
+  my $R2_idx = firstidx {defined $_->{R2_Seq}} @$tlxls;
+  my @R2_Qseq = split("",$tlxls->[$R2_idx]->{R2_Seq}) if $R2_idx >= 0;
+
+  foreach my $i (0..$#{$tlxls}) {
+
+    my $tlxl = $tlxls->[$i];
+
+    # print "\nsegment $i\n";
+
+    if ((defined $tlxls->[$i+1] && defined $tlxls->[$i+1]->{R1_aln}) || ! defined $tlxl->{R2_aln}) {
+      # print "R1 only\n";
+      if ($R1_Qpos < $tlxl->{R1_Qend}) {
+        my $old_Qpos = scalar @Qseq;
+        push(@Qseq,@R1_Qseq[$R1_Qpos..($tlxl->{R1_Qend}-1)]);
+        my $new_Qpos = scalar @Qseq;
+        @R1_map[$R1_Qpos..($tlxl->{R1_Qend}-1)] = (($old_Qpos+1)..$new_Qpos);
+        $R1_Qpos = $tlxl->{R1_Qend};
+      }
+
+    } else {
+      # print "merging R1 and R2\n";
+    
+      my $Rname = $tlxl->{Rname};
+      my $Strand = $tlxl->{Strand};
+
+      my @R1_Qual = @{$tlxl->{R1_aln}->qscore};
+      @R1_Qual = reverse @R1_Qual unless $Strand == 1;
+      my @R2_Qual = @{$tlxl->{R2_aln}->qscore};
+      @R2_Qual = reverse @R2_Qual if $Strand == 1;
+      my @R1_cigar = ();
+      foreach my $i (@{$tlxl->{R1_aln}->cigar_array}) {
+        next if $i->[0] eq "S";
+        push(@R1_cigar,split("",($i->[0] x $i->[1])));
+      }
+      @R1_cigar = reverse @R1_cigar unless $Strand == 1;
+      my @R2_cigar = ();
+      foreach my $i (@{$tlxl->{R2_aln}->cigar_array}) {
+        next if $i->[0] eq "S";
+        push(@R2_cigar,split("",($i->[0] x $i->[1])));
+      }
+      @R2_cigar = reverse @R2_cigar unless $Strand == 1;
+
+      my $R1_Rstart = $tlxl->{R1_Rstart};
+      my $R1_Rend = $tlxl->{R1_Rend};
+      my $R2_Rstart = $tlxl->{R2_Rstart};
+      my $R2_Rend = $tlxl->{R2_Rend};
+
+      my $Rstart = $tlxl->{Strand} == 1 ? $tlxl->{R1_Rstart} : $tlxl->{R2_Rstart};
+      my $Rend = $tlxl->{Strand} == 1 ? $tlxl->{R2_Rend} : $tlxl->{R1_Rend};
+      my $ref;
+      switch ($Rname) {
+        case "Breaksite" { $ref = $refs->{brk}; }
+        case "Adapter" { $ref = $refs->{adpt}; }
+        else { $ref = $refs->{genome}; }
+      }
+
+      # Retrieve referense sequence, reverse complement if necessary
+      my $Rseq = $ref->seq($Rname,$Rstart,$Rend);
+      my @Rseq = $Strand == 1 ? split("",$Rseq) : split("",reverseComplement($Rseq));
+
+      # Artifically adjust Rstarts and Rends so that we can move incrementally up on both Qpos and Rpos
+      ($R1_Rstart,$R1_Rend) = $Strand == 1 ? ($R1_Rstart,$R1_Rend) : (-$R1_Rend,-$R1_Rstart);
+      ($R2_Rstart,$R2_Rend) = $Strand == 1 ? ($R2_Rstart,$R2_Rend) : (-$R2_Rend,-$R2_Rstart);
+
+      # print "R1: $R1_Rstart-$R1_Rend\n";
+      # print join(" ",@R1_cigar)."\n";
+      # print "R2: $R2_Rstart-$R2_Rend\n";
+      # print join(" ",@R2_cigar)."\n";
+
+      $R2_Qpos = $tlxl->{R2_Qstart} - 1;
+      my $Rpos = $R1_Rstart;
+
+      # Push forward on R1 if behind start of alignment (gap between this and last alignment)
+      if ($R1_Qpos < $tlxl->{R1_Qstart} - 1) {
+        my $old_Qpos = scalar @Qseq;
+        push(@Qseq,@R1_Qseq[$R1_Qpos..($tlxl->{R1_Qstart}-2)]);
+        my $new_Qpos = scalar @Qseq;
+        @R1_map[$R1_Qpos..($tlxl->{R1_Qstart}-2)] = (($old_Qpos+1)..$new_Qpos);
+        $R1_Qpos = $tlxl->{R1_Qstart} - 1;
+      }
+
+      # Push forward on R1 alignment if start is behind current R1_Qpos (overlap between this and last alignment)
+      if ($tlxl->{R1_Qstart} - 1 < $R1_Qpos) {
+        my $pos1_tmp = $tlxl->{R1_Qstart} - 1;
+        while ($pos1_tmp < $R1_Qpos) {
+          my $c1 = shift @R1_cigar;
+          switch ($c1) {
+            case "M" { $pos1_tmp++; $Rpos++; }
+            case "D" { $Rpos++; }
+            case "I" { $pos1_tmp++; }
+            else { $pos1_tmp++; $Rpos++; }
+          }
+        }
+      }
+
+      # Push forward on R2 if Rstart is behind current Rpos
+      if ($R2_Rstart < $Rpos) {
+        my $Rpos_tmp = $R2_Rstart;
+        while ($Rpos_tmp < $Rpos) {
+          my $c2 = shift @R2_cigar;
+          switch ($c2) {
+            case "M" { $R2_Qpos++; $Rpos_tmp++; }
+            case "D" { $Rpos_tmp++; }
+            case "I" { $R2_Qpos++; }
+            else { $R2_Qpos++; $Rpos_tmp++; }
+          }
+        }
+      }
+
+      # Add R1 alignment up to the start of R2 alignment
+      while ($Rpos <= $R1_Rend && $Rpos < $R2_Rstart) {
+        my $c1 = shift @R1_cigar;
+        switch ($c1) {
+          case "M" { 
+            push(@Qseq,$R1_Qseq[$R1_Qpos]);
+            $R1_map[$R1_Qpos] = scalar @Qseq;
+            $R1_Qpos++;
+            $Rpos++; }
+          case "D" { $Rpos++; }
+          case "I" {
+            push(@Qseq,$R1_Qseq[$R1_Qpos]);
+            $R1_map[$R1_Qpos] = scalar @Qseq;
+            $R1_Qpos++; }
+        }
+      }
+
+      # Fill in gap between alignment if exists
+      while ($Rpos > $R1_Rend && $Rpos <= $R2_Rstart) {
+        push(@Qseq,lc($Rseq[$Rpos - $R1_Rstart]));
+        $Rpos++;
+      }
+
+      # Negotiate the R1 and R2 alignments
+      while ($Rpos <= $R1_Rend && $Rpos >= $R2_Rstart && $Rpos <= $R2_Rend) {
+        my $c1 = shift @R1_cigar;
+        my $c2 = shift @R2_cigar;
+        my $q1 = $R1_Qseq[$R1_Qpos];
+        my $q2 = $R2_Qseq[$R2_Qpos];
+        my $r = $Rseq[$Rpos - $R1_Rstart];
+        # print "R1: $R1_Qpos $c1 / R2: $R2_Qpos $c2\n";
+
+        switch ($c1) {
+          case "M" {
+            switch ($c2) {
+              case "M" {
+                if ($q1 eq $r || $q2 eq $r) {
+                  push(@Qseq,$r);
+                } elsif ($q1 eq $q2) {
+                  push(@Qseq,$q1);
+                } elsif (nearby_quals(\@R1_Qual,$R1_Qpos,$mar) >= nearby_quals(\@R2_Qual,$R2_Qpos,$mar)) {
+                  push(@Qseq,$q1);
+                } else {
+                  push(@Qseq,$q2);
+                }
+                $R1_map[$R1_Qpos] = scalar @Qseq;
+                $R2_map[$R2_Qpos] = scalar @Qseq;
+                $R1_Qpos++;
+                $R2_Qpos++;
+                $Rpos++;
+              }
+              case "D" {
+                if ($q1 eq $r || nearby_quals(\@R1_Qual,$R1_Qpos,$mar) >= nearby_quals(\@R2_Qual,$R2_Qpos,$mar)) {
+                  push(@Qseq,$q1);
+                }
+                $R1_map[$R1_Qpos] = scalar @Qseq;
+                $R1_Qpos++;
+                $Rpos++;
+              }
+              case "I" {
+                if ($q1 ne $r && nearby_quals(\@R1_Qual,$R1_Qpos,$mar) < nearby_quals(\@R2_Qual,$R2_Qpos,$mar)) {
+                  push(@Qseq,$q2);
+                }
+                $R2_map[$R2_Qpos] = scalar @Qseq;
+                $R2_Qpos++;
+                unshift(@R1_cigar,$c1);
+              }
+            }
+          }
+          case "I" {
+            switch ($c2) {
+              case "M" {
+                if ($q2 ne $r && nearby_quals(\@R1_Qual,$R1_Qpos,$mar) >= nearby_quals(\@R2_Qual,$R2_Qpos,$mar)) {
+                  push(@Qseq,$q1);
+                }
+                $R1_map[$R1_Qpos] = scalar @Qseq;
+                $R1_Qpos++;
+                unshift(@R2_cigar,$c2);
+              }
+              case "D" {
+                if (nearby_quals(\@R1_Qual,$R1_Qpos,$mar) >= nearby_quals(\@R2_Qual,$R2_Qpos,$mar)) {
+                  push(@Qseq,$q1);
+                }
+                $R1_map[$R1_Qpos] = scalar @Qseq;
+                $R1_Qpos++;
+                unshift(@R2_cigar,$c2);
+              }
+              case "I" {
+                if ($q1 eq $q2 || nearby_quals(\@R1_Qual,$R1_Qpos,$mar) >= nearby_quals(\@R2_Qual,$R2_Qpos,$mar)) {
+                  push(@Qseq,$q1);
+                } else {
+                  push(@Qseq,$q2);
+                }
+                $R1_map[$R1_Qpos] = scalar @Qseq;
+                $R2_map[$R2_Qpos] = scalar @Qseq;
+                $R1_Qpos++;
+                $R2_Qpos++;
+              }
+            }
+          }
+          case "D" {
+            switch ($c2) {
+              case "M" {
+                if ($q2 eq $r || nearby_quals(\@R1_Qual,$R1_Qpos,$mar) < nearby_quals(\@R2_Qual,$R2_Qpos,$mar)) {
+                  push(@Qseq,$q2);
+                }
+                $R2_map[$R2_Qpos] = scalar @Qseq;
+                $R2_Qpos++;
+                $Rpos++;
+              }
+              case "D" {
+                $Rpos++;
+              }
+              case "I" {
+                if (nearby_quals(\@R1_Qual,$R1_Qpos,$mar) < nearby_quals(\@R2_Qual,$R2_Qpos,$mar)) {
+                  push(@Qseq,$q2);
+                }
+                $R2_map[$R2_Qpos] = scalar @Qseq;
+                $R2_Qpos++;
+                unshift(@R1_cigar,$c1);
+              }
+            }
+          }
+        }
+      }
+
+      # Extend to end of R2 alignment
+      while ($Rpos >= $R2_Rstart && $Rpos <= $R2_Rend ) {
+        my $c2 = shift @R2_cigar;
+        switch ($c2) {
+          case "M" { 
+            push(@Qseq,$R2_Qseq[$R2_Qpos]);
+            $R2_map[$R2_Qpos] = scalar @Qseq;
+            $R2_Qpos++;
+            $Rpos++; }
+          case "D" { $Rpos++; }
+          case "I" {
+            push(@Qseq,$R2_Qseq[$R2_Qpos]);
+            $R2_map[$R2_Qpos] = scalar @Qseq;
+            $R2_Qpos++; }
+        }
+      }
+
+      # Add rest of R2
+      if ($R2_Qpos < scalar @R2_Qseq) {
+        my $old_Qpos = scalar @Qseq;
+        push(@Qseq,@R2_Qseq[$R2_Qpos..$#R2_Qseq]);
+        my $new_Qpos = scalar @Qseq;
+        @R2_map[$R2_Qpos..$#R2_Qseq] = (($old_Qpos+1)..$new_Qpos);
+        $R2_Qpos = scalar @R2_Qseq;
+      }
+
+      last;
+
+    }
+  }
+
+  my $Qseq = join("",@Qseq);
+  my $Qlen = length($Qseq) if defined $tlxls->[$#{$tlxls}]->{R2_aln} || $tlxls->[$#{$tlxls}]->{Rname} eq "Adapter";
+
+
+  TLXL: foreach my $i (0..$#{$tlxls}) {
+
+    my $B_tlxl;
+    my $tlxl;
+
+    my $tlx = {};
+
+    switch ($#{$tlxls}) {
+      case 0 {
+        $B_tlxl = $tlxls->[0];
+        $B_tlxl->{tlx} = $tlx;
+      }
+      case 1 {
+        next TLXL if $i == 0;
+        $B_tlxl = $tlxls->[0];
+        $tlxl = $tlxls->[1];
+        next TLXL if ( (defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} < 2) || 
+          (defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} < 2) );
+        $tlxl->{tlx} = $tlx;
+      }
+      else {
+        next TLXL if $i == 0;
+        $B_tlxl = $tlxls->[$i-1];
+        $tlxl = $tlxls->[$i];
+        last TLXL if $tlxl->{Rname} eq "Adapter";
+        next TLXL if defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} < 2;
+        next TLXL if defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} < 2;
+        $tlxl->{tlx} = $tlx;
+      }
+    }
+
+    $tlx->{Qname} = $B_tlxl->{Qname};
+    $tlx->{Seq} = $Qseq;
+    $tlx->{Qlen} = $Qlen;
+
+    $tlx->{B_Rname} = $B_tlxl->{Rname};
+    $tlx->{B_Strand} = $B_tlxl->{Strand};
+
+    my $B_R1_Qstart;
+    my $B_R2_Qstart;
+    if (defined $B_tlxl->{R1_Qstart} && defined $R1_map[$B_tlxl->{R1_Qstart}-1]) {
+      $B_R1_Qstart = $R1_map[$B_tlxl->{R1_Qstart}-1];
+    }
+    if (defined $B_tlxl->{R2_Qstart} && defined $R2_map[$B_tlxl->{R2_Qstart}-1]) {
+      $B_R2_Qstart = $R2_map[$B_tlxl->{R2_Qstart}-1];
+    }
+    if (defined $B_R1_Qstart && defined $B_R2_Qstart) {
+      if ($B_R1_Qstart <= $B_R2_Qstart) {
+        $B_R2_Qstart = undef;
+      } else {
+        $B_R1_Qstart = undef;
+      }
+    }
+    if (defined $B_R1_Qstart) {
+      $tlx->{B_Qstart} = $R1_map[$B_tlxl->{R1_Qstart}-1];
+      if ($tlx->{B_Strand} == 1) {
+        $tlx->{B_Rstart} = $B_tlxl->{R1_Rstart};
+      } else {
+        $tlx->{B_Rend} = $B_tlxl->{R1_Rend};
+      }
+    } else {
+      $tlx->{B_Qstart} = $R2_map[$B_tlxl->{R2_Qstart}-1];
+      if ($tlx->{B_Strand} == 1) {
+        $tlx->{B_Rstart} = $B_tlxl->{R2_Rstart};
+      } else {
+        $tlx->{B_Rend} = $B_tlxl->{R2_Rend};
+      }
+    }
+
+    my $B_R1_Qend;
+    my $B_R2_Qend;
+    if (defined $B_tlxl->{R1_Qend} && defined $R1_map[$B_tlxl->{R1_Qend}-1]) {
+      $B_R1_Qend = $R1_map[$B_tlxl->{R1_Qend}-1];
+    }
+    if (defined $B_tlxl->{R2_Qend} && defined $R2_map[$B_tlxl->{R2_Qend}-1]) {
+      $B_R2_Qend = $R2_map[$B_tlxl->{R2_Qend}-1];
+    }
+    if (defined $B_R1_Qend && defined $B_R2_Qend) {
+      if ($B_R1_Qend >= $B_R2_Qend) {
+        $B_R2_Qend = undef;
+      } else {
+        $B_R1_Qend = undef;
+      }
+    }
+    if (defined $B_R1_Qend) {
+      $tlx->{B_Qend} = $R1_map[$B_tlxl->{R1_Qend}-1];
+      if ($tlx->{B_Strand} == 1) {
+        $tlx->{B_Rend} = $B_tlxl->{R1_Rend};
+      } else {
+        $tlx->{B_Rstart} = $B_tlxl->{R1_Rstart};
+      }
+    } else {
+      $tlx->{B_Qend} = $R2_map[$B_tlxl->{R2_Qend}-1];
+      if ($tlx->{B_Strand} == 1) {
+        $tlx->{B_Rend} = $B_tlxl->{R2_Rend};
+      } else {
+        $tlx->{B_Rstart} = $B_tlxl->{R2_Rstart};
+      }
+    }
+
+
+    next TLXL unless defined $tlxl;
+
+    $tlx->{Rname} = $tlxl->{Rname};
+    $tlx->{Strand} = $tlxl->{Strand};
+
+    my $R1_Qstart;
+    my $R2_Qstart;
+    if (defined $tlxl->{R1_Qstart} && defined $R1_map[$tlxl->{R1_Qstart}-1]) {
+      $R1_Qstart = $R1_map[$tlxl->{R1_Qstart}-1];
+    }
+    if (defined $tlxl->{R2_Qstart} && defined $R2_map[$tlxl->{R2_Qstart}-1]) {
+      $R2_Qstart = $R2_map[$tlxl->{R2_Qstart}-1];
+    }
+    if (defined $R1_Qstart && defined $R2_Qstart) {
+      if ($R1_Qstart <= $R2_Qstart) {
+        $R2_Qstart = undef;
+      } else {
+        $R1_Qstart = undef;
+      }
+    }
+    if (defined $R1_Qstart) {
+      $tlx->{Qstart} = $R1_map[$tlxl->{R1_Qstart}-1];
+      if ($tlx->{Strand} == 1) {
+        $tlx->{Rstart} = $tlxl->{R1_Rstart};
+      } else {
+        $tlx->{Rend} = $tlxl->{R1_Rend};
+      }
+    } else {
+      $tlx->{Qstart} = $R2_map[$tlxl->{R2_Qstart}-1];
+      if ($tlx->{Strand} == 1) {
+        $tlx->{Rstart} = $tlxl->{R2_Rstart};
+      } else {
+        $tlx->{Rend} = $tlxl->{R2_Rend};
+      }
+    }
+
+    my $R1_Qend;
+    my $R2_Qend;
+    if (defined $tlxl->{R1_Qend} && defined $R1_map[$tlxl->{R1_Qend}-1]) {
+      $R1_Qend = $R1_map[$tlxl->{R1_Qend}-1];
+    }
+    if (defined $tlxl->{R2_Qend} && defined $R2_map[$tlxl->{R2_Qend}-1]) {
+      $R2_Qend = $R2_map[$tlxl->{R2_Qend}-1];
+    }
+    if (defined $R1_Qend && defined $R2_Qend) {
+      if ($R1_Qend >= $R2_Qend) {
+        $R2_Qend = undef;
+      } else {
+        $R1_Qend = undef;
+      }
+    }
+    if (defined $R1_Qend) {
+      $tlx->{Qend} = $R1_map[$tlxl->{R1_Qend}-1];
+      if ($tlx->{Strand} == 1) {
+        $tlx->{Rend} = $tlxl->{R1_Rend};
+      } else {
+        $tlx->{Rstart} = $tlxl->{R1_Rstart};
+      }
+    } else {
+      $tlx->{Qend} = $R2_map[$tlxl->{R2_Qend}-1];
+      if ($tlx->{Strand} == 1) {
+        $tlx->{Rend} = $tlxl->{R2_Rend};
+      } else {
+        $tlx->{Rstart} = $tlxl->{R2_Rstart};
+      }
+    }
+
+    $tlx->{Junction} = $tlx->{Strand} == 1 ? $tlx->{Rstart} : $tlx->{Rend};
+    my $ref;
+    switch ($tlx->{Rname}) {
+      case "Breaksite" { $ref = $refs->{brk}; }
+      case "Adapter" { $ref = $refs->{adpt}; }
+      else { $ref = $refs->{genome}; }
+    }
+    $tlx->{JuncSeq} = $tlx->{Strand} == 1 ? $ref->seq($tlx->{Rname},$tlx->{Rstart}-10,$tlx->{Rstart}+9) :
+                                            $ref->seq($tlx->{Rname},$tlx->{Rend}-9,$tlx->{Rend}+10);
+
+
+
+  }
+
+}
+
+
+sub nearby_quals ($$$) {
+  my $qual_ref = shift;
+  my $pos = shift;
+  my $mar = shift;
+
+  return mean(@$qual_ref[max(0,$pos-$mar)..min($pos+$mar,$#{$qual_ref})]);
+}
+
+
 
 
 1;

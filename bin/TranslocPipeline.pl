@@ -45,6 +45,7 @@ my $seqdir;
 my $outdir;
 my $pipeline_threads = 2;
 my $expt_threads = 4;
+my $use_current_tlx;
 
 my $bsub;
 my $user_bsub_opt = "";
@@ -68,6 +69,8 @@ my $t0 = [gettimeofday];
 read_in_meta_file;
 
 check_existance_of_files;
+
+prepare_reference_genomes (\%meta);
 
 if (defined $bsub) {
   foreach my $expt_id (sort keys %meta) {
@@ -137,10 +140,12 @@ sub process_experiment ($) {
 
 	prepare_working_directory($expt_id);
 
-  #prepare_reference_genomes
+  my $assembly = $expt_hash->{mask} =~ /\S/ ? $expt_hash->{mask_assembly} : $expt_hash->{assembly};
 
   my $tl_cmd = join(" ","TranslocAlign.pl --read1",$expt_hash->{R1},"--read2",$expt_hash->{R2},"--workdir",$expt_hash->{exptdir},
-                    "--assembly",$expt_hash->{assembly},"--threads $expt_threads --bt2opt \"$user_bowtie_opt\" --bt2brkopt \"$user_bowtie_breaksite_opt\"");
+                    "--assembly",$assembly,"--chr",$expt_hash->{chr},"--start",$expt_hash->{start},"--end",$expt_hash->{end},"--strand",$expt_hash->{strand},"--threads $expt_threads --bt2opt \"$user_bowtie_opt\" --bt2brkopt \"$user_bowtie_breaksite_opt\"");
+
+  $tl_cmd .= " --usecurrtlx" if defined $use_current_tlx;
 
   my $bsubopt = manage_program_options($default_bsub_opt,$user_bsub_opt);
 
@@ -165,16 +170,16 @@ sub read_in_meta_file {
 	my $metafh = IO::File->new("<$meta_file");
 	my $csv = Text::CSV->new({sep_char => "\t"});
 	my $header = $csv->getline($metafh);
-	$csv->column_names(@$header);
+	$csv->column_names( map { lc } @$header );
 
 	while (my $expt = $csv->getline_hr($metafh)) {
 
-		my $expt_id = $expt->{expt};
+		my $expt_id = $expt->{experiment};
 		$meta{$expt_id} = $expt;
 		$meta{$expt_id}->{exptdir} = "$outdir/$expt_id";
 
 	}
-	print join("\t",qw(Expt Researcher Chr Start End Strand))."\n";
+	print join("\t",qw(Experiment Researcher Chr Start End Strand))."\n";
 	foreach my $expt (sort keys %meta) {
     print join("\t",$expt,$meta{$expt}->{researcher},
                           $meta{$expt}->{chr},
@@ -195,24 +200,36 @@ sub prepare_working_directory ($) {
   unless (-d $miscdir) {
     mkdir $miscdir or croak "Error: could not create misc directory for $expt_id";
   } 
-  $expt_hash->{breaksitefa} = "$miscdir/breaksite.fa";
-  $expt_hash->{fprimfa} = "$miscdir/forward_primer.fa";
-  $expt_hash->{rprimfa} = "$miscdir/reverse_primer.fa";
+  $expt_hash->{breakfa} = "$miscdir/breaksite.fa";
+  $expt_hash->{primfa} = "$miscdir/primer.fa";
+  $expt_hash->{adaptfa} = "$miscdir/adapter.fa";
+  $expt_hash->{midfa} = "$miscdir/mid.fa";
+  $expt_hash->{cutfa} = "$miscdir/cutter.fa";
 
-  my $brkfh = IO::File->new(">".$expt_hash->{breaksitefa}) or croak "Error: could not write to breaksite fasta file";
-  $brkfh->print(">$expt_id Breaksite\n");
-  $brkfh->print(uc($expt_hash->{breaksite}));
+  my $brkfh = IO::File->new(">".$expt_hash->{breakfa}) or croak "Error: could not write to breaksite fasta file";
+  $brkfh->print(">Breaksite\n");
+  $brkfh->print(uc($expt_hash->{breaksite})."\n");
   $brkfh->close;
 
-  my $fprimfh = IO::File->new(">".$expt_hash->{fprimfa}) or croak "Error: could not write to forward primer fasta file";
-  $fprimfh->print(">$expt_id Forward Primer\n");
-  $fprimfh->print(uc($expt_hash->{mid}.$expt_hash->{fprim}));
+  my $fprimfh = IO::File->new(">".$expt_hash->{primfa}) or croak "Error: could not write to forward primer fasta file";
+  $fprimfh->print(">Primer\n");
+  $fprimfh->print(uc($expt_hash->{primer})."\n");
   $fprimfh->close;
 
-  my $rprimfh = IO::File->new(">".$expt_hash->{rprimfa}) or croak "Error: could not write to reverse primer fasta file";
-  $rprimfh->print(">$expt_id Reverse Primer\n");
-  $rprimfh->print(uc($expt_hash->{rprim}));
+  my $rprimfh = IO::File->new(">".$expt_hash->{adaptfa}) or croak "Error: could not write to reverse primer fasta file";
+  $rprimfh->print(">Adapter\n");
+  $rprimfh->print(uc($expt_hash->{adapter})."\n");
   $rprimfh->close;
+
+  my $midfh = IO::File->new(">".$expt_hash->{midfa}) or croak "Error: could not write to mid fasta file";
+  $midfh->print(">MID\n");
+  $midfh->print(uc($expt_hash->{mid})."\n");
+  $midfh->close;
+
+  my $cutfh = IO::File->new(">".$expt_hash->{cutfa}) or croak "Error: could not write to frequent cutter fasta file";
+  $cutfh->print(">Cutter\n");
+  $cutfh->print(uc($expt_hash->{cutter})."\n");
+  $cutfh->close;
 
 
 }
@@ -237,8 +254,9 @@ sub parse_command_line {
 	usage() if (scalar @ARGV == 0);
 
 	my $result = GetOptions ( 
-														"threads=i" => \$pipeline_threads ,
-														"bowtie2opt=s" => \$user_bowtie_opt ,
+														"threads=i" => \$pipeline_threads,
+                            "usecurrtlx" => \$use_current_tlx,
+														"bowtie2opt=s" => \$user_bowtie_opt,
 														"help" => \$help
 
 				            			);
