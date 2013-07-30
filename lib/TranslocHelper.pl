@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Switch;
-use Data::Dumper;
+use Time::HiRes qw(time);
 use Bio::SeqIO;
 use Bio::AlignIO;
 use Bio::Factory::EMBOSS;
@@ -202,25 +202,53 @@ sub find_genomic_distance ($$$) {
 
 sub wrap_alignment ($$) {
 
-  my $aln = shift;
   my $pe = shift;
-  my $wrapper = { aln => $aln,
-                  Qname => $aln->qname,
+
+  my $aln = shift;
+
+  return undef unless defined $aln;
+  croak "Error: first argument to wrap_alignment must be either \"R1\" or \"R2\"" unless ($pe eq "R1" || $pe eq "R2");
+
+  if ($aln->unmapped) {
+    my $wrapper = { Qname => $aln->qname,
+                    Unmapped => 1 };
+    $wrapper->{Seq} = $pe eq "R1" ? $aln->query->dna : reverseComplement($aln->query->dna);
+    $wrapper->{Qual} = $pe eq "R1" ? $aln->query->qscore : [reverse @{$aln->query->qscore}];
+    return $wrapper;
+  }
+
+  my $wrapper = { Qname => $aln->qname,
                   Rname => $aln->seq_id,
                   Rstart => $aln->start,
                   Rend => $aln->end,
-                  test => 1 };
+                  AS => $aln->aux =~ /AS:i:(\d+)/ ? $1 : 0,
+                  Unmapped => 0 };
 
   if ($pe eq "R1") {
     $wrapper->{Strand} = $aln->strand;
-  } elsif ($pe eq "R2") {
-    $wrapper->{Strand} = -1 * $aln->strand;
   } else {
-    croak "Error: second argument to wrap_alignment must be either \"R1\" or \"R2\"";
+    $wrapper->{Strand} = -1 * $aln->strand;
   }
 
-  $wrapper->{Qstart} = $wrapper->{Strand} == 1 ? $aln->query->start : $aln->l_qseq - $aln->query->end + 1;
-  $wrapper->{Qend} = $wrapper->{Strand} == 1 ? $aln->query->end : $aln->l_qseq - $aln->query->start + 1;
+
+  if ($wrapper->{Strand} == 1) {
+    $wrapper->{Seq} = $aln->query->dna;
+    $wrapper->{Qual} = $aln->query->qscore;
+    $wrapper->{Qstart} = $aln->query->start;
+    $wrapper->{Qend} = $aln->query->end;
+    $wrapper->{CigarA} = $aln->cigar_array;
+  } else {
+    $wrapper->{Seq} = reverseComplement($aln->query->dna);
+    $wrapper->{Qual} = [reverse @{$aln->query->qscore}];
+    $wrapper->{Qstart} = $aln->l_qseq - $aln->query->end + 1;
+    $wrapper->{Qend} = $aln->l_qseq - $aln->query->start + 1;
+    $wrapper->{CigarA} = [reverse @{$aln->cigar_array} ];
+  }
+
+  $wrapper->{Cigar} = join("",map {join("",@$_)} @{$wrapper->{CigarA}});
+  $wrapper->{Qlen} = length($wrapper->{Seq});
+  $wrapper->{ID} = Time::HiRes::time();
+
 
   return $wrapper;
 
@@ -259,10 +287,11 @@ sub create_tlxl_entries ($) {
   my @tlxls = ();
 
 
-  unless ( defined $OCS[0]->{R1}->{aln} ) {
+  if ( $OCS[0]->{R1}->{Unmapped} ) {
     my $tlxl = { Qname => $OCS[0]->{R1}->{Qname},
                  R1_Seq => $OCS[0]->{R1}->{Seq},
-                 R2_Seq => $OCS[0]->{R2}->{Seq} };
+                 R2_Seq => $OCS[0]->{R2}->{Seq},
+                 Unmapped => 1 };
     return [$tlxl];
   }
 
@@ -275,17 +304,18 @@ sub create_tlxl_entries ($) {
       $tlxl->{OCS_score} = $Qseg->{score};
       $tlxl->{R1_Qstart} = $Qseg->{R1}->{Qstart};
       $tlxl->{R1_Qend} = $Qseg->{R1}->{Qend};
-      $tlxl->{R1_Qlen} = $Qseg->{R1}->{aln}->l_qseq;
+      $tlxl->{R1_Qlen} = $Qseg->{R1}->{Qlen};
       $tlxl->{Rname} = $Qseg->{R1}->{Rname};
       $tlxl->{Strand} = $Qseg->{R1}->{Strand};
       $tlxl->{R1_Rstart} = $Qseg->{R1}->{Rstart};
       $tlxl->{R1_Rend} = $Qseg->{R1}->{Rend};
       $tlxl->{R1_Rgap} = $Qseg->{R1_Rgap};
-      my $cigar_ref = $Qseg->{R1}->{aln}->cigar_array;
-      $tlxl->{R1_Cigar} = $Qseg->{R1}->{aln}->reversed ? join("",reverse map {join("",@$_)} @$cigar_ref) :
-                                                         join("",map {join("",@$_)} @$cigar_ref);
-      $tlxl->{R1_Seq} = $Qseg->{R1}->{aln}->reversed ? reverseComplement($Qseg->{R1}->{aln}->qseq) : $Qseg->{R1}->{aln}->qseq;
-      $tlxl->{R1_aln} = $Qseg->{R1}->{aln};
+      $tlxl->{R1_Cigar} = $Qseg->{R1}->{Cigar};
+      $tlxl->{R1_CigarA} = $Qseg->{R1}->{CigarA};
+      $tlxl->{R1_Seq} = $Qseg->{R1}->{Seq};
+      $tlxl->{R1_Qual} = $Qseg->{R1}->{Qual};
+      $tlxl->{R1_ID} = $Qseg->{R1}->{ID};
+      $tlxl->{R1_AS} = $Qseg->{R1}->{AS};
     }
 
     if (defined $Qseg->{R2}) {
@@ -298,15 +328,17 @@ sub create_tlxl_entries ($) {
       }
       $tlxl->{R2_Qstart} = $Qseg->{R2}->{Qstart};
       $tlxl->{R2_Qend} = $Qseg->{R2}->{Qend};
-      $tlxl->{R2_Qlen} = $Qseg->{R2}->{aln}->l_qseq;
+      $tlxl->{R2_Qlen} = $Qseg->{R2}->{Qlen};
       $tlxl->{R2_Rstart} = $Qseg->{R2}->{Rstart};
       $tlxl->{R2_Rend} = $Qseg->{R2}->{Rend};
       $tlxl->{R2_Rgap} = $Qseg->{R2_Rgap};
-      my $cigar_ref = $Qseg->{R2}->{aln}->cigar_array;
-      $tlxl->{R2_Cigar} = $Qseg->{R2}->{aln}->reversed ? join("",map {join("",@$_)} @$cigar_ref) :
-                                                         join("",reverse map {join("",@$_)} @$cigar_ref);
-      $tlxl->{R2_Seq} = $Qseg->{R2}->{aln}->reversed ? $Qseg->{R2}->{aln}->qseq : reverseComplement($Qseg->{R2}->{aln}->qseq);
-      $tlxl->{R2_aln} = $Qseg->{R2}->{aln};
+      $tlxl->{R2_Cigar} = $Qseg->{R2}->{Cigar};
+      $tlxl->{R2_CigarA} = $Qseg->{R2}->{CigarA};
+      $tlxl->{R2_Seq} = $Qseg->{R2}->{Seq};
+      $tlxl->{R2_Qual} = $Qseg->{R2}->{Qual};
+      $tlxl->{R2_ID} = $Qseg->{R2}->{ID};
+      $tlxl->{R2_AS} = $Qseg->{R2}->{AS};
+
     }
 
     push(@tlxls,$tlxl);
@@ -323,7 +355,7 @@ sub create_tlx_entries ($$) {
   my $refs = shift;
   my $mar = 2;
 
-  unless (defined $tlxls->[0]->{R1_aln}) {
+  if ($tlxls->[0]->{Unmapped}) {
     my $tlx = {};
     $tlx->{Qname} = $tlxls->[0]->{Qname};
     $tlx->{Filter} = "Unaligned";
@@ -348,7 +380,7 @@ sub create_tlx_entries ($$) {
 
     # print "\nsegment $i\n";
 
-    if ((defined $tlxls->[$i+1] && defined $tlxls->[$i+1]->{R1_aln}) || ! defined $tlxl->{R2_aln}) {
+    if ((defined $tlxls->[$i+1] && defined $tlxls->[$i+1]->{R1_ID}) || ! defined $tlxl->{R2_ID}) {
       # print "R1 only\n";
       if ($R1_Qpos < $tlxl->{R1_Qend}) {
         my $old_Qpos = scalar @Qseq;
@@ -364,18 +396,18 @@ sub create_tlx_entries ($$) {
       my $Rname = $tlxl->{Rname};
       my $Strand = $tlxl->{Strand};
 
-      my @R1_Qual = @{$tlxl->{R1_aln}->qscore};
+      my @R1_Qual = @{$tlxl->{R1_Qual}};
       @R1_Qual = reverse @R1_Qual unless $Strand == 1;
-      my @R2_Qual = @{$tlxl->{R2_aln}->qscore};
+      my @R2_Qual = @{$tlxl->{R2_Qual}};
       @R2_Qual = reverse @R2_Qual if $Strand == 1;
       my @R1_cigar = ();
-      foreach my $i (@{$tlxl->{R1_aln}->cigar_array}) {
+      foreach my $i (@{$tlxl->{R1_CigarA}}) {
         next if $i->[0] eq "S";
         push(@R1_cigar,split("",($i->[0] x $i->[1])));
       }
       @R1_cigar = reverse @R1_cigar unless $Strand == 1;
       my @R2_cigar = ();
-      foreach my $i (@{$tlxl->{R2_aln}->cigar_array}) {
+      foreach my $i (@{$tlxl->{R2_CigarA}}) {
         next if $i->[0] eq "S";
         push(@R2_cigar,split("",($i->[0] x $i->[1])));
       }
@@ -606,7 +638,7 @@ sub create_tlx_entries ($$) {
   }
 
   my $Qseq = join("",@Qseq);
-  my $Qlen = length($Qseq) if defined $tlxls->[$#{$tlxls}]->{R2_aln} || $tlxls->[$#{$tlxls}]->{Rname} eq "Adapter";
+  my $Qlen = length($Qseq) if defined $tlxls->[$#{$tlxls}]->{R2_ID} || $tlxls->[$#{$tlxls}]->{Rname} eq "Adapter";
 
 
   TLXL: foreach my $i (0..$#{$tlxls}) {

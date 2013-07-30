@@ -362,72 +362,86 @@ sub process_alignments {
   my $R1_iter = $R1_samobj->get_seq_stream();
   my $R2_iter = $R2_samobj->get_seq_stream();
 
-  my $next_R1_brk_aln = $R1_brk_iter->next_seq;
-  my $next_R2_brk_aln = $R2_brk_iter->next_seq;
-  my $next_R1_adpt_aln = $R1_adpt_iter->next_seq;
-  my $next_R2_adpt_aln = $R2_adpt_iter->next_seq;
-  my $next_R1_aln = $R1_iter->next_seq;
-  my $next_R2_aln = $R2_iter->next_seq;
+  my $next_R1_brk_aln = wrap_alignment("R1",$R1_brk_iter->next_seq);
+  my $next_R2_brk_aln = wrap_alignment("R2",$R2_brk_iter->next_seq);
+  my $next_R1_adpt_aln = wrap_alignment("R1",$R1_adpt_iter->next_seq);
+  my $next_R2_adpt_aln = wrap_alignment("R2",$R2_adpt_iter->next_seq);
+  my $next_R1_aln = wrap_alignment("R1",$R1_iter->next_seq);
+  my $next_R2_aln = wrap_alignment("R2",$R2_iter->next_seq);
 
   croak "Error: no R1 alignments to breaksite" unless defined $next_R1_brk_aln;
 
   my @thread_list = ();
 
   while (defined $next_R1_brk_aln) {
-    my $qname = $next_R1_brk_aln->query->name;
+    my $qname = $next_R1_brk_aln->{Qname};
 
     my @R1_alns = ();
     my @R2_alns = ();
 
        
-
-
-    my $brk_unmapped = $next_R1_brk_aln->unmapped ? $next_R1_brk_aln : undef;
-
     push(@R1_alns,$next_R1_brk_aln);
+    undef $next_R1_brk_aln;
 
-    while($next_R1_brk_aln = $R1_brk_iter->next_seq) {
-      last unless $next_R1_brk_aln->query->name eq $qname;
+    while(my $aln = $R1_brk_iter->next_seq) {
+      $next_R1_brk_aln = wrap_alignment("R1",$aln);
+      last unless $next_R1_brk_aln->{Qname} eq $qname;
       push(@R1_alns,$next_R1_brk_aln);
+      undef $next_R1_brk_aln;
     }
 
-    if (defined $next_R2_brk_aln && $next_R2_brk_aln->query->name eq $qname) {
-      push(@R2_alns,$next_R2_brk_aln);
-      while($next_R2_brk_aln = $R2_brk_iter->next_seq) {
-        last unless $next_R2_brk_aln->query->name eq $qname;
-        push(@R2_alns,$next_R2_brk_aln);
+    if (defined $next_R2_brk_aln && $next_R2_brk_aln->{Qname} eq $qname) {
+      push(@R2_alns,$next_R2_brk_aln) unless $next_R2_brk_aln->{Unmapped};
+      undef $next_R2_brk_aln;
+      while(my $aln = $R2_brk_iter->next_seq) {
+        $next_R2_brk_aln = wrap_alignment("R2",$aln);
+        last unless $next_R2_brk_aln->{Qname} eq $qname;
+        push(@R2_alns,$next_R2_brk_aln) unless $next_R2_brk_aln->{Unmapped};
+        undef $next_R2_brk_aln;
       }
     }
 
-    if (defined $next_R1_adpt_aln && $next_R1_adpt_aln->query->name eq $qname) {
-      push(@R1_alns,$next_R1_adpt_aln);
-      while($next_R1_adpt_aln = $R1_adpt_iter->next_seq) {
-        last unless $next_R1_adpt_aln->query->name eq $qname;
-        push(@R1_alns,$next_R1_adpt_aln);
+    if (defined $next_R1_adpt_aln && $next_R1_adpt_aln->{Qname} eq $qname) {
+      push(@R1_alns,$next_R1_adpt_aln) unless $next_R1_adpt_aln->{Unmapped};
+      undef $next_R1_adpt_aln;
+      while(my $aln = $R1_adpt_iter->next_seq) {
+        $next_R1_adpt_aln = wrap_alignment("R1",$aln);
+        last unless $next_R1_adpt_aln->{Qname} eq $qname;
+        push(@R1_alns,$next_R1_adpt_aln) unless $next_R1_adpt_aln->{Unmapped};
+        undef $next_R1_adpt_aln;
       }
     }
 
-    if (defined $next_R2_adpt_aln && $next_R2_adpt_aln->query->name eq $qname) {
-      push(@R2_alns,$next_R2_adpt_aln);
-      while($next_R2_adpt_aln = $R2_adpt_iter->next_seq) {
-        last unless $next_R2_adpt_aln->query->name eq $qname;
-        push(@R2_alns,$next_R2_adpt_aln);
+    if (defined $next_R2_adpt_aln && $next_R2_adpt_aln->{Qname} eq $qname) {
+      push(@R2_alns,$next_R2_adpt_aln) unless $next_R2_adpt_aln->{Unmapped};
+      undef $next_R2_adpt_aln;
+      while(my $aln = $R2_adpt_iter->next_seq) {
+        $next_R2_adpt_aln = wrap_alignment("R2",$aln);
+        last unless $next_R2_adpt_aln->{Qname} eq $qname;
+        push(@R2_alns,$next_R2_adpt_aln) unless $next_R2_adpt_aln->{Unmapped};
+        undef $next_R2_adpt_aln;
       }
     }
 
-    if (defined $next_R1_aln && $next_R1_aln->query->name eq $qname) {
-      push(@R1_alns,$next_R1_aln);
-      while($next_R1_aln = $R1_iter->next_seq) {
-        last unless $next_R1_aln->query->name eq $qname;
-        push(@R1_alns,$next_R1_aln);
+    if (defined $next_R1_aln && $next_R1_aln->{Qname} eq $qname) {
+      push(@R1_alns,$next_R1_aln) unless $next_R1_aln->{Unmapped};
+      undef $next_R1_aln;
+      while(my $aln = $R1_iter->next_seq) {
+        $next_R1_aln = wrap_alignment("R1",$aln);
+        last unless $next_R1_aln->{Qname} eq $qname;
+        push(@R1_alns,$next_R1_aln) unless $next_R1_aln->{Unmapped};
+        undef $next_R1_aln;
       }
     }
 
-    if (defined $next_R2_aln && $next_R2_aln->query->name eq $qname) {
-      push(@R2_alns,$next_R2_aln);
-      while($next_R2_aln = $R2_iter->next_seq) {
-        last unless $next_R2_aln->query->name eq $qname;
-        push(@R2_alns,$next_R2_aln);
+    if (defined $next_R2_aln && $next_R2_aln->{Qname} eq $qname) {
+      push(@R2_alns,$next_R2_aln) unless $next_R2_aln->{Unmapped};
+      undef $next_R2_aln;
+      while(my $aln = $R2_iter->next_seq) {
+        $next_R2_aln = wrap_alignment("R2",$aln);
+        last unless $next_R2_aln->{Qname} eq $qname;
+        push(@R2_alns,$next_R2_aln) unless $next_R2_aln->{Unmapped};
+        undef $next_R2_aln;
       }
     }
 
@@ -447,57 +461,57 @@ sub process_single_read ($$) {
   my $R1_alns = shift;
   my $R2_alns = shift;
 
-  print $R1_alns->[0]->query->name . "\n";
+  # print $R1_alns->[0]->{Qname} . "\n";
   print "find optimal coverage set\n";
 
 
-  my ($OCS_ref,$R1_alns_ref,$R2_alns_ref) = find_optimal_coverage_set($R1_alns,$R2_alns);
+  my $OCS_ref = find_optimal_coverage_set($R1_alns,$R2_alns);
   
-  print "create tlxls\n";
+  # print "create tlxls\n";
   my $tlxls = create_tlxl_entries($OCS_ref);
 
   $stats->{totalreads}++;
 
-  $stats->{aligned}++ if defined $tlxls->[0]->{R1_aln};
+  $stats->{aligned}++ unless $tlxls->[0]->{Unmapped};
    
-  print "create tlxs\n";
+  # print "create tlxs\n";
   create_tlx_entries($tlxls, { genome => $R1_samobj,
                                brk => $R1_brk_samobj,
                                adpt => $R1_adpt_samobj} )  ;
 
-  print "filter unjoined\n";
+  # print "filter unjoined\n";
   my $junctions = filter_unjoined($tlxls);
 
   $stats->{junctions} += $junctions;
   $stats->{junc_reads}++ if $junctions > 0;
 
-  print "filter map quality\n";
-  my $quality_maps = filter_mapping_quality($tlxls,$R1_alns_ref,$R2_alns_ref,
+  # print "filter map quality\n";
+  my $quality_maps = filter_mapping_quality($tlxls,$R1_alns,$R2_alns,
                                       $ol_thresh,$score_thresh,$max_frag_len);
 
   $stats->{mapqual} += $quality_maps;
   $stats->{mapq_reads}++ if $quality_maps > 0;
 
-  print "filter mispriming\n";
+  # print "filter mispriming\n";
   my $correct_priming = filter_mispriming($tlxls,$priming_threshold);
 
   $stats->{priming} += $correct_priming;
   $stats->{prim_reads}++ if $correct_priming > 0;
 
-  print "filter frequent cutter\n";
+  # print "filter frequent cutter\n";
   my $no_freq_cutter = filter_freq_cutter($tlxls,$cutseq->seq);
 
   $stats->{freqcut} += $no_freq_cutter;
   $stats->{freq_reads}++ if $no_freq_cutter > 0;
 
-  print "filter breaksite\n";
+  # print "filter breaksite\n";
   my $outside_breaksite = filter_breaksite($tlxls);
 
   $stats->{breaksite} += $outside_breaksite;
   $stats->{break_reads}++ if $outside_breaksite > 0;
 
 
-  print "filter split juctions\n";
+  # print "filter split juctions\n";
   my $primary_junction = filter_split_junctions($tlxls);
 
   $stats->{splitjuncs} += $primary_junction;
@@ -533,38 +547,30 @@ sub find_optimal_coverage_set ($$) {
   my @graph = ();
   my $OCS_ptr;
 
-  my @unmapped_OCS = ( { R1 => { Qname => $R1_alns_ref->[0]->qname,
-                                 Seq => $R1_alns_ref->[0]->reversed ? reverseComplement($R1_alns_ref->[0]->qseq) : $R1_alns_ref->[0]->qseq },
-                         R2 => { Qname => $R1_alns_ref->[0]->qname,
-                                 Seq => $R2_alns_ref->[0]->reversed ? $R2_alns_ref->[0]->qseq : reverseComplement($R2_alns_ref->[0]->qseq) } } );
+  my @unmapped_OCS = ( { R1 => { Qname => $R1_alns_ref->[0]->{Qname},
+                                 Seq => $R1_alns_ref->[0]->{Seq},
+                                 Qual => $R1_alns_ref->[0]->{Qual},
+                                 Unmapped => 1 },
+                         R2 => { Qname => $R1_alns_ref->[0]->{Qname},
+                                 Seq => $R2_alns_ref->[0]->{Seq},
+                                 Qual => $R2_alns_ref->[0]->{Qual},
+                                 Unmapped => 1 } } );
 
+  return \@unmapped_OCS if $R1_alns_ref->[0]->{Unmapped};
 
-  my @R1_aln_wraps = ();
-  my @R2_aln_wraps = ();
+  my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart}} @$R1_alns_ref;
+  my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart}} @$R2_alns_ref;
 
-  foreach my $R1_aln (@$R1_alns_ref) {
-    next if $R1_aln->unmapped;
-    push(@R1_aln_wraps,wrap_alignment($R1_aln,"R1"));
-  }
-  foreach my $R2_aln (@$R2_alns_ref) {
-    next if $R2_aln->unmapped;
-    push(@R2_aln_wraps,wrap_alignment($R2_aln,"R2"));
-  }
+  
 
-  @R1_aln_wraps = sort {$a->{Qstart} <=> $b->{Qstart}} @R1_aln_wraps;
-  @R2_aln_wraps = sort {$a->{Qstart} <=> $b->{Qstart}} @R2_aln_wraps;
+  foreach my $R1_aln (@R1_alns) {
 
-  return (\@unmapped_OCS,\@R1_aln_wraps,\@R2_aln_wraps) if $R1_alns_ref->[0]->unmapped;
+    # print $R1_aln->{Qname}." ".$R1_aln->{Unmapped}."\n";
+    next if $R1_aln->{Unmapped};
 
+    my $graphsize = scalar @graph;
 
-  foreach my $R1_aln_wrap (@R1_aln_wraps) {
-
-    # print "\nStarting test for R1:\n";
-    # print_aln($R1_aln_wrap);
-
-    my $graphsize = $#graph;
-
-    my $new_node = {R1 => $R1_aln_wrap};
+    my $new_node = {R1 => $R1_aln};
     
     my $init_score = score_edge($new_node);
     $new_node->{score} = $init_score if defined $init_score;
@@ -595,14 +601,16 @@ sub find_optimal_coverage_set ($$) {
       $OCS_ptr = $new_node if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
     }
 
-    foreach my $R2_aln_wrap (@R2_aln_wraps) {
+    foreach my $R2_aln (@R2_alns) {
+
+      next if $R2_aln->{Unmapped};
 
       # print "testing proper-pairedness with R2:\n";
       # print_aln($R2_aln_wrap);
 
-      next unless pair_is_proper($R1_aln_wrap,$R2_aln_wrap,$max_frag_len);
+      next unless pair_is_proper($R1_aln,$R2_aln,$max_frag_len);
 
-      my $new_pe_node = {R1 => $R1_aln_wrap, R2 => $R2_aln_wrap};
+      my $new_pe_node = {R1 => $R1_aln, R2 => $R2_aln};
 
 
       # print "pair is proper\n";
@@ -611,21 +619,23 @@ sub find_optimal_coverage_set ($$) {
       # print "not a possible initial node\n" unless defined $init_score;
       # print "initialized node to $init_score\n" if defined $init_score;
       $nodenum = 1;
-      foreach my $node (@graph[0..$graphsize]) {
-        # print "scoring edge against node $nodenum\n";
+      if ($graphsize > 0) {
+        foreach my $node (@graph[0..($graphsize-1)]) {
+          # print "scoring edge against node $nodenum\n";
 
-        my $edge_score = score_edge($node,$new_pe_node);
-        next unless defined $edge_score;
-        # print "found edge score of $edge_score\n";
+          my $edge_score = score_edge($node,$new_pe_node);
+          next unless defined $edge_score;
+          # print "found edge score of $edge_score\n";
 
-        if (! defined $new_pe_node->{score} || $edge_score > $new_pe_node->{score}) {
-          $new_pe_node->{score} = $edge_score;
-          $new_pe_node->{back_ptr} = $node;
+          if (! defined $new_pe_node->{score} || $edge_score > $new_pe_node->{score}) {
+            $new_pe_node->{score} = $edge_score;
+            $new_pe_node->{back_ptr} = $node;
 
-          # print "setting back pointer to $nodenum\n";
+            # print "setting back pointer to $nodenum\n";
 
+          }
+          $nodenum++;
         }
-        $nodenum++;
       }
       if (defined $new_pe_node->{score}) {
         push(@graph,$new_pe_node);
@@ -636,13 +646,13 @@ sub find_optimal_coverage_set ($$) {
     }
   }
 
-  foreach my $R2_aln_wrap (@R2_aln_wraps) {
+  foreach my $R2_aln (@R2_alns) {
 
     # print "\nStarting test for R2:\n";
     # print_aln($R2_aln_wrap);
+    next if $R2_aln->{Unmapped};
 
-
-    my $new_node = {R2 => $R2_aln_wrap};
+    my $new_node = {R2 => $R2_aln};
 
     my $nodenum = 1;
     foreach my $node (@graph) {
@@ -668,7 +678,7 @@ sub find_optimal_coverage_set ($$) {
 
   }
 
-  return (\@unmapped_OCS,\@R1_aln_wraps,\@R2_aln_wraps) unless defined $OCS_ptr;
+  return \@unmapped_OCS unless defined $OCS_ptr;
 
   my @OCS = ();
 
@@ -682,7 +692,7 @@ sub find_optimal_coverage_set ($$) {
     $OCS_ptr = $OCS_ptr->{back_ptr};
   }
   unshift(@OCS,$OCS_ptr) if defined $OCS_ptr;
-  return (\@OCS,\@R1_aln_wraps,\@R2_aln_wraps);
+  return \@OCS;
 
 }
 
@@ -799,8 +809,8 @@ sub score_edge ($;$) {
     }
 
 
-    my $R1_AS = defined $node2->{R1} && $node2->{R1}->{aln}->aux =~ /AS:i:(\d+)/ ? $1 : 0;
-    my $R2_AS = defined $node2->{R2} && $node2->{R2}->{aln}->aux =~ /AS:i:(\d+)/ ? $1 : 0;
+    my $R1_AS = defined $node2->{R1} && $node2->{R1}->{AS};
+    my $R2_AS = defined $node2->{R2} && $node2->{R2}->{AS};
     my $PEgap;
     my $PEgap_pen;
 
@@ -821,8 +831,8 @@ sub score_edge ($;$) {
 
     my $brk_start_gap = $node1->{R1}->{Rstart} - $primer_start;
 
-    my $R1_AS = $node1->{R1}->{aln}->aux =~ /AS:i:(\d+)/ ? $1 : 0;
-    my $R2_AS = defined $node1->{R2} && $node1->{R2}->{aln}->aux =~ /AS:i:(\d+)/ ? $1 : 0;
+    my $R1_AS = $node1->{R1}->{AS};
+    my $R2_AS = defined $node1->{R2} && $node1->{R2}->{AS};
     my $PEgap;
     my $PEgap_pen;
 

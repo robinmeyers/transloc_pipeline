@@ -10,7 +10,7 @@ sub filter_unjoined ($) {
 
   my $junctions = 0;
 
-  return 0 unless defined $tlxls->[0]->{R1_aln};
+  return 0 unless defined $tlxls->[0]->{R1_ID};
 
   if (@$tlxls < 2) {
     $filter = "Unjoined";
@@ -59,7 +59,7 @@ sub filter_mapping_quality ($$$$$$){
 
   my $quality_maps = 0;
 
-  return 0 unless defined $tlxls[0]->{R1_aln};
+  return 0 unless defined $tlxls[0]->{R1_ID};
 
 
   TLXL: foreach my $tlxl (@tlxls) {
@@ -70,13 +70,13 @@ sub filter_mapping_quality ($$$$$$){
     last TLXL if $tlxl->{Rname} eq "Adapter";
     my @R1_OL;
     my @R2_OL;
-    if (defined $tlxl->{R1_aln}) {
-      my $R1_AS = $tlxl->{R1_aln}->aux =~ /AS:i:(\d+)/ ? $1 : 0;
+    if (defined $tlxl->{R1_ID}) {
+      my $R1_AS = $tlxl->{R1_AS};
       foreach my $R1_aln (@R1_alns) {
-        next if $tlxl->{R1_aln} == $R1_aln->{aln};
+        next unless defined $R1_aln->{ID} && $R1_aln->{ID} != $tlxl->{R1_ID};
         next if $tlxl->{Rname} eq "Breaksite" && $R1_aln->{Rname} eq "Breaksite";
         my $overlap = min($tlxl->{R1_Qend},$R1_aln->{Qend}) - max($tlxl->{R1_Qstart},$R1_aln->{Qstart}) + 1;
-        my $score = $R1_aln->{aln}->aux =~ /AS:i:(\d+)/ ? $1 : 0;
+        my $score = $R1_aln->{AS};
 
         if ($overlap > $ol_thresh * ($tlxl->{R1_Qend} - $tlxl->{R1_Qstart} + 1) 
               && $score > $score_thresh * $R1_AS) {
@@ -85,13 +85,13 @@ sub filter_mapping_quality ($$$$$$){
       }
     }
 
-    if (defined $tlxl->{R2_aln}) {
-      my $R2_AS = $tlxl->{R2_aln}->aux =~ /AS:i:(\d+)/ ? $1 : 0;
+    if (defined $tlxl->{R2_ID}) {
+      my $R2_AS = $tlxl->{R2_AS};
       foreach my $R2_aln (@R2_alns) {
-        next if $tlxl->{R2_aln} == $R2_aln->{aln};
+        next unless defined $R2_aln->{ID} && $R2_aln->{ID} != $tlxl->{R2_ID};
         next if $tlxl->{Rname} eq "Breaksite" && $R2_aln->{Rname} eq "Breaksite";
         my $overlap = min($tlxl->{R2_Qend},$R2_aln->{Qend}) - max($tlxl->{R2_Qstart},$R2_aln->{Qstart}) + 1;
-        my $score = $R2_aln->{aln}->aux =~ /AS:i:(\d+)/ ? $1 : 0;
+        my $score = $R2_aln->{AS};
         if ($overlap > $ol_thresh * ($tlxl->{R2_Qend} - $tlxl->{R2_Qstart} + 1) 
               && $score > $score_thresh * $R2_AS) {
           push (@R2_OL,$R2_aln);
@@ -135,7 +135,7 @@ sub filter_mispriming ($$) {
   my $filter;
   my $priming = 0;
 
-  return 0 unless defined $tlxls->[0]->{R1_aln};
+  return 0 unless defined $tlxls->[0]->{R1_ID};
 
   $filter = "Mispriming" if $tlxls->[0]->{R1_Rend} < $priming_threshold;
 
@@ -161,7 +161,7 @@ sub filter_freq_cutter ($$) {
 
   my $no_cutter = 0;
 
-  return 0 unless defined $tlxls->[0]->{R1_aln};
+  return 0 unless defined $tlxls->[0]->{R1_ID};
 
   foreach my $tlxl (@$tlxls) {
     if (defined $tlxl->{tlx} && ! defined $tlxl->{tlx}->{Filter}) {
@@ -192,7 +192,7 @@ sub filter_breaksite ($) {
 
   my $outside_breaksite = 0;
 
-  return 0 unless defined $tlxls->[0]->{R1_aln};
+  return 0 unless defined $tlxls->[0]->{R1_ID};
   return 0 unless defined $tlxls->[1];
 
   foreach my $i (0..$#{$tlxls}) {
@@ -227,7 +227,7 @@ sub filter_split_junctions ($) {
 
   my $primary_junction = 0;
 
-  return 0 unless defined $tlxls->[0]->{R1_aln};
+  return 0 unless defined $tlxls->[0]->{R1_ID};
 
   foreach my $tlxl (@$tlxls) {
 
