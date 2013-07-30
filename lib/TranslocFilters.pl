@@ -73,7 +73,7 @@ sub filter_mapping_quality ($$$$$$){
     if (defined $tlxl->{R1_ID}) {
       my $R1_AS = $tlxl->{R1_AS};
       foreach my $R1_aln (@R1_alns) {
-        next unless defined $R1_aln->{ID} && $R1_aln->{ID} != $tlxl->{R1_ID};
+        next unless defined $R1_aln->{ID} && $R1_aln->{ID} ne $tlxl->{R1_ID};
         next if $tlxl->{Rname} eq "Breaksite" && $R1_aln->{Rname} eq "Breaksite";
         my $overlap = min($tlxl->{R1_Qend},$R1_aln->{Qend}) - max($tlxl->{R1_Qstart},$R1_aln->{Qstart}) + 1;
         my $score = $R1_aln->{AS};
@@ -88,7 +88,7 @@ sub filter_mapping_quality ($$$$$$){
     if (defined $tlxl->{R2_ID}) {
       my $R2_AS = $tlxl->{R2_AS};
       foreach my $R2_aln (@R2_alns) {
-        next unless defined $R2_aln->{ID} && $R2_aln->{ID} != $tlxl->{R2_ID};
+        next unless defined $R2_aln->{ID} && $R2_aln->{ID} ne $tlxl->{R2_ID};
         next if $tlxl->{Rname} eq "Breaksite" && $R2_aln->{Rname} eq "Breaksite";
         my $overlap = min($tlxl->{R2_Qend},$R2_aln->{Qend}) - max($tlxl->{R2_Qstart},$R2_aln->{Qstart}) + 1;
         my $score = $R2_aln->{AS};

@@ -127,6 +127,7 @@ sub parse_command_line {
                             "skipbgbw" => \$skipbgbw,
 				            				"help" => \$help
 				            			) ;
+
 	
 	usage() if ($help);
 

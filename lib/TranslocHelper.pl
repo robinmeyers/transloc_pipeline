@@ -8,6 +8,7 @@ use Bio::Factory::EMBOSS;
 use Bio::DB::Fasta;
 use List::Util qw(min max);
 use List::MoreUtils qw(firstidx);
+use Data::GUID;
 
 sub prepare_reference_genomes ($) {
 
@@ -247,7 +248,7 @@ sub wrap_alignment ($$) {
 
   $wrapper->{Cigar} = join("",map {join("",@$_)} @{$wrapper->{CigarA}});
   $wrapper->{Qlen} = length($wrapper->{Seq});
-  $wrapper->{ID} = Time::HiRes::time();
+  $wrapper->{ID} = Data::GUID->new->as_string;
 
 
   return $wrapper;

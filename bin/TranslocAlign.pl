@@ -16,9 +16,12 @@ use Bio::DB::Sam;
 use List::Util qw(min max);
 use Interpolation 'arg:@->$' => \&argument;
 use Time::HiRes qw(gettimeofday tv_interval);
+use Data::Dumper;
 
 use threads;
 use threads::shared;
+
+print threads->get_stack_size()."\n";
 
 use Cwd qw(abs_path);
 use FindBin;
@@ -45,7 +48,7 @@ sub align_to_breaksite;
 sub align_to_adapter;
 sub align_to_genome;
 sub process_alignments;
-sub process_single_read ($$);
+sub process_OCS ($$$);
 sub find_optimal_coverage_set ($$);
 sub score_edge ($;$);
 sub deduplicate_junctions;
@@ -118,7 +121,6 @@ $stats->{final} = 0;
 #
 # Start of Program
 #
-
 parse_command_line;
 
 
@@ -245,6 +247,7 @@ unless (defined $use_current_tlx && -r $tlxfile) {
   $filt_tlxfh = IO::File->new(">$filt_tlxfile");
   $unjoin_tlxfh = IO::File->new(">$unjoin_tlxfile");
 
+  print "running on $max_threads\n";
   process_alignments;
 
   $tlxlfh->close;
@@ -371,7 +374,6 @@ sub process_alignments {
 
   croak "Error: no R1 alignments to breaksite" unless defined $next_R1_brk_aln;
 
-  my @thread_list = ();
 
   while (defined $next_R1_brk_aln) {
     my $qname = $next_R1_brk_aln->{Qname};
@@ -445,10 +447,35 @@ sub process_alignments {
       }
     }
 
-    my $tlxls = process_single_read(\@R1_alns,\@R2_alns);
-    write_tlxls($tlxls);
 
+    while (1) {
 
+      # joins any threads if possible
+      foreach my $thr (threads->list(threads::joinable)) {
+        my ($OCS,$R1_alns_old,$R2_alns_old) = $thr->join();
+        my $tlxls = process_OCS($OCS,$R1_alns_old,$R2_alns_old);
+        write_tlxls($tlxls);
+        print "finished joining a thread\n";
+      }
+
+      my @running = threads->list(threads::running);
+          
+      # if there are open threads, create a new one, push it onto list, and exit while loop
+      if (scalar @running < $max_threads) {
+        print "starting a thread\n";
+        my $thr = threads->create({context => 'list'},'find_optimal_coverage_set',\@R1_alns,\@R2_alns);
+        last;
+      }
+    } 
+  }
+  # waits for all threads to finish
+  while( scalar threads->list(threads::all) > 0) {
+    for my $thr (threads->list(threads::joinable)) {
+      my ($OCS,$R1_alns_old,$R2_alns_old) = $thr->join();
+        my $tlxls = process_OCS($OCS,$R1_alns_old,$R2_alns_old);
+        write_tlxls($tlxls);
+        print "finished joining a thread\n";
+    }
   }
 
 
@@ -457,72 +484,69 @@ sub process_alignments {
 
 
 
-sub process_single_read ($$) {
+sub process_OCS ($$$) {
+  my $OCS_ref = shift;
   my $R1_alns = shift;
   my $R2_alns = shift;
 
-  # print $R1_alns->[0]->{Qname} . "\n";
-  print "find optimal coverage set\n";
-
-
-  my $OCS_ref = find_optimal_coverage_set($R1_alns,$R2_alns);
   
-  # print "create tlxls\n";
+  print "create tlxls\n";
   my $tlxls = create_tlxl_entries($OCS_ref);
 
   $stats->{totalreads}++;
 
   $stats->{aligned}++ unless $tlxls->[0]->{Unmapped};
    
-  # print "create tlxs\n";
+  print "create tlxs\n";
   create_tlx_entries($tlxls, { genome => $R1_samobj,
                                brk => $R1_brk_samobj,
                                adpt => $R1_adpt_samobj} )  ;
 
-  # print "filter unjoined\n";
+  print "filter unjoined\n";
   my $junctions = filter_unjoined($tlxls);
 
   $stats->{junctions} += $junctions;
   $stats->{junc_reads}++ if $junctions > 0;
 
-  # print "filter map quality\n";
+  print "filter map quality\n";
   my $quality_maps = filter_mapping_quality($tlxls,$R1_alns,$R2_alns,
                                       $ol_thresh,$score_thresh,$max_frag_len);
 
   $stats->{mapqual} += $quality_maps;
   $stats->{mapq_reads}++ if $quality_maps > 0;
 
-  # print "filter mispriming\n";
+  print "filter mispriming\n";
   my $correct_priming = filter_mispriming($tlxls,$priming_threshold);
 
   $stats->{priming} += $correct_priming;
   $stats->{prim_reads}++ if $correct_priming > 0;
 
-  # print "filter frequent cutter\n";
+  print "filter frequent cutter\n";
   my $no_freq_cutter = filter_freq_cutter($tlxls,$cutseq->seq);
 
   $stats->{freqcut} += $no_freq_cutter;
   $stats->{freq_reads}++ if $no_freq_cutter > 0;
 
-  # print "filter breaksite\n";
+  print "filter breaksite\n";
   my $outside_breaksite = filter_breaksite($tlxls);
 
   $stats->{breaksite} += $outside_breaksite;
   $stats->{break_reads}++ if $outside_breaksite > 0;
 
 
-  # print "filter split juctions\n";
+  print "filter split juctions\n";
   my $primary_junction = filter_split_junctions($tlxls);
 
   $stats->{splitjuncs} += $primary_junction;
   $stats->{split_reads}++ if $primary_junction > 0;
 
-
+  print "returning filtered tlx\n";
   return($tlxls);
 }
 
 sub write_tlxls ($) {
   my $tlxls = shift;
+  print "writing stuff\n";
   foreach my $tlxl (@$tlxls) {
     write_entry($tlxlfh,$tlxl,\@tlxl_header);
     next unless defined $tlxl->{tlx};
@@ -556,7 +580,7 @@ sub find_optimal_coverage_set ($$) {
                                  Qual => $R2_alns_ref->[0]->{Qual},
                                  Unmapped => 1 } } );
 
-  return \@unmapped_OCS if $R1_alns_ref->[0]->{Unmapped};
+  return (\@unmapped_OCS,$R1_alns_ref,$R2_alns_ref) if $R1_alns_ref->[0]->{Unmapped};
 
   my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart}} @$R1_alns_ref;
   my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart}} @$R2_alns_ref;
@@ -565,7 +589,7 @@ sub find_optimal_coverage_set ($$) {
 
   foreach my $R1_aln (@R1_alns) {
 
-    # print $R1_aln->{Qname}." ".$R1_aln->{Unmapped}."\n";
+    print $R1_aln->{Qname}." ".$R1_aln->{Unmapped}."\n";
     next if $R1_aln->{Unmapped};
 
     my $graphsize = scalar @graph;
@@ -678,7 +702,7 @@ sub find_optimal_coverage_set ($$) {
 
   }
 
-  return \@unmapped_OCS unless defined $OCS_ptr;
+  return (\@unmapped_OCS,$R1_alns_ref,$R2_alns_ref) unless defined $OCS_ptr;
 
   my @OCS = ();
 
@@ -692,7 +716,8 @@ sub find_optimal_coverage_set ($$) {
     $OCS_ptr = $OCS_ptr->{back_ptr};
   }
   unshift(@OCS,$OCS_ptr) if defined $OCS_ptr;
-  return \@OCS;
+  print "returning OCS\n";
+  return (\@OCS,$R1_alns_ref,$R2_alns_ref);
 
 }
 
@@ -900,6 +925,8 @@ sub parse_command_line {
 
 	usage() if (scalar @ARGV == 0);
 
+  print "before: $max_threads\t";
+
 	my $result = GetOptions ( "read1=s" => \$read1,
                             "read2=s" => \$read2,
                             "assembly=s" => \$assembly,
@@ -914,6 +941,8 @@ sub parse_command_line {
                             "usecurrtlx" => \$use_current_tlx,
 				            				"help" => \$help
 				            			) ;
+
+  print "after: $max_threads\n";
 	
 	usage() if ($help);
 
