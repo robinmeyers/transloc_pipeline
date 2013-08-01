@@ -205,52 +205,48 @@ sub wrap_alignment ($$) {
 
   return undef unless defined $aln;
   croak "Error: first argument to wrap_alignment must be either \"R1\" or \"R2\"" unless ($pe eq "R1" || $pe eq "R2");
-  my %wrapper :shared;
+  # my %wrapper :shared;
+  my $wrapper = {Qname => $aln->qname};
   if ($aln->unmapped) {
-    $wrapper{Qname} = $aln->qname;
-    $wrapper{Unmapped} = 1;
-    $wrapper{Seq} = $pe eq "R1" ? $aln->query->dna : reverseComplement($aln->query->dna);
-    my $qual = $pe eq "R1" ? $aln->query->qscore : [reverse @{$aln->query->qscore}];
-    $wrapper{Qual} = shared_clone($qual);
-    return \%wrapper;
+    $wrapper->{Unmapped} = 1;
+    $wrapper->{Seq} = $pe eq "R1" ? $aln->query->dna : reverseComplement($aln->query->dna);
+    $wrapper->{Qual} = $pe eq "R1" ? $aln->query->qscore : [reverse @{$aln->query->qscore}];
+    return $wrapper;
   }
 
-  $wrapper{Qname} = $aln->qname;
-  $wrapper{Rname} = $aln->seq_id;
-  $wrapper{Rstart} = $aln->start;
-  $wrapper{Rend} = $aln->end;
-  $wrapper{AS} = $aln->aux =~ /AS:i:(\d+)/ ? $1 : 0;
-  $wrapper{Unmapped} = 0;
+  $wrapper->{Rname} = $aln->seq_id;
+  $wrapper->{Rstart} = $aln->start;
+  $wrapper->{Rend} = $aln->end;
+  $wrapper->{AS} = $aln->aux =~ /AS:i:(\d+)/ ? $1 : 0;
+  $wrapper->{Unmapped} = 0;
 
   if ($pe eq "R1") {
-    $wrapper{Strand} = $aln->strand;
+    $wrapper->{Strand} = $aln->strand;
   } else {
-    $wrapper{Strand} = -1 * $aln->strand;
+    $wrapper->{Strand} = -1 * $aln->strand;
   }
 
 
-  if ($wrapper{Strand} == 1) {
-    $wrapper{Seq} = $aln->query->dna;
-    my $qual = $aln->query->qscore;
-    $wrapper{Qual} = shared_clone($qual);
-    $wrapper{Qstart} = $aln->query->start;
-    $wrapper{Qend} = $aln->query->end;
-    $wrapper{CigarA} = shared_clone($aln->cigar_array);
+  if ($wrapper->{Strand} == 1) {
+    $wrapper->{Seq} = $aln->query->dna;
+    $wrapper->{Qual} = $aln->query->qscore;
+    $wrapper->{Qstart} = $aln->query->start;
+    $wrapper->{Qend} = $aln->query->end;
+    $wrapper->{CigarA} = $aln->cigar_array;
   } else {
-    $wrapper{Seq} = reverseComplement($aln->query->dna);
-    my $qual = reverse @{$aln->query->qscore};
-    $wrapper{Qual} = shared_clone($qual);
-    $wrapper{Qstart} = $aln->l_qseq - $aln->query->end + 1;
-    $wrapper{Qend} = $aln->l_qseq - $aln->query->start + 1;
-    $wrapper{CigarA} = shared_clone([reverse @{$aln->cigar_array}]);
+    $wrapper->{Seq} = reverseComplement($aln->query->dna);
+    $wrapper->{Qual} = [reverse @{$aln->query->qscore}];
+    $wrapper->{Qstart} = $aln->l_qseq - $aln->query->end + 1;
+    $wrapper->{Qend} = $aln->l_qseq - $aln->query->start + 1;
+    $wrapper->{CigarA} = [reverse @{$aln->cigar_array}];
   }
 
   # $wrapper->{Cigar} = join("",map {join("",@$_)} @{$wrapper->{CigarA}});
-  $wrapper{Qlen} = length($wrapper{Seq});
-  $wrapper{ID} = Data::GUID->new->as_string;
+  $wrapper->{Qlen} = length($wrapper->{Seq});
+  $wrapper->{ID} = Data::GUID->new->as_string;
 
 
-  return \%wrapper;
+  return $wrapper;
 
 }
 
@@ -428,7 +424,7 @@ sub create_tlx_entries ($$) {
       }
 
       # Retrieve referense sequence, reverse complement if necessary
-      my $Rseq = $ref->subseq($Rname,$Rstart,$Rend);
+      my $Rseq = $ref->seq($Rname,$Rstart,$Rend);
       my @Rseq = $Strand == 1 ? split("",$Rseq) : split("",reverseComplement($Rseq));
 
       # Artifically adjust Rstarts and Rends so that we can move incrementally up on both Qpos and Rpos
@@ -816,8 +812,8 @@ sub create_tlx_entries ($$) {
       case "Adapter" { $ref = $refs->{adpt}; }
       else { $ref = $refs->{genome}; }
     }
-    $tlx->{JuncSeq} = $tlx->{Strand} == 1 ? $ref->subseq($tlx->{Rname},$tlx->{Rstart}-10,$tlx->{Rstart}+9) :
-                                            $ref->subseq($tlx->{Rname},$tlx->{Rend}-9,$tlx->{Rend}+10);
+    $tlx->{JuncSeq} = $tlx->{Strand} == 1 ? $ref->seq($tlx->{Rname},$tlx->{Rstart}-10,$tlx->{Rstart}+9) :
+                                            $ref->seq($tlx->{Rname},$tlx->{Rend}-9,$tlx->{Rend}+10);
 
 
 

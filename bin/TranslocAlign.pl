@@ -13,6 +13,8 @@ use File::Basename;
 use File::Which;
 use File::Copy;
 use Bio::SeqIO;
+use Bio::DB::Sam;
+
 use List::Util qw(min max);
 use Interpolation 'arg:@->$' => \&argument;
 use Time::HiRes qw(gettimeofday tv_interval);
@@ -47,9 +49,9 @@ sub parse_command_line;
 sub align_to_breaksite;
 sub align_to_adapter;
 sub align_to_genome;
-sub read_alignments;
-sub find_optimal_coverage_set;
-sub process_OCS;
+sub process_alignments;
+sub find_optimal_coverage_set ($$);
+sub process_optimal_coverage_set ($$$);
 sub score_edge ($;$);
 sub deduplicate_junctions;
 
@@ -168,6 +170,7 @@ my $R2_bam = "${expt_stub}_R2.bam";
 my $R1_adpt_bam = "${expt_stub}_R1_adpt.bam";
 my $R2_adpt_bam = "${expt_stub}_R2_adpt.bam";
 
+my ($R1_brk_samobj,$R2_brk_samobj,$R1_adpt_samobj,$R2_adpt_samobj,$R1_samobj,$R2_samobj);
 
 
 my $tlxlfile = "${expt_stub}.tlxl";
@@ -212,24 +215,41 @@ align_to_adapter unless -r $R1_adpt_bam && -r $R2_adpt_bam;
 align_to_genome unless -r $R1_bam && -r $R2_bam;
 
 
-my $aln_queue = Thread::Queue->new();
-my $ocs_queue = Thread::Queue->new();
+# my $aln_queue = Thread::Queue->new();
+# my $ocs_queue = Thread::Queue->new();
 
-my $aln_reader_thr = threads->create('read_alignments');
+# my $aln_reader_thr = threads->create('read_alignments');
 
-my @ocs_finder_thrs = ();
-foreach my $i (1..($max_threads-2)) {
-  my $thr = threads->create('find_optimal_coverage_set');
-  push(@ocs_finder_thrs,$thr);
-}
+# my @ocs_finder_thrs = ();
+# foreach my $i (1..($max_threads-2)) {
+#   my $thr = threads->create('find_optimal_coverage_set');
+#   push(@ocs_finder_thrs,$thr);
+# }
 
-# my $ocs_processer_thr = threads->create('process_OCS');
+# # my $ocs_processer_thr = threads->create('process_OCS');
 
-$aln_reader_thr->join;
-foreach my $thr (@ocs_finder_thrs) {
-  $thr->join;
-}
+# $aln_reader_thr->join;
+# foreach my $thr (@ocs_finder_thrs) {
+#   $thr->join;
+# }
 # $ocs_processer_thr->join;
+
+$tlxlfh = IO::File->new(">$tlxlfile");
+$tlxfh = IO::File->new(">$tlxfile");
+$filt_tlxfh = IO::File->new(">$filt_tlxfile");
+$unjoin_tlxfh = IO::File->new(">$unjoin_tlxfile");
+
+$tlxlfh->print(join("\t", @tlxl_header)."\n");
+$tlxfh->print(join("\t", @tlx_header)."\n");
+$filt_tlxfh->print(join("\t", @tlx_filter_header)."\n");
+$unjoin_tlxfh->print(join("\t", @tlx_filter_header)."\n");
+
+process_alignments;
+
+$tlxlfh->close;
+$tlxfh->close;
+$filt_tlxfh->close;
+$unjoin_tlxfh->close;
 
 deduplicate_junctions;
 
@@ -316,33 +336,32 @@ sub align_to_genome {
   
 }
 
-sub read_alignments {
+sub process_alignments {
 
   print "\nReading alignments\n";
 
-  use Bio::DB::Sam;
 
-  my $R1_brk_samobj = Bio::DB::Sam->new(-bam => $R1_brk_bam,
+  $R1_brk_samobj = Bio::DB::Sam->new(-bam => $R1_brk_bam,
                                      -fasta => $break_fa,
                                      -expand_flags => 1);
 
-  my $R2_brk_samobj = Bio::DB::Sam->new(-bam => $R2_brk_bam,
+  $R2_brk_samobj = Bio::DB::Sam->new(-bam => $R2_brk_bam,
                                      -fasta => $break_fa,
                                      -expand_flags => 1);
 
-  my $R1_adpt_samobj = Bio::DB::Sam->new(-bam => $R1_adpt_bam,
+  $R1_adpt_samobj = Bio::DB::Sam->new(-bam => $R1_adpt_bam,
                                      -fasta => $adapt_fa,
                                      -expand_flags => 1);
 
-  my $R2_adpt_samobj = Bio::DB::Sam->new(-bam => $R2_adpt_bam,
+  $R2_adpt_samobj = Bio::DB::Sam->new(-bam => $R2_adpt_bam,
                                      -fasta => $adapt_fa,
                                      -expand_flags => 1);
 
-  my $R1_samobj = Bio::DB::Sam->new(-bam => $R1_bam,
+  $R1_samobj = Bio::DB::Sam->new(-bam => $R1_bam,
                                  -fasta => $assembly_fa,
                                  -expand_flags => 1);
 
-  my $R2_samobj = Bio::DB::Sam->new(-bam => $R2_bam,
+  $R2_samobj = Bio::DB::Sam->new(-bam => $R2_bam,
                                  -fasta => $assembly_fa,
                                  -expand_flags => 1);
 
@@ -354,9 +373,9 @@ sub read_alignments {
   my $R2_iter = $R2_samobj->get_seq_stream();
 
 
-  my ($next_R1_brk_aln,$next_R2_brk_aln) :shared;
-  my ($next_R1_adpt_aln,$next_R2_adpt_aln) :shared;
-  my ($next_R1_aln,$next_R2_aln) :shared;
+  my ($next_R1_brk_aln,$next_R2_brk_aln);# :shared;
+  my ($next_R1_adpt_aln,$next_R2_adpt_aln);# :shared;
+  my ($next_R1_aln,$next_R2_aln);# :shared;
 
   $next_R1_brk_aln = wrap_alignment("R1",$R1_brk_iter->next_seq);
   $next_R2_brk_aln = wrap_alignment("R2",$R2_brk_iter->next_seq);
@@ -370,154 +389,156 @@ sub read_alignments {
 
   while (defined $next_R1_brk_aln) {
 
-    my @aln_block :shared;
+    # my @aln_block :shared;
 
-    for (my $i=0; $i < $qblocksize; $i++) {
+    # for (my $i=0; $i < $qblocksize; $i++) {
 
-      last unless defined $next_R1_brk_aln;
+    #   last unless defined $next_R1_brk_aln;
 
-      my $qname = $next_R1_brk_aln->{Qname};
+    my $qname = $next_R1_brk_aln->{Qname};
 
-      my @R1_alns :shared;
-      my @R2_alns :shared;
+    my @R1_alns;# :shared;
+    my @R2_alns;# :shared;
 
-         
+       
+    push(@R1_alns,$next_R1_brk_aln);
+    undef $next_R1_brk_aln;
+
+    while(my $aln = $R1_brk_iter->next_seq) {
+      $next_R1_brk_aln = wrap_alignment("R1",$aln);
+      last unless $next_R1_brk_aln->{Qname} eq $qname;
       push(@R1_alns,$next_R1_brk_aln);
       undef $next_R1_brk_aln;
+    }
 
-      while(my $aln = $R1_brk_iter->next_seq) {
-        $next_R1_brk_aln = wrap_alignment("R1",$aln);
-        last unless $next_R1_brk_aln->{Qname} eq $qname;
-        push(@R1_alns,$next_R1_brk_aln);
-        undef $next_R1_brk_aln;
-      }
-
-      if (defined $next_R2_brk_aln && $next_R2_brk_aln->{Qname} eq $qname) {
+    if (defined $next_R2_brk_aln && $next_R2_brk_aln->{Qname} eq $qname) {
+      push(@R2_alns,$next_R2_brk_aln) unless $next_R2_brk_aln->{Unmapped};
+      undef $next_R2_brk_aln;
+      while(my $aln = $R2_brk_iter->next_seq) {
+        $next_R2_brk_aln = wrap_alignment("R2",$aln);
+        last unless $next_R2_brk_aln->{Qname} eq $qname;
         push(@R2_alns,$next_R2_brk_aln) unless $next_R2_brk_aln->{Unmapped};
         undef $next_R2_brk_aln;
-        while(my $aln = $R2_brk_iter->next_seq) {
-          $next_R2_brk_aln = wrap_alignment("R2",$aln);
-          last unless $next_R2_brk_aln->{Qname} eq $qname;
-          push(@R2_alns,$next_R2_brk_aln) unless $next_R2_brk_aln->{Unmapped};
-          undef $next_R2_brk_aln;
-        }
       }
+    }
 
-      if (defined $next_R1_adpt_aln && $next_R1_adpt_aln->{Qname} eq $qname) {
+    if (defined $next_R1_adpt_aln && $next_R1_adpt_aln->{Qname} eq $qname) {
+      push(@R1_alns,$next_R1_adpt_aln) unless $next_R1_adpt_aln->{Unmapped};
+      undef $next_R1_adpt_aln;
+      while(my $aln = $R1_adpt_iter->next_seq) {
+        $next_R1_adpt_aln = wrap_alignment("R1",$aln);
+        last unless $next_R1_adpt_aln->{Qname} eq $qname;
         push(@R1_alns,$next_R1_adpt_aln) unless $next_R1_adpt_aln->{Unmapped};
         undef $next_R1_adpt_aln;
-        while(my $aln = $R1_adpt_iter->next_seq) {
-          $next_R1_adpt_aln = wrap_alignment("R1",$aln);
-          last unless $next_R1_adpt_aln->{Qname} eq $qname;
-          push(@R1_alns,$next_R1_adpt_aln) unless $next_R1_adpt_aln->{Unmapped};
-          undef $next_R1_adpt_aln;
-        }
       }
+    }
 
-      if (defined $next_R2_adpt_aln && $next_R2_adpt_aln->{Qname} eq $qname) {
+    if (defined $next_R2_adpt_aln && $next_R2_adpt_aln->{Qname} eq $qname) {
+      push(@R2_alns,$next_R2_adpt_aln) unless $next_R2_adpt_aln->{Unmapped};
+      undef $next_R2_adpt_aln;
+      while(my $aln = $R2_adpt_iter->next_seq) {
+        $next_R2_adpt_aln = wrap_alignment("R2",$aln);
+        last unless $next_R2_adpt_aln->{Qname} eq $qname;
         push(@R2_alns,$next_R2_adpt_aln) unless $next_R2_adpt_aln->{Unmapped};
         undef $next_R2_adpt_aln;
-        while(my $aln = $R2_adpt_iter->next_seq) {
-          $next_R2_adpt_aln = wrap_alignment("R2",$aln);
-          last unless $next_R2_adpt_aln->{Qname} eq $qname;
-          push(@R2_alns,$next_R2_adpt_aln) unless $next_R2_adpt_aln->{Unmapped};
-          undef $next_R2_adpt_aln;
-        }
       }
+    }
 
-      if (defined $next_R1_aln && $next_R1_aln->{Qname} eq $qname) {
+    if (defined $next_R1_aln && $next_R1_aln->{Qname} eq $qname) {
+      push(@R1_alns,$next_R1_aln) unless $next_R1_aln->{Unmapped};
+      undef $next_R1_aln;
+      while(my $aln = $R1_iter->next_seq) {
+        $next_R1_aln = wrap_alignment("R1",$aln);
+        last unless $next_R1_aln->{Qname} eq $qname;
         push(@R1_alns,$next_R1_aln) unless $next_R1_aln->{Unmapped};
         undef $next_R1_aln;
-        while(my $aln = $R1_iter->next_seq) {
-          $next_R1_aln = wrap_alignment("R1",$aln);
-          last unless $next_R1_aln->{Qname} eq $qname;
-          push(@R1_alns,$next_R1_aln) unless $next_R1_aln->{Unmapped};
-          undef $next_R1_aln;
-        }
       }
+    }
 
-      if (defined $next_R2_aln && $next_R2_aln->{Qname} eq $qname) {
+    if (defined $next_R2_aln && $next_R2_aln->{Qname} eq $qname) {
+      push(@R2_alns,$next_R2_aln) unless $next_R2_aln->{Unmapped};
+      undef $next_R2_aln;
+      while(my $aln = $R2_iter->next_seq) {
+        $next_R2_aln = wrap_alignment("R2",$aln);
+        last unless $next_R2_aln->{Qname} eq $qname;
         push(@R2_alns,$next_R2_aln) unless $next_R2_aln->{Unmapped};
         undef $next_R2_aln;
-        while(my $aln = $R2_iter->next_seq) {
-          $next_R2_aln = wrap_alignment("R2",$aln);
-          last unless $next_R2_aln->{Qname} eq $qname;
-          push(@R2_alns,$next_R2_aln) unless $next_R2_aln->{Unmapped};
-          undef $next_R2_aln;
-        }
       }
-
-      my @aln_couple :shared;
-      @aln_couple = (\@R1_alns,\@R2_alns);
-
-      push(@aln_block,\@aln_couple);
     }
 
-    while (1) {
-      unless ($aln_queue->pending < $max_queue_size) {
-        sleep 1;
-        next;
-      }
-      my $t0 = [gettimeofday];
-      $aln_queue->enqueue(\@aln_block);
-      my $t1 = tv_interval($t0);
-      print "queued alignments in $t1\n";
+    my $OCS = find_optimal_coverage_set(\@R1_alns,\@R2_alns);
 
-      last;
-    }
+    
+    
+    process_optimal_coverage_set($OCS,\@R1_alns,\@R2_alns);
+
+    
+
+
   }
 
-  $aln_queue->end;
+  #   while (1) {
+  #     unless ($aln_queue->pending < $max_queue_size) {
+  #       sleep 1;
+  #       next;
+  #     }
+  #     my $t0 = [gettimeofday];
+  #     $aln_queue->enqueue(\@aln_block);
+  #     my $t1 = tv_interval($t0);
+  #     print "queued alignments in $t1\n";
+
+  #     last;
+  #   }
+  # }
+
+  # $aln_queue->end;
 
 }
 
 
-sub find_optimal_coverage_set {
+sub find_optimal_coverage_set ($$) {
 
   print "finding OCS\n";
-  my $t0 = [gettimeofday];
+  # my $t0 = [gettimeofday];
 
 
 
-  while (my $aln_block = $aln_queue->dequeue) {
+  # while (my $aln_block = $aln_queue->dequeue) {
 
-    my $t1 = tv_interval($t0);
-    print "dequeued alignments in $t1\n";
+  #   my $t1 = tv_interval($t0);
+  #   print "dequeued alignments in $t1\n";
 
-    my @OCS_block :shared;
+  #   my @OCS_block :shared;
 
-    foreach my $aln_item (@$aln_block) {
+  #   foreach my $aln_item (@$aln_block) {
 
       # my ($R1_alns_ref,$R2_alns_ref) :shared;
-      my ($R1_alns_ref,$R2_alns_ref) = @$aln_item;
+      my $R1_alns_ref = shift;
+      my $R2_alns_ref = shift;
 
       my @graph = ();
       my $OCS_ptr;
 
-      my $R1_tmp = { Qname => $R1_alns_ref->[0]->{Qname},
+
+      my @unmapped_OCS = ( { R1 => { Qname => $R1_alns_ref->[0]->{Qname},
                                      Seq => $R1_alns_ref->[0]->{Seq},
                                      Qual => $R1_alns_ref->[0]->{Qual},
-                                     Unmapped => 1 };
-      my $R2_tmp = { Qname => $R2_alns_ref->[0]->{Qname},
+                                     Unmapped => 1 },
+                             R2 => { Qname => $R1_alns_ref->[0]->{Qname},
                                      Seq => $R2_alns_ref->[0]->{Seq},
                                      Qual => $R2_alns_ref->[0]->{Qual},
-                                     Unmapped => 1 };
-      my @unmapped_OCS = ( { R1 => $R1_tmp, R2 => $R2_tmp } );
-
-      # my @unmapped_OCS = ( { R1 => { Qname => $R1_alns_ref->[0]->{Qname},
-      #                                Seq => $R1_alns_ref->[0]->{Seq},
-      #                                Qual => $R1_alns_ref->[0]->{Qual},
-      #                                Unmapped => 1 },
-      #                        R2 => { Qname => $R1_alns_ref->[0]->{Qname},
-      #                                Seq => $R2_alns_ref->[0]->{Seq},
-      #                                Qual => $R2_alns_ref->[0]->{Qual},
-      #                                Unmapped => 1 } } );
+                                     Unmapped => 1 } } );
 
       
+      # if ($R1_alns_ref->[0]->{Unmapped}) {
+      #   my @OCS_item;
+      #   @OCS_item = (shared_clone(\@unmapped_OCS),$R1_alns_ref,$R2_alns_ref);
+      #   push(@OCS_block,\@OCS_item);
+      #   next;
+      # }
+
       if ($R1_alns_ref->[0]->{Unmapped}) {
-        my @OCS_item :shared;
-        @OCS_item = (shared_clone(\@unmapped_OCS),$R1_alns_ref,$R2_alns_ref);
-        push(@OCS_block,\@OCS_item);
+        return \@unmapped_OCS;
         next;
       }
 
@@ -531,9 +552,11 @@ sub find_optimal_coverage_set {
 
         my $graphsize = scalar @graph;
 
-        my %new_node :shared;
-        $new_node{R1} = $R1_aln;
-        my $new_node = \%new_node;
+        my $new_node = {R1 => $R1_aln};
+
+        # my %new_node :shared;
+        # $new_node{R1} = $R1_aln;
+        # my $new_node = \%new_node;
 
         my $init_score = score_edge($new_node);
         $new_node->{score} = $init_score if defined $init_score;
@@ -573,10 +596,11 @@ sub find_optimal_coverage_set {
 
           next unless pair_is_proper($R1_aln,$R2_aln,$max_frag_len);
 
-          my %new_pe_node :shared;
-          $new_pe_node{R1} = $R1_aln;
-          $new_pe_node{R2} = $R2_aln;
-          my $new_pe_node = \%new_pe_node;
+          my $new_pe_node = {R1 => $R1_aln, R2 => $R2_aln};
+          # my %new_pe_node :shared;
+          # $new_pe_node{R1} = $R1_aln;
+          # $new_pe_node{R2} = $R2_aln;
+          # my $new_pe_node = \%new_pe_node;
 
 
           # print "pair is proper\n";
@@ -618,9 +642,10 @@ sub find_optimal_coverage_set {
         # print_aln($R2_aln_wrap);
         next if $R2_aln->{Unmapped};
 
-        my %new_node :shared;
-        $new_node{R2} = $R2_aln;
-        my $new_node = \%new_node;
+        my $new_node = {R2 => $R2_aln};
+        # my %new_node :shared;
+        # $new_node{R2} = $R2_aln;
+        # my $new_node = \%new_node;
 
         my $nodenum = 1;
         foreach my $node (@graph) {
@@ -647,13 +672,14 @@ sub find_optimal_coverage_set {
       }
 
       unless (defined $OCS_ptr) {
-        my @OCS_item :shared;
-        @OCS_item = (shared_clone(\@unmapped_OCS),$R1_alns_ref,$R2_alns_ref);
-        push(@OCS_block,\@OCS_item);
+        return \@unmapped_OCS;
+        # my @OCS_item :shared;
+        # @OCS_item = (shared_clone(\@unmapped_OCS),$R1_alns_ref,$R2_alns_ref);
+        # push(@OCS_block,\@OCS_item);
         next;
       }
 
-      my @OCS :shared;
+      my @OCS;# :shared;
 
       while (defined $OCS_ptr->{back_ptr}) {
         unshift(@OCS,$OCS_ptr);
@@ -666,56 +692,55 @@ sub find_optimal_coverage_set {
       }
       unshift(@OCS,$OCS_ptr) if defined $OCS_ptr;
 
-      my @OCS_item :shared;
-      @OCS_item = (\@OCS,$R1_alns_ref,$R2_alns_ref);
 
-      push(@OCS_block,\@OCS_item);      
-    }
+      return \@OCS;
 
-    while (1) {
+      # my @OCS_item; # :shared;
+      # @OCS_item = (\@OCS,$R1_alns_ref,$R2_alns_ref);
 
-      unless ($ocs_queue->pending < $max_queue_size) {
-        sleep 1;
-        next;
-      }
-      $ocs_queue->enqueue(\@OCS_block);
-      last;
-    }
+      # push(@OCS_block,\@OCS_item);      
 
-    $t0 = [gettimeofday]
-  }
+  #   while (1) {
 
-  $ocs_queue->end();
+  #     unless ($ocs_queue->pending < $max_queue_size) {
+  #       sleep 1;
+  #       next;
+  #     }
+  #     $ocs_queue->enqueue(\@OCS_block);
+  #     last;
+  #   }
+
+  #   $t0 = [gettimeofday]
+  # }
+
+  # $ocs_queue->end();
 
 }
 
 
 
 
-sub process_OCS () {
+sub process_optimal_coverage_set ($$$) {
 
-  print "processing OCSs\n";
+  # print "processing OCSs\n";
 
-  use Bio::DB::Fasta;
+  # use Bio::DB::Fasta;
 
-  my $genome_obj = Bio::DB::Fasta->new($assembly_fa);
-  my $break_obj = Bio::DB::Fasta->new($break_fa);
-  my $adpt_obj = Bio::DB::Fasta->new($adapt_fa);
+  # my $genome_obj = Bio::DB::Fasta->new($assembly_fa);
+  # my $break_obj = Bio::DB::Fasta->new($break_fa);
+  # my $adpt_obj = Bio::DB::Fasta->new($adapt_fa);
 
-  $tlxlfh = IO::File->new(">$tlxlfile");
-  $tlxfh = IO::File->new(">$tlxfile");
-  $filt_tlxfh = IO::File->new(">$filt_tlxfile");
-  $unjoin_tlxfh = IO::File->new(">$unjoin_tlxfile");
+  
 
-  $tlxlfh->print(join("\t", @tlxl_header)."\n");
-  $tlxfh->print(join("\t", @tlx_header)."\n");
-  $filt_tlxfh->print(join("\t", @tlx_filter_header)."\n");
-  $unjoin_tlxfh->print(join("\t", @tlx_filter_header)."\n");
+  # while (my $ocs_item = $ocs_queue->dequeue) {
 
-  while (my $ocs_item = $ocs_queue->dequeue) {
-
-    my ($OCS_ref,$R1_alns,$R2_alns) = @$ocs_item;
+  #   my ($OCS_ref,$R1_alns,$R2_alns) = @$ocs_item;
     
+    my $OCS_ref = shift;
+    my $R1_alns = shift;
+    my $R2_alns = shift;
+
+
     # print "create tlxls\n";
     my $tlxls = create_tlxl_entries($OCS_ref);
 
@@ -724,9 +749,9 @@ sub process_OCS () {
     $stats->{aligned}++ unless $tlxls->[0]->{Unmapped};
      
     # print "create tlxs\n";
-    create_tlx_entries($tlxls, { genome => $genome_obj,
-                                 brk => $break_obj,
-                                 adpt => $adpt_obj} )  ;
+    create_tlx_entries($tlxls, { genome => $R1_samobj,
+                                 brk => $R1_brk_samobj,
+                                 adpt => $R1_adpt_samobj} )  ;
 
     # print "filter unjoined\n";
     my $junctions = filter_unjoined($tlxls);
@@ -766,14 +791,10 @@ sub process_OCS () {
     $stats->{splitjuncs} += $primary_junction;
     $stats->{split_reads}++ if $primary_junction > 0;
 
-    # print "returning filtered tlx\n";
     write_tlxls($tlxls);
-  }
 
-  $tlxlfh->close;
-  $tlxfh->close;
-  $filt_tlxfh->close;
-  $unjoin_tlxfh->close;
+
+  
 
 }
 
