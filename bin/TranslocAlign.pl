@@ -54,6 +54,7 @@ sub find_optimal_coverage_set ($$);
 sub process_optimal_coverage_set ($$$);
 sub score_edge ($;$);
 sub deduplicate_junctions;
+sub post_process_junctions;
 
 
 
@@ -252,6 +253,8 @@ $filt_tlxfh->close;
 $unjoin_tlxfh->close;
 
 deduplicate_junctions;
+
+post_process_junctions;
 
 my $t1 = tv_interval($t0);
 
@@ -1009,6 +1012,12 @@ sub deduplicate_junctions {
     }
   }
 
+}
+
+sub post_process_junctions {
+
+  (my $html_reads = $tlxfile) =~ s/tlx$/html/;
+  System("TranslocHTMLReads.pl $tlxfile $html_reads");  
 
 }
 

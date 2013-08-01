@@ -50,8 +50,8 @@ sub write_marked_read ($$);
 # Set by command line arguments
 my $tlxfile;
 my $htmlfile;
-my $for_primer = "";
-my $rev_primer = "";
+my $primer = "";
+my $adapter = "";
 
 
 # Global variables
@@ -105,9 +105,9 @@ sub write_marked_read ($$) {
   my @seq = split("",$tl->{Seq});
   my %marks;
   my $marktypes = {alignment => {start => "Qstart", end => "Qend"},
-                   breaksite => {start => "BrkQstart", end => "BrkQend"},
-                   forward_primer => {start => "ForQstart", end => "ForQend"},
-                   reverse_primer => {start => "RevQstart", end => "RevQend"}};
+                   breaksite => {start => "B_Qstart", end => "B_Qend"},
+                   primer => {start => "PrimQstart", end => "PrimQend"},
+                   adapter => {start => "AdptQstart", end => "AdptQend"}};
 
   foreach my $marktype (sort keys %$marktypes) {
 
@@ -173,7 +173,7 @@ sub write_marked_read ($$) {
   my $rname = $tl->{Rname};
   my $rstart = $tl->{Rstart};
   my $rend = $tl->{Rend};
-  my $strand = $tl->{Strand};
+  my $strand = $tl->{Strand} == 1 ? "+" : "-" ;
 
   my $marked_id = "<div class=\"seqname\">>$qname $rname:$rstart-$rend $strand</div>";
   $fh->print("$marked_id\n");
@@ -216,8 +216,8 @@ sub align_to_primers {
 
 
 
-  unless ($for_primer eq "") {
-    my $for_seq = Bio::PrimarySeq->new( -id => "forward_primer", -seq => $for_primer);
+  unless ($primer eq "") {
+    my $primer_obj = Bio::PrimarySeq->new( -id => "primer", -seq => $primer);
 
     # my $fac = Bio::Tools::Run::StandAloneBlastPlus->new( -subject => $for_seq);
 
@@ -228,25 +228,25 @@ sub align_to_primers {
 
     # while ( my $hit)
 
-    (my $for_water = $tlxfile) =~ s/\.tlx/_for.water/;
-    $water->run({ -asequence => $for_seq,
-                  -bsequence    => \@qseqs,
+    (my $primer_water = $tlxfile) =~ s/\.tlx/_primer.water/;
+    $water->run({ -asequence => $primer_obj,
+                  -bsequence => \@qseqs,
                   -gapopen   => '10.0',
                   -gapextend => '0.5',
-                  -outfile   => $for_water});
+                  -outfile   => $primer_water});
     my $alnio = Bio::AlignIO->new( -format => 'emboss',
-                                   -file   => $for_water);
-    while (my $for_aln = $alnio->next_aln) {
+                                   -file   => $primer_water);
+    while (my $primer_aln = $alnio->next_aln) {
 
-      next unless $for_aln->percentage_identity > 90 && $for_aln->length >= length($for_primer) - 3;
+      next unless $primer_aln->percentage_identity > 90 && $primer_aln->length >= length($primer) - 3;
 
-      my $qseq = $for_aln->get_seq_by_pos(2);
+      my $qseq = $primer_aln->get_seq_by_pos(2);
       my $qid = $qseq->id;
 
-      next if exists $tlx{$qid}->{ForQstart};
+      next if exists $tlx{$qid}->{PrimQstart};
 
-      $tlx{$qid}->{ForQstart} = $qseq->start;
-      $tlx{$qid}->{ForQend} = $qseq->end;
+      $tlx{$qid}->{PrimQstart} = $qseq->start;
+      $tlx{$qid}->{PrimQend} = $qseq->end;
     }
 
 
@@ -274,12 +274,12 @@ sub align_to_primers {
     #   $tlx{$qname}->{ForQend} = $start + length($subseq);
     # }
 
-    unlink $for_water;
+    unlink $primer_water;
 
   }
 
-  unless ($rev_primer eq "") {
-    my $rev_seq = Bio::PrimarySeq->new( -id => "reverse_primer", -seq => $rev_primer);
+  unless ($adapter eq "") {
+    my $adapter_seq = Bio::PrimarySeq->new( -id => "adapter", -seq => $adapter);
     # (my $rev_water = $tlxfile) =~ s/\.tlx/_rev.water/;
     # $water->run({ -asequence => $rev_seq,
     #               -bsequence    => \@qseqs,
@@ -302,28 +302,28 @@ sub align_to_primers {
     # }
 
 
-    (my $rev_water = $tlxfile) =~ s/\.tlx/_rev.water/;
-    $water->run({ -asequence => $rev_seq,
+    (my $adapter_water = $tlxfile) =~ s/\.tlx/_adpt.water/;
+    $water->run({ -asequence => $adapter_seq,
                   -bsequence    => \@qseqs,
                   -gapopen   => '10.0',
                   -gapextend => '0.5',
-                  -outfile   => $rev_water});
+                  -outfile   => $adapter_water});
     my $alnio = Bio::AlignIO->new( -format => 'emboss',
-                                   -file   => $rev_water);
-    while (my $rev_aln = $alnio->next_aln) {
+                                   -file   => $adapter_water);
+    while (my $adapter_aln = $alnio->next_aln) {
 
-      next unless $rev_aln->percentage_identity > 90 && $rev_aln->length >= length($rev_primer) - 3;
+      next unless $adapter_aln->percentage_identity > 90 && $adapter_aln->length >= length($adapter) - 3;
 
-      my $qseq = $rev_aln->get_seq_by_pos(2);
+      my $qseq = $adapter_aln->get_seq_by_pos(2);
       my $qid = $qseq->id;
 
-      next if exists $tlx{$qid}->{RevQstart};
+      next if exists $tlx{$qid}->{AdptQstart};
 
-      $tlx{$qid}->{RevQstart} = $qseq->start;
-      $tlx{$qid}->{RevQend} = $qseq->end;
+      $tlx{$qid}->{AdptQstart} = $qseq->start;
+      $tlx{$qid}->{AdptQend} = $qseq->end;
     }
 
-  unlink $rev_water;
+  unlink $adapter_water;
 
   }
 
@@ -336,8 +336,8 @@ sub parse_command_line {
 
   usage() if (scalar @ARGV == 0);
 
-  my $result = GetOptions ( "for=s" => \$for_primer,
-                            "rev=s" => \$rev_primer,
+  my $result = GetOptions ( "primer=s" => \$primer,
+                            "adapter=s" => \$adapter,
                             "help" => \$help
                           ) ;
   
@@ -367,10 +367,10 @@ sub print_html_header ($) {
         letter-spacing:-1px;
         font-family:courier;
       }
-      .forward_primer {
+      .primer {
         color:red;
       }
-      .reverse_primer {
+      .adapter {
         color:blue;
       }
       .breaksite {
@@ -412,8 +412,8 @@ Arguments (defaults in parentheses):
 
 $arg{"tlxfile"," "}
 $arg{"htmlfile"," "}
-$arg{"--for"," ",$for_primer}
-$arg{"--rev"," ",$rev_primer}
+$arg{"--primer"," ",$primer}
+$arg{"--adapter"," ",$adapter}
 $arg{"--help","This helpful help screen."}
 
 
