@@ -974,7 +974,7 @@ sub score_edge ($;$) {
 sub deduplicate_junctions {
 
 
-  my $dedup_cmd = "Rscript $FindBin::Bin/../R/TranslocDedup.R $tlxfile $dedup_output cores=$max_threads";
+  my $dedup_cmd = "$FindBin::Bin/../R/TranslocDedup.R $tlxfile $dedup_output cores=$max_threads";
   System($dedup_cmd);
 
   my $tlxbak = "$tlxfile.bak";

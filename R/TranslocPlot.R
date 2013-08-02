@@ -10,10 +10,10 @@ if (commandArgs()[1] != "RStudio") {
   OPTS <- c(
     "binsize","integer",2000000,"bps per bin",
     "assembly","character","mm9","genome assembly",
-    "chrdisp","character","","comma-seperated list of included chromosomes",
+    "chr","character","","",
     "start","integer",0,"start",
     "end","integer",0,"end",
-    "stranddisp","integer",1,"1 for separate 0 for combined"
+    "strand","integer",0,"1 for positive strand, -1 for minus strand, 0 for both strands, 2 for combined strands"
   )
   
   
@@ -24,73 +24,61 @@ if (commandArgs()[1] != "RStudio") {
   }
   
   source_local("Rsub.R")
+  source_local("TranslocHelper.R")
+  parseArgs("TranslocPlot.R", ARGS, OPTS)
+  
 } else {
   source("~/Pipelines/R/Rsub.R")
   tlxfile <- "/Volumes/AltLab/Translocation/RawData/Alt024-20130429/NewPipelineTest/results-full/CC004_Alt024/CC004_Alt024.tlx"
   output <- "~/Working/TranslocTesting/TranslocPlot.pdf"
   binsize <- 2000000
   assembly <- "mm9"
-  chrdisp <- ""
-  stranddisp <- 1
+  chr <- ""
+  strand <- 0
   start <- 0
   end <- 0
+  showM <- 0
 }
 
-#suppressPackageStartupMessages()
-library(Rsamtools)
-library(GenomicRanges)
-library(grid)
-library(RColorBrewer)
+suppressPackageStartupMessages(library(Rsamtools))
+suppressPackageStartupMessages(library(Rsamtools))
+suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(grid))
+suppressPackageStartupMessages(library(RColorBrewer))
 
 denom <- c(1,5,20,100,500,2000,10000)
 pal <- brewer.pal(9,"Set1")
 pal <- pal[c(9,1,5,2,3,4,7)]
 
-cyto <- read.delim(paste(Sys.getenv('GENOME_DB'),assembly,'annotation/cytoBand.txt',sep="/"),header=F,as.is=T,col.names=c('Chr','Start','End','ID','Type'))
-cytocolor <- getCytoColor()
-cyto$Color <- cytocolor[match(cyto$Type,names(cytocolor))]
+# Read in cytogenetic band data
+cyto <- getCytoBands(assembly)
+  
+# Read in chomrosome length data
+chrlen <- getChromLens(assembly)
 
-chrlen <- read.delim(paste(Sys.getenv('GENOME_DB'),assembly,'annotation/ChromInfo.txt',sep="/"),header=F,as.is=T,col.names=c('Name','Length'))
-chrdisp <- strsplit(chrdisp,",")[[1]]
-
-chrlen <- structure(chrlen$Length,names=as.character(chrlen$Name))
-
-chrnum <- as.numeric(sub("chr","",names(chrlen[grep("chr[0-9]+",names(chrlen),perl=T)])))
-chrlet <- sub("chr","",names(chrlen[grep("chr[A-Z]+",names(chrlen),perl=T)]))
-chrnum <- paste("chr",chrnum[order(chrnum)],sep="")
-chrlet <- paste("chr",chrlet[match(c("X","Y","M"),chrlet)],sep="")
-chrlevels <- names(chrlen)[c(match(chrnum,names(chrlen)),match(chrlet,names(chrlen)))]
-
-chrlen <- chrlen[chrlevels]
-
-if (length(chrdisp) == 0) {
-  chrdisp <- seqlevels(gr)[seqlevels(gr) != "chrM"]
+if (chr != "") {
+  if (! chr %in% names(chrlen)) stop("Error: chromosome ",chr," not found")
+  chrlen <- chrlen[chr]
 } else {
-  chrdisp <- chrdisp[order(match(chrdisp,seqlevels(gr)))]
+  if (!showM) chrlen <- chrlen[names(chrlen)!="chrM"]
 }
 
-chrs <- rep(names(chrlen),c(ceiling(chrlen/binsize)))
-strands <- rep(c("+","-"),each=length(chrs))
-ends <- unlist(lapply(chrlen,function(len){seq(from=len,to=1,by=-binsize)}))
-starts <- unlist(lapply(ends,function(end){ max(1,end-binsize+1) } ))
+gr <- createGenomicRanges(chrlen,start,end,binsize)
 
-gr <- GRanges(seqnames=rep(chrs,2),ranges=IRanges(start=rep(starts,2),end=rep(ends,2)),strand=strands,seqlengths=chrlen)
-seqlevels(gr) <- chrlevels
+header <- readHeader(tlxfile)
 
-con  <- file(tlxfile, open = "r")
-header <- unlist(strsplit(readLines(con, n = 1),"\t"))
-close(con)
+columnsToRead <- c("Rname","Junction","Strand")
 
-headersToRead <- c("Rname","Junction","Strand")
-
-colClasses <- rep("NULL",length(header))
-colClasses[match(headersToRead,header)] <- NA
+colClasses <- proColumnClasses(header,columnsToRead)
 
 tlx <- read.delim(tlxfile,header=T,colClasses=colClasses)
-tlx <- GRanges(seqnames=tlx$Rname,ranges=IRanges(start=tlx$Junction,end=tlx$Junction),strand=ifelse(tlx$Strand==1,"+","-"))
-if (stranddisp == 0) {
-  strand(tlx) <- "+"
+tlx <- tlx[tlx$Rname %in% names(chrlen),]
+if (strand == 1 || strand == -1) {
+  tlx <- tlx[tlx$Strand == strand,]
+} else if (strand == 2) {
+  tlx$Strand <- 1
 }
+tlx <- GRanges(seqnames=tlx$Rname,ranges=IRanges(start=tlx$Junction,end=tlx$Junction),strand=ifelse(tlx$Strand==1,"+","-"),seqlengths=chrlen)
 
 gr$hits <- countOverlaps(gr,tlx)
 
@@ -102,34 +90,39 @@ for (i in length(denom):1) {
   tmphits <- tmphits - tmphits%/%denom[i]*denom[i]
 }
 
-chrpos <- rep(0,length(chrdisp))
-names(chrpos) <- chrdisp
-gr$ypos <- 0
-
-for (i in 1:length(chrdisp)) {
+if (length(chrlen) > 1) {
+  chrpos <- rep(0,length(chrlen))
+  names(chrpos) <- names(chrlen)
+  gr$ypos <- 0
   
-  gr[seqnames(gr) == chrdisp[i]]$ypos <- match(start(gr[seqnames(gr) == chrdisp[i]]),unique(start(gr[seqnames(gr) == chrdisp[i]])))
-  
-  if (i == 1) {
+  for (i in 1:length(chrlen)) {
     
-    chrpos[i] <- max(unlist(lapply(gr[seqnames(gr) == chrdisp[i] & strand(gr) == "-"]$hitvec,length))) + 1
-  } else {
+    gr[seqnames(gr) == chrdisp[i]]$ypos <- match(start(gr[seqnames(gr) == chrdisp[i]]),unique(start(gr[seqnames(gr) == chrdisp[i]])))
     
-    chrnegbins <- gr[seqnames(gr) == chrdisp[i] & strand(gr) == "-"]
-    chrnegbins <- chrnegbins[order(chrnegbins$ypos)]
-    
-    chrposbins <- gr[seqnames(gr) == chrdisp[i-1] & strand(gr) == "+"]
-    chrposbins <- chrposbins[order(chrposbins$ypos)]
-        
-    chrnegbins <- chrnegbins[chrnegbins$ypos <=  min(max(chrnegbins$ypos),max(chrposbins$ypos))]
-    chrposbins <- chrposbins[chrposbins$ypos <=  min(max(chrnegbins$ypos),max(chrposbins$ypos))]
-    
-    chrpos[i] <- chrpos[i-1] + max(unlist(mapply(function(x,y,w,z) {if (w==z) {length(x) + length(y)} else 0},chrposbins$hitvec,chrnegbins$hitvec,chrposbins$ypos,chrnegbins$ypos))) + 2
-            
+    if (i == 1) {
+      
+      chrpos[i] <- max(unlist(lapply(gr[seqnames(gr) == chrdisp[i] & strand(gr) == "-"]$hitvec,length))) + 1
+    } else {
+      
+      chrnegbins <- gr[seqnames(gr) == chrdisp[i] & strand(gr) == "-"]
+      chrnegbins <- chrnegbins[order(chrnegbins$ypos)]
+      
+      chrposbins <- gr[seqnames(gr) == chrdisp[i-1] & strand(gr) == "+"]
+      chrposbins <- chrposbins[order(chrposbins$ypos)]
+      
+      chrnegbins <- chrnegbins[chrnegbins$ypos <=  min(max(chrnegbins$ypos),max(chrposbins$ypos))]
+      chrposbins <- chrposbins[chrposbins$ypos <=  min(max(chrnegbins$ypos),max(chrposbins$ypos))]
+      
+      chrpos[i] <- chrpos[i-1] + max(unlist(mapply(function(x,y,w,z) {if (w==z) {length(x) + length(y)} else 0},chrposbins$hitvec,chrnegbins$hitvec,chrposbins$ypos,chrnegbins$ypos))) + 2
+      
+    }
   }
+  
+  rightlim <- chrpos[length(chrpos)] + max(unlist(lapply(gr[seqnames(gr) == chrdisp[length(chrdisp)] & strand(gr) == "+"]$hitvec,length))) + 1
 }
 
-rightlim <- chrpos[length(chrpos)] + max(unlist(lapply(gr[seqnames(gr) == chrdisp[length(chrdisp)] & strand(gr) == "+"]$hitvec,length))) + 1
+
+
 
 
 pdf(output,width=10,height=8)
@@ -176,7 +169,7 @@ for (i in 1:length(chrdisp)) {
     
     pushViewport(viewport(x=unit(chrpos[i],"native")-unit(0.1,"lines"),y=unit(0,"npc"),width=xwidth,height=unit(chrlen[names(chrlen) %in% chrdisp][i],"native"),just=c("right","bottom"),xscale=c(xmax+0.5,0.5),yscale=c(chrlen[names(chrlen) %in% chrdisp][i],0)))
     
-    grid.polygon(x=unit(c(datapoints$stackpos-0.5,datapoints$stackpos+0.5,datapoints$stackpos),"native"),y=unit(c(datapoints$start+binsize,datapoints$start+binsize,datapoints$start),"native"),id=rep(1:nrow(datapoints),3),gp=gpar(fill=pal[datapoints$type],lty=0))
+    grid.polygon(x=unit(c(datapoints$stackpos-0.5,datapoints$stackpos+0.5,datapoints$stackpos),"native"),y=unit(c(datapoints$start+binsize/2,datapoints$start+binsize/2,datapoints$start-binsize/2),"native"),id=rep(1:nrow(datapoints),3),gp=gpar(fill=pal[datapoints$type],lty=0))
     
     popViewport()
   }
@@ -194,7 +187,7 @@ for (i in 1:length(chrdisp)) {
     
     pushViewport(viewport(x=unit(chrpos[i],"native")+unit(0.1,"lines"),y=unit(0,"npc"),width=xwidth,height=unit(chrlen[names(chrlen) %in% chrdisp][i],"native"),just=c("left","bottom"),xscale=c(0.5,xmax+0.5),yscale=c(chrlen[names(chrlen) %in% chrdisp][i],0)))
     
-    grid.polygon(x=unit(c(datapoints$stackpos-0.5,datapoints$stackpos+0.5,datapoints$stackpos),"native"),y=unit(c(datapoints$start,datapoints$start,datapoints$start+binsize),"native"),id=rep(1:nrow(datapoints),3),gp=gpar(fill=pal[datapoints$type],lty=0))
+    grid.polygon(x=unit(c(datapoints$stackpos-0.5,datapoints$stackpos+0.5,datapoints$stackpos),"native"),y=unit(c(datapoints$start+binsize/2,datapoints$start+binsize/2,datapoints$start+1.5*binsize),"native"),id=rep(1:nrow(datapoints),3),gp=gpar(fill=pal[datapoints$type],lty=0))
     
     popViewport()
   }
