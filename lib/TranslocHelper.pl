@@ -174,6 +174,9 @@ sub find_genomic_distance ($$$) {
   my $chr2 = $aln2->{Rname};
   my $junc2 = $aln2->{Strand} == 1 ? $aln2->{Rstart} : $aln2->{Rend};
 
+  my $qend1 = $aln1->{Qend};
+  my $qstart2 = $aln2->{Qstart};
+
   my $g_dist;
 
   if ($chr1 eq "Breaksite" && $chr2 eq $brk_hash->{chr}) {
@@ -241,7 +244,7 @@ sub wrap_alignment ($$) {
     $wrapper->{CigarA} = [reverse @{$aln->cigar_array}];
   }
 
-  # $wrapper->{Cigar} = join("",map {join("",@$_)} @{$wrapper->{CigarA}});
+  $wrapper->{Cigar} = join("",map {join("",@$_)} @{$wrapper->{CigarA}});
   $wrapper->{Qlen} = length($wrapper->{Seq});
   $wrapper->{ID} = Data::GUID->new->as_string;
 
