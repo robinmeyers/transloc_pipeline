@@ -879,7 +879,7 @@ sub score_edge ($;$) {
     }
 
     my $totalOverlap = -min($R1_Qgap,0) -min($R2_Qgap,0);
-    return undef if $totalOverlap > 0.5 * $Len1 || $totalOverlap > 0.5 * $Len1
+    return undef if $totalOverlap > 0.5 * $Len1 || $totalOverlap > 0.5 * $Len1;
 
     my $OL_correction;
     my $Qgap_pen;
