@@ -828,8 +828,8 @@ sub score_edge ($;$) {
 
   if (defined $node2) {
 
-    my $R1_Qgap;
-    my $R2_Qgap;
+    my $R1_Qgap = 0;
+    my $R2_Qgap = 0;
     my $Rname1;
     my $Rname2;
     my $Strand1;
@@ -838,6 +838,8 @@ sub score_edge ($;$) {
     my $Junc2;
     my $R1_Rdist;
     my $R2_Rdist;
+    my $Len1 = 0;
+    my $Len2 = 0;
 
 
 
@@ -852,7 +854,8 @@ sub score_edge ($;$) {
       $Strand2 = $node2->{R1}->{Strand};
       $R1_Qgap = $node2->{R1}->{Qstart} - $node1->{R1}->{Qend} - 1;
       $R1_Rdist = find_genomic_distance($node1->{R1},$node2->{R1},$brk_hash);
-
+      $Len1 += $node1->{R1}->{Qend} - $node1->{R1}->{Qstart} + 1;
+      $Len2 += $node2->{R1}->{Qend} - $node2->{R1}->{Qstart} + 1;
     } else {
       return undef unless defined $node1->{R2};
     }
@@ -869,10 +872,14 @@ sub score_edge ($;$) {
       $Strand2 = $node2->{R2}->{Strand};
       $R2_Qgap = $node2->{R2}->{Qstart} - $node1->{R2}->{Qend} - 1;
       $R2_Rdist = find_genomic_distance($node1->{R2},$node2->{R2},$brk_hash);
-      
+      $Len1 += $node1->{R2}->{Qend} - $node1->{R2}->{Qstart} + 1;
+      $Len2 += $node2->{R2}->{Qend} - $node2->{R2}->{Qstart} + 1;
     } else {
       return undef unless defined $node2->{R1};
     }
+
+    my $totalOverlap = -min($R1_Qgap,0) -min($R2_Qgap,0);
+    return undef if $totalOverlap > 0.5 * $Len1 || $totalOverlap > 0.5 * $Len1
 
     my $OL_correction;
     my $Qgap_pen;
@@ -880,6 +887,7 @@ sub score_edge ($;$) {
     my $Brk_pen;
 
     if (defined $node2->{R1} && defined $node1->{R2}) {
+      
       $Junc1 = $Strand1 == 1 ? max($node1->{R1}->{Rend},$node1->{R2}->{Rend}) : min($node1->{R1}->{Rstart},$node1->{R2}->{Rstart});
       $Junc2 = $Strand2 == 1 ? min($node2->{R1}->{Rstart},$node2->{R2}->{Rstart}) : max($node2->{R1}->{Rend},$node2->{R2}->{Rend});
       $OL_correction = $OL_mult * max(0,-$R1_Qgap) + $OL_mult * max(0,-$R2_Qgap);
