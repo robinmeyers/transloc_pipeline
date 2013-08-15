@@ -214,6 +214,7 @@ sub wrap_alignment ($$) {
     $wrapper->{Unmapped} = 1;
     $wrapper->{Seq} = $pe eq "R1" ? $aln->query->dna : reverseComplement($aln->query->dna);
     $wrapper->{Qual} = $pe eq "R1" ? $aln->query->qscore : [reverse @{$aln->query->qscore}];
+    $wrapper->{Qstart} = 0;
     return $wrapper;
   }
 

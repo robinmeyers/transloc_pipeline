@@ -400,8 +400,8 @@ sub process_alignments {
 
     my $qname = $next_R1_brk_aln->{Qname};
 
-    my @R1_alns;# :shared;
-    my @R2_alns;# :shared;
+    my @R1_alns = ();# :shared;
+    my @R2_alns = ();# :shared;
 
        
     push(@R1_alns,$next_R1_brk_aln);
@@ -415,12 +415,12 @@ sub process_alignments {
     }
 
     if (defined $next_R2_brk_aln && $next_R2_brk_aln->{Qname} eq $qname) {
-      push(@R2_alns,$next_R2_brk_aln) unless $next_R2_brk_aln->{Unmapped};
+      push(@R2_alns,$next_R2_brk_aln);
       undef $next_R2_brk_aln;
       while(my $aln = $R2_brk_iter->next_seq) {
         $next_R2_brk_aln = wrap_alignment("R2",$aln);
         last unless $next_R2_brk_aln->{Qname} eq $qname;
-        push(@R2_alns,$next_R2_brk_aln) unless $next_R2_brk_aln->{Unmapped};
+        push(@R2_alns,$next_R2_brk_aln);
         undef $next_R2_brk_aln;
       }
     }
@@ -469,6 +469,9 @@ sub process_alignments {
       }
     }
 
+    # print "\nbefore ocs ". Dumper(\@R2_alns) if @R2_alns < 2;
+
+
     my $OCS = find_optimal_coverage_set(\@R1_alns,\@R2_alns);
 
     
@@ -501,7 +504,7 @@ sub process_alignments {
 
 sub find_optimal_coverage_set ($$) {
 
-  print "finding OCS\n";
+  # print "finding OCS\n";
   # my $t0 = [gettimeofday];
 
 
@@ -545,12 +548,15 @@ sub find_optimal_coverage_set ($$) {
         next;
       }
 
+      # print "\nbefore sort ". Dumper($R2_alns_ref) if @$R2_alns_ref < 2;
+
       my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart}} @$R1_alns_ref;
       my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart}} @$R2_alns_ref;
 
+      # print "\nafter sort ".Dumper(\@R2_alns) if @R2_alns < 2;
+
       foreach my $R1_aln (@R1_alns) {
 
-        # print $R1_aln->{Qname}." ".$R1_aln->{Unmapped}."\n";
         next if $R1_aln->{Unmapped};
 
         my $graphsize = scalar @graph;
@@ -591,8 +597,10 @@ sub find_optimal_coverage_set ($$) {
         }
 
         foreach my $R2_aln (@R2_alns) {
+          # print $R1_aln->{Qname}."\n" if ! defined $R2_aln->{Unmapped};
+          # print Dumper($R2_aln) if $R2_aln->{Unmapped};
 
-          next if $R2_aln->{Unmapped};
+          next unless defined $R2_aln && ! $R2_aln->{Unmapped};
 
           # print "testing proper-pairedness with R2:\n";
           # print_aln($R2_aln_wrap);
@@ -643,7 +651,7 @@ sub find_optimal_coverage_set ($$) {
 
         # print "\nStarting test for R2:\n";
         # print_aln($R2_aln_wrap);
-        next if $R2_aln->{Unmapped};
+        next unless defined $R2_aln && ! $R2_aln->{Unmapped};
 
         my $new_node = {R2 => $R2_aln};
         # my %new_node :shared;
@@ -803,7 +811,7 @@ sub process_optimal_coverage_set ($$$) {
 
 sub write_tlxls ($) {
   my $tlxls = shift;
-  print "writing stuff\n";
+  # print "writing stuff\n";
   foreach my $tlxl (@$tlxls) {
     write_entry($tlxlfh,$tlxl,\@tlxl_header);
     next unless defined $tlxl->{tlx};
