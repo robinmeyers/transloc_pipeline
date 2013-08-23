@@ -167,37 +167,109 @@ sub print_aln ($) {
 sub find_genomic_distance ($$$) {
   my $aln1 = shift;
   my $aln2 = shift;
-  my $brk_hash = shift;
+  my $brk = shift;
 
   my $chr1 = $aln1->{Rname};
-  my $junc1 = $aln1->{Strand} == 1 ? $aln1->{Rend} : $aln1->{Rstart};
   my $chr2 = $aln2->{Rname};
-  my $junc2 = $aln2->{Strand} == 1 ? $aln2->{Rstart} : $aln2->{Rend};
+  my $strand1 = $aln1->{Strand};
+  my $strand2 = $aln2->{Strand};
+  my $junc1 = $strand1 == 1 ? $aln1->{Rend} : $aln1->{Rstart};
+  my $junc2 = $strand2 == 1 ? $aln2->{Rstart} : $aln2->{Rend};
+
 
   my $qend1 = $aln1->{Qend};
   my $qstart2 = $aln2->{Qstart};
 
   my $g_dist;
+  my $q_dist;
+  my $r_dist;
+  my $g_dist_to_start_of_brk;
+  my $g_dist_to_end_of_brk;
 
-  if ($chr1 eq "Breaksite" && $chr2 eq $brk_hash->{chr}) {
-    if ($brk_hash->{strand} eq "+") {
-      $g_dist = min($brk_hash->{len} - $junc1 + abs($junc2 - $brk_hash->{end}) , $junc1 + abs($brk_hash->{start} - $junc2)); 
+
+  if ($aln1->{Rname} eq $aln2->{Rname}) {
+
+    $q_dist = $strand1 == $strand2 ? $qstart2 - $qend1 - 1 : 0;
+    $r_dist = $junc2 - $junc1 - 1;
+    $g_dist = $strand1 == 1 ? $r_dist - $q_dist : $r_dist + $q_dist;
+  
+  } elsif ($chr1 eq "Breaksite" && $chr2 eq $brk->{chr}) {
+
+    if ($brk->{strand} eq "+") {
+
+      if ($junc2 >= $brk->{end}) {
+        $junc1 = $brk->{end} - 1 - ($brk->{len} - $junc1);
+      } elsif ($junc2 < $brk->{start}) {
+        $junc1 = $brk->{start} + $junc1;
+      } elsif ($strand2 == 1) {
+        $junc1 = $brk->{end} - 1 - ($brk->{len} - $junc1);
+      } else {
+        $junc1 = $brk->{start} + $junc1;
+      }
+
     } else {
-      $g_dist = min($junc1 + abs($junc2 - $brk_hash->{end}) , $brk_hash->{len} - $junc1 + abs($brk_hash->{start} - $junc2));
+
+      if ($junc2 >= $brk->{end}) {
+        $junc1 = $brk->{end} - $junc1;
+      } elsif ($junc2 < $brk->{start}) {
+        $junc1 = $brk->{start} + ($brk->{len} - $junc1);
+      } elsif ($strand2 == 1) {
+        $junc1 = $brk->{end} - $junc1;
+      } else {
+        $junc1 = $brk->{start} + ($brk->{len} - $junc1);
+      }
+
+      $strand1 = -1 * $strand1;
+
     }
-  } elsif ($chr2 eq "Breaksite" && $chr1 eq $brk_hash->{chr}) {
-    if ($brk_hash->{strand} eq "+") {
-      $g_dist = min($brk_hash->{len} - $junc2 + abs($junc1 - $brk_hash->{end}) , $junc2 + abs($brk_hash->{start} - $junc1)); 
+
+    $q_dist = $strand1 == $strand2 ? $qstart2 - $qend1 - 1 : 0;
+    $r_dist = $junc2 - $junc1;
+    $g_dist = $strand1 == 1 ? $r_dist - $q_dist : $r_dist + $q_dist;
+
+  } elsif ($chr2 eq "Breaksite" && $chr1 eq $brk->{chr}) {
+
+    if ($brk->{strand} eq "+") {
+
+      if ($junc1 >= $brk->{end}) {
+        $junc2 = $brk->{end} - 1 - ($brk->{len} - $junc2);
+      } elsif ($junc1 < $brk->{start}) {
+        $junc2 = $brk->{start} + $junc2;
+      } elsif ($strand1 == 1) {
+        $junc2 = $brk->{end} - 1 - ($brk->{len} - $junc2);
+      } else {
+        $junc2 = $brk->{start} + $junc2;
+      }
+
     } else {
-      $g_dist = min($junc2 + abs($junc1 - $brk_hash->{end}) , $brk_hash->{len} - $junc2 + abs($brk_hash->{start} - $junc1));
+
+      if ($junc1 >= $brk->{end}) {
+        $junc2 = $brk->{end} - $junc2;
+      } elsif ($junc1 < $brk->{start}) {
+        $junc2 = $brk->{start} + ($brk->{len} - $junc2);
+      } elsif ($strand1 == 1) {
+        $junc2 = $brk->{end} - $junc2;
+      } else {
+        $junc2 = $brk->{start} + ($brk->{len} - $junc2);
+      }
+
+      $strand2 = -1 * $strand2;
+
     }
-  } elsif ($aln1->{Rname} eq $aln2->{Rname}) {
-    $g_dist = abs($junc2 - $junc1);
+
+    $q_dist = $strand1 == $strand2 ? $qstart2 - $qend1 - 1 : 0;
+    $r_dist = $junc2 - $junc1;
+    $g_dist = $strand1 == 1 ? $r_dist - $q_dist : $r_dist + $q_dist;
+
   } else {
     return undef;
   }
 
-  return max(1,$g_dist);
+  $g_dist = max(1,abs($g_dist));
+
+  $g_dist = $strand1 == $strand2 ? $g_dist : -$g_dist;
+
+  return $g_dist;
 }
 
 sub wrap_alignment ($$) {
@@ -258,6 +330,7 @@ sub pair_is_proper ($$$) {
   my $R1 = shift;
   my $R2 = shift;
   my $max_frag_len = shift;
+  my $max_dovetail = 10;
 
   return 0 unless $R1->{Rname} eq $R2->{Rname};
   return 0 unless $R1->{Strand} == $R2->{Strand};
@@ -266,13 +339,13 @@ sub pair_is_proper ($$$) {
   if ($R1->{Strand} == 1) {
     return 0 unless $R1->{Rstart} < $R2->{Rend};
     return 0 if $R2->{Rend} - $R1->{Rstart} + 1 > $max_frag_len;
-    return 0 if $R1->{Rstart} > $R2->{Rstart};
-    return 0 if $R1->{Rend} > $R2->{Rend};
+    return 0 if $R1->{Rstart} > $R2->{Rstart} + $max_dovetail;
+    return 0 if $R1->{Rend} > $R2->{Rend} + $max_dovetail;
   } else {
     return 0 unless $R2->{Rstart} < $R1->{Rend};
     return 0 if $R1->{Rend} - $R2->{Rstart} + 1 > $max_frag_len;
-    return 0 if $R2->{Rstart} > $R1->{Rstart};
-    return 0 if $R2->{Rend} > $R1->{Rend};
+    return 0 if $R2->{Rstart} > $R1->{Rstart} + $max_dovetail;
+    return 0 if $R2->{Rend} > $R1->{Rend} + $max_dovetail;
   }
 
   return 1;
@@ -657,8 +730,8 @@ sub create_tlx_entries ($$) {
         next TLXL if $i == 0;
         $B_tlxl = $tlxls->[0];
         $tlxl = $tlxls->[1];
-        next TLXL if ( (defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} < 2) || 
-          (defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} < 2) );
+        next TLXL if (defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} >=0 && $tlxl->{R1_Rgap} < 10) || 
+          (defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} >=0 && $tlxl->{R2_Rgap} < 10 );
         $tlxl->{tlx} = $tlx;
       }
       else {
@@ -666,8 +739,8 @@ sub create_tlx_entries ($$) {
         $B_tlxl = $tlxls->[$i-1];
         $tlxl = $tlxls->[$i];
         last TLXL if $tlxl->{Rname} eq "Adapter";
-        next TLXL if defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} < 2;
-        next TLXL if defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} < 2;
+        next TLXL if defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} >=0 && $tlxl->{R1_Rgap} < 10 ||
+          (defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} >=0 && $tlxl->{R2_Rgap} < 10 );
         $tlxl->{tlx} = $tlx;
       }
     }

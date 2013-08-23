@@ -137,6 +137,7 @@ sub filter_mispriming ($$) {
 
   return 0 unless defined $tlxls->[0]->{R1_ID};
 
+  $filter = "Mispriming" unless $tlxls->[0]->{Rname} eq "Breaksite";
   $filter = "Mispriming" if $tlxls->[0]->{R1_Rend} < $priming_threshold;
 
   foreach my $tlxl (@$tlxls) {

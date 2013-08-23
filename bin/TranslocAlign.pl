@@ -80,7 +80,9 @@ my $Brk_pen_min = 10;
 my $Brk_pen_power = 4;
 my $Brk_pen_max = 60;
 my $Brk_dist_max = 100000000;
-my $Brk_pen_mult = ($Brk_pen_max-$Brk_pen_min)/(log10($Brk_dist_max)^$Brk_pen_power);
+my $Brk_pen_mult = ($Brk_pen_max-$Brk_pen_min)/(log10($Brk_dist_max)**$Brk_pen_power);
+
+print "$Brk_pen_mult\n";
 
 my $max_frag_len = 1500;
 my $ol_thresh = 0.9;
@@ -426,45 +428,45 @@ sub process_alignments {
     }
 
     if (defined $next_R1_adpt_aln && $next_R1_adpt_aln->{Qname} eq $qname) {
-      push(@R1_alns,$next_R1_adpt_aln) unless $next_R1_adpt_aln->{Unmapped};
+      push(@R1_alns,$next_R1_adpt_aln);
       undef $next_R1_adpt_aln;
       while(my $aln = $R1_adpt_iter->next_seq) {
         $next_R1_adpt_aln = wrap_alignment("R1",$aln);
         last unless $next_R1_adpt_aln->{Qname} eq $qname;
-        push(@R1_alns,$next_R1_adpt_aln) unless $next_R1_adpt_aln->{Unmapped};
+        push(@R1_alns,$next_R1_adpt_aln);
         undef $next_R1_adpt_aln;
       }
     }
 
     if (defined $next_R2_adpt_aln && $next_R2_adpt_aln->{Qname} eq $qname) {
-      push(@R2_alns,$next_R2_adpt_aln) unless $next_R2_adpt_aln->{Unmapped};
+      push(@R2_alns,$next_R2_adpt_aln);
       undef $next_R2_adpt_aln;
       while(my $aln = $R2_adpt_iter->next_seq) {
         $next_R2_adpt_aln = wrap_alignment("R2",$aln);
         last unless $next_R2_adpt_aln->{Qname} eq $qname;
-        push(@R2_alns,$next_R2_adpt_aln) unless $next_R2_adpt_aln->{Unmapped};
+        push(@R2_alns,$next_R2_adpt_aln);
         undef $next_R2_adpt_aln;
       }
     }
 
     if (defined $next_R1_aln && $next_R1_aln->{Qname} eq $qname) {
-      push(@R1_alns,$next_R1_aln) unless $next_R1_aln->{Unmapped};
+      push(@R1_alns,$next_R1_aln);
       undef $next_R1_aln;
       while(my $aln = $R1_iter->next_seq) {
         $next_R1_aln = wrap_alignment("R1",$aln);
         last unless $next_R1_aln->{Qname} eq $qname;
-        push(@R1_alns,$next_R1_aln) unless $next_R1_aln->{Unmapped};
+        push(@R1_alns,$next_R1_aln);
         undef $next_R1_aln;
       }
     }
 
     if (defined $next_R2_aln && $next_R2_aln->{Qname} eq $qname) {
-      push(@R2_alns,$next_R2_aln) unless $next_R2_aln->{Unmapped};
+      push(@R2_alns,$next_R2_aln);
       undef $next_R2_aln;
       while(my $aln = $R2_iter->next_seq) {
         $next_R2_aln = wrap_alignment("R2",$aln);
         last unless $next_R2_aln->{Qname} eq $qname;
-        push(@R2_alns,$next_R2_aln) unless $next_R2_aln->{Unmapped};
+        push(@R2_alns,$next_R2_aln);
         undef $next_R2_aln;
       }
     }
@@ -526,14 +528,7 @@ sub find_optimal_coverage_set ($$) {
       my $OCS_ptr;
 
 
-      my @unmapped_OCS = ( { R1 => { Qname => $R1_alns_ref->[0]->{Qname},
-                                     Seq => $R1_alns_ref->[0]->{Seq},
-                                     Qual => $R1_alns_ref->[0]->{Qual},
-                                     Unmapped => 1 },
-                             R2 => { Qname => $R1_alns_ref->[0]->{Qname},
-                                     Seq => $R2_alns_ref->[0]->{Seq},
-                                     Qual => $R2_alns_ref->[0]->{Qual},
-                                     Unmapped => 1 } } );
+     
 
       
       # if ($R1_alns_ref->[0]->{Unmapped}) {
@@ -543,10 +538,10 @@ sub find_optimal_coverage_set ($$) {
       #   next;
       # }
 
-      if ($R1_alns_ref->[0]->{Unmapped}) {
-        return \@unmapped_OCS;
-        next;
-      }
+      # if ($R1_alns_ref->[0]->{Unmapped}) {
+      #   return \@unmapped_OCS;
+      #   next;
+      # }
 
       # print "\nbefore sort ". Dumper($R2_alns_ref) if @$R2_alns_ref < 2;
 
@@ -683,6 +678,14 @@ sub find_optimal_coverage_set ($$) {
       }
 
       unless (defined $OCS_ptr) {
+        my @unmapped_OCS = ( { R1 => { Qname => $R1_alns_ref->[0]->{Qname},
+                                       Seq => $R1_alns_ref->[0]->{Seq},
+                                       Qual => $R1_alns_ref->[0]->{Qual},
+                                       Unmapped => 1 },
+                               R2 => { Qname => $R2_alns_ref->[0]->{Qname},
+                                       Seq => $R2_alns_ref->[0]->{Seq},
+                                       Qual => $R2_alns_ref->[0]->{Qual},
+                                       Unmapped => 1 } } );
         return \@unmapped_OCS;
         # my @OCS_item :shared;
         # @OCS_item = (shared_clone(\@unmapped_OCS),$R1_alns_ref,$R2_alns_ref);
@@ -887,7 +890,7 @@ sub score_edge ($;$) {
     }
 
     my $totalOverlap = -min($R1_Qgap,0) -min($R2_Qgap,0);
-    return undef if $totalOverlap > 0.5 * $Len1 || $totalOverlap > 0.5 * $Len1;
+    return undef if $totalOverlap > 0.5 * $Len1 || $totalOverlap > 0.5 * $Len2;
 
     my $OL_correction;
     my $Qgap_pen;
@@ -930,13 +933,13 @@ sub score_edge ($;$) {
       my $R2_Brk_pen;
 
       if (defined $R1_Rdist) {
-        $R1_Brk_pen = $R1_Rdist > 1 || $Strand1 ne $Strand2 ? $Brk_pen_min + $Brk_pen_mult * log10($R1_Rdist)^$Brk_pen_power : 0;
+        $R1_Brk_pen = $R1_Rdist > 1 || $R1_Rdist < 0 ? $Brk_pen_min + $Brk_pen_mult * log10(abs($R1_Rdist))**$Brk_pen_power : 0;
       } else {
         $R1_Brk_pen = $Brk_pen_max;
       }
 
       if (defined $R2_Rdist) {
-        $R2_Brk_pen = $R2_Rdist > 1 || $Strand1 ne $Strand2 ? $Brk_pen_min + $Brk_pen_mult * log10($R2_Rdist)^$Brk_pen_power : 0;
+        $R2_Brk_pen = $R2_Rdist > 1 || $R2_Rdist < 0 ? $Brk_pen_min + $Brk_pen_mult * log10(abs($R2_Rdist))**$Brk_pen_power : 0;
       } else {
         $R2_Brk_pen = $Brk_pen_max;
       }
@@ -945,8 +948,8 @@ sub score_edge ($;$) {
     }
 
 
-    my $R1_AS = defined $node2->{R1} && $node2->{R1}->{AS};
-    my $R2_AS = defined $node2->{R2} && $node2->{R2}->{AS};
+    my $R1_AS = defined $node2->{R1} ? $node2->{R1}->{AS} : 0;
+    my $R2_AS = defined $node2->{R2} ? $node2->{R2}->{AS} : 0;
     my $PEgap;
     my $PEgap_pen;
 
@@ -954,9 +957,15 @@ sub score_edge ($;$) {
       $PEgap = $node2->{R1}->{Strand} == 1 ? $node2->{R2}->{Rstart} - $node2->{R1}->{Rend} : $node2->{R1}->{Rstart} - $node2->{R1}->{Rend};
     }
 
-    $PEgap_pen = defined $PEgap && $PEgap > 1 ? $Brk_pen_min + $Brk_pen_mult * log10($PEgap)^$Brk_pen_power : 0;
-
+    $PEgap_pen = defined $PEgap && $PEgap > 1 ? $Brk_pen_min + $Brk_pen_mult * log10($PEgap)**$Brk_pen_power : 0;
+    
     $score = $node1->{score} + $R1_AS + $R2_AS - $PEgap_pen - $Brk_pen - $Qgap_pen - $OL_correction - $Rgap_pen;
+
+    my $qname = defined $node1->{R1} ? $node1->{R1}->{Qname} : $node1->{R2}->{Qname};
+
+    print "$qname PE: $score\n" if $Rname2 eq "Adapter" && defined $node2->{R1} && defined $node2->{R2};
+    print "$qname SE1: $score\n" if $Rname2 eq "Adapter" && (defined $node2->{R1} && !defined $node2->{R2});
+    print "$qname SE2: $score\n" if $Rname2 eq "Adapter" && (!defined $node2->{R1} && defined $node2->{R2});
 
     
   } else {
@@ -968,7 +977,7 @@ sub score_edge ($;$) {
     my $brk_start_gap = $node1->{R1}->{Rstart} - $primer_start;
 
     my $R1_AS = $node1->{R1}->{AS};
-    my $R2_AS = defined $node1->{R2} && $node1->{R2}->{AS};
+    my $R2_AS = defined $node1->{R2} ? $node1->{R2}->{AS} : 0;
     my $PEgap;
     my $PEgap_pen;
 
@@ -1027,6 +1036,8 @@ sub deduplicate_junctions {
 
     }
   }
+
+  unlink $tlxbak;
 
 }
 
