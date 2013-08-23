@@ -55,6 +55,7 @@ sub process_optimal_coverage_set ($$$);
 sub score_edge ($;$);
 sub deduplicate_junctions;
 sub post_process_junctions;
+sub write_stats_file;
 
 
 
@@ -69,6 +70,7 @@ my $brk_start;
 my $brk_end;
 my $brk_strand;
 my $max_threads = 4;
+my $overwrite_tlx;
 my $max_queue_size = 5;
 my $qblocksize = 500;
 
@@ -82,7 +84,7 @@ my $Brk_pen_max = 60;
 my $Brk_dist_max = 100000000;
 my $Brk_pen_mult = ($Brk_pen_max-$Brk_pen_min)/(log10($Brk_dist_max)**$Brk_pen_power);
 
-print "$Brk_pen_mult\n";
+# print "$Brk_pen_mult\n";
 
 my $max_frag_len = 1500;
 my $ol_thresh = 0.9;
@@ -98,7 +100,6 @@ my $use_current_tlx;
 my @tlxl_header = tlxl_header();
 my @tlx_header = tlx_header();
 my @tlx_filter_header = tlx_filter_header();
-
 
 
 
@@ -182,6 +183,8 @@ my $filt_tlxfile = "${expt_stub}_filtered.tlx";
 my $unjoin_tlxfile = "${expt_stub}_unjoined.tlx";
 my ($tlxlfh,$tlxfh,$filt_tlxfh,$unjoin_tlxfh);
 
+my $statsfile = "${expt_stub}_stats.txt";
+
 my $dedup_output = "${expt_stub}_dedup.txt";
 
 
@@ -237,46 +240,61 @@ align_to_genome unless -r $R1_bam && -r $R2_bam;
 # }
 # $ocs_processer_thr->join;
 
-$tlxlfh = IO::File->new(">$tlxlfile");
-$tlxfh = IO::File->new(">$tlxfile");
-$filt_tlxfh = IO::File->new(">$filt_tlxfile");
-$unjoin_tlxfh = IO::File->new(">$unjoin_tlxfile");
+if (! -r $tlxfile || $overwrite_tlx) {
 
-$tlxlfh->print(join("\t", @tlxl_header)."\n");
-$tlxfh->print(join("\t", @tlx_header)."\n");
-$filt_tlxfh->print(join("\t", @tlx_filter_header)."\n");
-$unjoin_tlxfh->print(join("\t", @tlx_filter_header)."\n");
+  $tlxlfh = IO::File->new(">$tlxlfile");
+  $tlxfh = IO::File->new(">$tlxfile");
+  $filt_tlxfh = IO::File->new(">$filt_tlxfile");
+  $unjoin_tlxfh = IO::File->new(">$unjoin_tlxfile");
 
-process_alignments;
+  $tlxlfh->print(join("\t", @tlxl_header)."\n");
+  $tlxfh->print(join("\t", @tlx_header)."\n");
+  $filt_tlxfh->print(join("\t", @tlx_filter_header)."\n");
+  $unjoin_tlxfh->print(join("\t", @tlx_filter_header)."\n");
 
-$tlxlfh->close;
-$tlxfh->close;
-$filt_tlxfh->close;
-$unjoin_tlxfh->close;
+  process_alignments;
 
-deduplicate_junctions;
+  $tlxlfh->close;
+  $tlxfh->close;
+  $filt_tlxfh->close;
+  $unjoin_tlxfh->close;
+
+  deduplicate_junctions;
+
+  write_stats_file;
+}
 
 post_process_junctions;
+
+
+
 
 my $t1 = tv_interval($t0);
 
 printf("\nFinished all processes in %.2f seconds.\n", $t1);
 
-print("Some stats:\n".join("\t",$stats->{totalreads},
-                                $stats->{aligned},
-                                $stats->{junctions}." (".$stats->{junc_reads}.")",
-                                $stats->{mapqual}." (".$stats->{mapq_reads}.")",
-                                $stats->{priming}." (".$stats->{prim_reads}.")",
-                                $stats->{freqcut}." (".$stats->{freq_reads}.")",
-                                $stats->{breaksite}." (".$stats->{break_reads}.")",
-                                $stats->{splitjuncs}." (".$stats->{split_reads}.")",
-                                $stats->{dedup})."\n");
+print("\nStats\n".join("\n","Total Reads: ".$stats->{totalreads},
+                          "Aligned: ".$stats->{aligned},
+                          "Junctions: ".$stats->{junctions}." (".$stats->{junc_reads}.")",
+                          "MapQuality: ".$stats->{mapqual}." (".$stats->{mapq_reads}.")",
+                          "Priming: ".$stats->{priming}." (".$stats->{prim_reads}.")",
+                          "FrequentCutter: ".$stats->{freqcut}." (".$stats->{freq_reads}.")",
+                          "Breaksite: ".$stats->{breaksite}." (".$stats->{break_reads}.")",
+                          "SplitJuncs: ".$stats->{splitjuncs}." (".$stats->{split_reads}.")",
+                          "Dedup: ".$stats->{dedup})."\n");
 
 
 
 #
 # End of program
 #
+
+
+
+
+
+
+
 
 sub align_to_breaksite {
   print "\nRunning Bowtie2 alignment for $expt against breaksite sequence\n";
@@ -793,10 +811,10 @@ sub process_optimal_coverage_set ($$$) {
     $stats->{freq_reads}++ if $no_freq_cutter > 0;
 
     # print "filter breaksite\n";
-    my $outside_breaksite = filter_breaksite($tlxls);
+    # my $outside_breaksite = filter_breaksite($tlxls);
 
-    $stats->{breaksite} += $outside_breaksite;
-    $stats->{break_reads}++ if $outside_breaksite > 0;
+    # $stats->{breaksite} += $outside_breaksite;
+    # $stats->{break_reads}++ if $outside_breaksite > 0;
 
 
     # print "filter split juctions\n";
@@ -963,9 +981,9 @@ sub score_edge ($;$) {
 
     my $qname = defined $node1->{R1} ? $node1->{R1}->{Qname} : $node1->{R2}->{Qname};
 
-    print "$qname PE: $score\n" if $Rname2 eq "Adapter" && defined $node2->{R1} && defined $node2->{R2};
-    print "$qname SE1: $score\n" if $Rname2 eq "Adapter" && (defined $node2->{R1} && !defined $node2->{R2});
-    print "$qname SE2: $score\n" if $Rname2 eq "Adapter" && (!defined $node2->{R1} && defined $node2->{R2});
+    # print "$qname PE: $score\n" if $Rname2 eq "Adapter" && defined $node2->{R1} && defined $node2->{R2};
+    # print "$qname SE1: $score\n" if $Rname2 eq "Adapter" && (defined $node2->{R1} && !defined $node2->{R2});
+    # print "$qname SE2: $score\n" if $Rname2 eq "Adapter" && (!defined $node2->{R1} && defined $node2->{R2});
 
     
   } else {
@@ -986,7 +1004,7 @@ sub score_edge ($;$) {
       $PEgap = $node1->{R1}->{Strand} == 1 ? $node1->{R2}->{Rstart} - $node1->{R1}->{Rend} : $node1->{R1}->{Rstart} - $node1->{R1}->{Rend};
     }
 
-    $PEgap_pen = defined $PEgap && $PEgap > 1 ? $Brk_pen_min + $Brk_pen_mult * log10($PEgap)^$Brk_pen_power : 0;
+    $PEgap_pen = defined $PEgap && $PEgap > 1 ? $Brk_pen_min + $Brk_pen_mult * log10($PEgap)**$Brk_pen_power : 0;
 
     $score = $R1_AS + $R2_AS - $PEgap_pen - $Dif_mult * $brk_start_gap;
 
@@ -1044,7 +1062,35 @@ sub deduplicate_junctions {
 sub post_process_junctions {
 
   (my $html_reads = $tlxfile) =~ s/tlx$/html/;
-  System("TranslocHTMLReads.pl $tlxfile $html_reads");  
+  System("TranslocHTMLReads.pl $tlxfile $html_reads --primer ".$primseq->seq." --adapter ".$adaptseq->seq);  
+
+}
+
+sub write_stats_file {
+
+  my $statsfh = IO::File->new(">$statsfile");
+
+  $statsfh->print(join("\t","TotalReads",
+                            "Aligned",
+                            "Junctions",
+                            "MappingQuality",
+                            "Priming",
+                            "FrequentCutter",
+                            "Breaksite",
+                            "SplitJuncs",
+                            "DeDup")."\n");
+
+  $statsfh->print(join("\t",$stats->{totalreads},
+                            $stats->{aligned},
+                            $stats->{junctions}." (".$stats->{junc_reads}.")",
+                            $stats->{mapqual}." (".$stats->{mapq_reads}.")",
+                            $stats->{priming}." (".$stats->{prim_reads}.")",
+                            $stats->{freqcut}." (".$stats->{freq_reads}.")",
+                            $stats->{breaksite}." (".$stats->{break_reads}.")",
+                            $stats->{splitjuncs}." (".$stats->{split_reads}.")",
+                            $stats->{dedup})."\n");
+
+  $statsfh->close;
 
 }
 

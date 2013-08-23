@@ -254,7 +254,7 @@ sub parse_command_line {
 	usage() if (scalar @ARGV == 0);
 
 	my $result = GetOptions ( 
-														"otheads=i" => \$pipeline_threads,
+														"othreads=i" => \$pipeline_threads,
                             "ithreads=i" => \$expt_threads,
                             "usecurrtlx" => \$use_current_tlx,
 														"bowtie2opt=s" => \$user_bowtie_opt,
