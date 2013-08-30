@@ -60,6 +60,89 @@ plotJunctions <- function (gr,binsize,strand=1,plottype="dot",plotshape="arrow",
   }
 }
 
+plotXScale <- function(chr,start,end) {
+  
+  sizeArray <- c(50,100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000,1000000,2000000,5000000,10000000,20000000,50000000,100000000,200000000)
+  grid.xaxis(at=c(start,end),label=c(" "," "))
+  grid.text(label=formatBP(end-start))
+  grid.text(label=prettyNum(start,big.mark=","),x=unit(0,"npc"),just="left")
+  grid.text(label=prettyNum(end,big.mark=","),x=unit(1,"npc"),just="right")
+}
+
+
+plotFeatures <- function(features,chr,start,end) {
+  grid.text(features$Name,x=unit((features$Start+features$End)/2,"native"),y=unit(1-(((0:(nrow(features)-1))%%3))*0.33,"npc"),just="top",gp=gpar(cex=0.75))
+#   grid.text(features$Name,x=unit((features$Start+features$End)/2,"native"),y=unit(0,"npc"),just="bottom",gp=gpar(cex=0.75))
+  
+}
+
+printHeader <- function(tlxfile,tlxdisp,tlxtot,assembly,chr,denom,pal,plottype,plotshape) {
+  
+  if (plottype == "dot") {
+    pushViewport(viewport(x=unit(1,"npc"),width=unit(1.5,"inches"),xscale=c(0,2),just="right"))
+    x_legend <- unit(floor((1:length(denom)-1)/3) + 0.5,"native")
+    y_legend <- unit((1:length(denom)-1)%%3 + 0.5,"lines")
+    grid.text(label=denom,x=unit(x_legend,"native"),y=unit(y_legend,"lines"),just="left")    
+    
+    if (plotshape == "arrow") {
+      vertices <- 7
+      xpoints <- rep(x_legend-unit(1,"mm"),each=vertices) - unit(c(4,8/3,8/3,0,8/3,8/3,4),"mm")
+      ypoints <- rep(y_legend,each=vertices) + unit(c(4/5,4/5,2,0,-2,-4/5,-4/5),"mm")
+    } else if (plotshape == "triangle") {
+      vertices <- 3
+      xpoints <- rep(x_legend-unit(1,"mm"),each=vertices) - unit(c(4,0,4),"mm")
+      ypoints <- rep(y_legend,each=vertices) + unit(c(2,0,-2),"mm")
+    } else if (plotshape == "diamond") {
+      vertices <- 4      
+      xpoints <- rep(x_legend-unit(1,"mm"),each=vertices) - unit(c(4,2,0,2),"mm")
+      ypoints <- rep(y_legend,each=vertices) + unit(c(0,2,0,-2),"mm")
+    }
+    
+    grid.polygon(x=xpoints,y=ypoints,id=rep(1:length(denom),each=vertices),gp=gpar(fill=pal,lty=0))
+    popViewport()
+    
+    textwidth <- unit(1,"npc")-unit(1.5,"inches")
+    
+  } else {
+    textwidth <- unit(1,"npc")    
+  }
+  
+  spacer <- unit(3,"mm")
+  
+  pushViewport(viewport(x=unit(0.5,"npc"),width=unit(0.5,"npc"),just="right"))
+  titletext <- sub(".tlx","",basename(tlxfile))
+  grid.text(titletext,x=unit(1,"npc")-spacer,just="right",gp=gpar(cex=min(2.5,1/convertHeight(stringHeight(titletext),"npc",valueOnly=T),(1-convertWidth(spacer,"npc",valueOnly=T))/convertWidth(stringWidth(titletext),"npc",valueOnly=T))))
+  popViewport()
+  
+  pushViewport(viewport(x=unit(0.5,"npc"),width=textwidth,y=unit(1,"npc"),height=unit(0.5,"npc"),just=c("left","top")))
+  hittext <- paste("Displaying",prettyNum(tlxdisp,big.mark=","),"of",prettyNum(tlxtot,big.mark=","),"hits")
+  grid.text(hittext,x=spacer,just="left",gp=gpar(cex=min(1.25,1/convertHeight(stringHeight(hittext),"npc",valueOnly=T),(1-convertWidth(spacer,"npc",valueOnly=T))/convertWidth(stringWidth(hittext),"npc",valueOnly=T))))
+  popViewport()
+  
+  pushViewport(viewport(x=unit(0.5,"npc"),width=unit(0.5,"npc"),y=unit(0,"npc"),height=unit(0.5,"npc"),just=c("left","bottom")))
+  
+  if (chr != "") {
+    displaytext <- paste(assembly,"-",chr,"-",formatBP(binsize,1),"bins")
+  } else {
+    displaytext <- paste(assembly,"-",formatBP(binsize,1),"bins")
+  }
+  grid.text(displaytext,x=spacer,just="left",gp=gpar(cex=min(1.25,1/convertHeight(stringHeight(displaytext),"npc",valueOnly=T),(1-convertWidth(spacer,"npc",valueOnly=T))/convertWidth(stringWidth(displaytext),"npc",valueOnly=T))))
+  popViewport()
+  
+  
+  
+  
+#   
+#   
+#   
+#   bintext <- paste(formatBP(binsize,1),"bins")
+#   
+#   
+#   
+#   titletext <- paste(sub(".tlx","",basename(tlxfile))," - Displaying ",prettyNum(tlxdisp,big.mark=",")," of ",prettyNum(tlxtot,big.mark=",")," hits - ",formatBP(binsize,1)," bins",sep="")
+#   grid.text(titletext,gp=gpar(cex=min(2,1/convertHeight(stringHeight(titletext),"npc",valueOnly=T),1/convertWidth(stringWidth(titletext),"npc",valueOnly=T))))
+}
+
 createGenomicRanges <- function (chrlen,start=0,end=0,mid=0,window=0,binsize=0,binnum=0) {
   if (length(chrlen) > 1) {
     ends <- unlist(lapply(chrlen,function(x){rev(seq(from=x,to=1,by=-binsize,))}))
@@ -67,19 +150,19 @@ createGenomicRanges <- function (chrlen,start=0,end=0,mid=0,window=0,binsize=0,b
     chrs <- rep(names(chrlen),c(ceiling((chrlen)/binsize)))
     strands <- rep(c("+","-"),each=length(chrs))
   } else if (mid != 0 && window != 0) {
-    if (binsize == 0) binsize <- ceiling(2*window/binnum)
+    if (binnum != 0) binsize <- ceiling(2*window/binnum)
     starts <- c(rev(seq(from=mid-binsize,to=mid-window,by=-binsize)),seq(from=mid,to=mid+window-binsize,by=binsize))
     ends <- starts + binsize - 1
     chrs <- rep(names(chrlen),length(starts))
     strands <- rep(c("+","-"),each=length(chrs))
   } else if (start != 0 && end != 0 ) {
-    if (binsize == 0) binsize <- ceiling((end-start+1)/binnum)
+    if (binnum != 0) binsize <- ceiling((end-start+1)/binnum)
     starts <- seq(from=start,to=end-binsize+1,by=binsize)
     ends <- starts + binsize - 1
     chrs <- rep(names(chrlen),length(starts))
     strands <- rep(c("+","-"),each=length(chrs))
   } else {
-    if (binsize == 0) binsize <- ceiling((end-start+1)/binnum)
+    if (binnum != 0) binsize <- ceiling((end-start+1)/binnum)
     ends <- unlist(lapply(chrlen,function(x){rev(seq(from=x,to=1,by=-binsize,))}))
     starts <- unlist(lapply(ends,function(end){ max(1,end-binsize+1) } ))
     chrs <- rep(names(chrlen),length(starts))

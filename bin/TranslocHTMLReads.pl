@@ -211,8 +211,7 @@ sub read_in_translocations {
 sub align_to_primers {
 
   my $f = Bio::Factory::EMBOSS -> new();
-  my $water = $f->program('water');
-
+  my $water = $f->program('water') or croak "Error: cannot set water program";
 
 
 
