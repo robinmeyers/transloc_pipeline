@@ -26,31 +26,31 @@ sub prepare_reference_genomes ($) {
     next unless ($mask =~ /\S/);
     (my $mask_stub = $assembly."_mask_".$mask) =~ s/[:,\s]+/_/g;
     my $maskdir = "$GENOME_DB/$mask_stub";
-    mkdir $maskdir or croak "Error: could not create directory for masked genome";
+    unless (-d $maskdir) {
+      mkdir $maskdir or croak "Error: could not create directory for masked genome";
+    }
     my $maskFa = "$maskdir/$mask_stub.fa";
     $meta_ref->{$expt_id}->{mask_assembly} = $mask_stub;
 
-    my $beddir = "$assemdir/maskBED";
-    my $bedfile = "$beddir/$mask_stub.bed"; 
+    my $bedfile = "$maskdir/$mask_stub.bed"; 
 
-    unless (-r $bedfile) {
-      unless (-d $beddir) {
-        mkdir $beddir or croak "Error: cannot create maskBED directory";
-      }
-      my $bed_fh = IO::File->new(">$bedfile");
-      my @loci = split( /\s*,\s*/ , $mask );
-      foreach my $locus (@loci) {
-        (my $chr, my $start, my $end) = ($locus =~ /(chr\w+):(\d+)-(\d+)/);
-        $bed_fh->print(join("\t",$chr,$start,$end)."\n");
-      }
-      $bed_fh->close;
+      
+    my $bed_fh = IO::File->new(">$bedfile");
+    my @loci = split( /\s*,\s*/ , $mask );
+    foreach my $locus (@loci) {
+      (my $chr, my $start, my $end) = ($locus =~ /(chr\w+):(\d+)-(\d+)/);
+      $bed_fh->print(join("\t",$chr,$start,$end)."\n");
     }
+    $bed_fh->close;
 
-    unless (-r $maskFa) {
+    my $maskFaSize = -s $maskFa;
+    my $cleanFaSize = -s $cleanFa;
+
+    unless (-r $maskFa && $maskFaSize > 0.99 * $cleanFaSize) {
       System("maskFastaFromBed -fi $cleanFa -fo $maskFa -bed $bedfile");
     }
 
-    unless (-r "$BOWTIE2_INDEXES/$mask_stub.1.bt2") {     
+    unless (-r "$BOWTIE2_INDEXES/$mask_stub.1.bt2" && -r "$BOWTIE2_INDEXES/$mask_stub.rev.2.bt2") {     
       System("bowtie2-build $maskFa $BOWTIE2_INDEXES/$mask_stub");
     }
   }

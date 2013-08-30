@@ -805,11 +805,11 @@ sub process_optimal_coverage_set ($$$) {
     $stats->{freqcut} += $no_freq_cutter;
     $stats->{freq_reads}++ if $no_freq_cutter > 0;
 
-    # print "filter breaksite\n";
-    # my $outside_breaksite = filter_breaksite($tlxls);
+    print "filter breaksite\n";
+    my $outside_breaksite = filter_breaksite($tlxls);
 
-    # $stats->{breaksite} += $outside_breaksite;
-    # $stats->{break_reads}++ if $outside_breaksite > 0;
+    $stats->{breaksite} += $outside_breaksite;
+    $stats->{break_reads}++ if $outside_breaksite > 0;
 
 
     # print "filter split juctions\n";

@@ -60,17 +60,17 @@ plotJunctions <- function (gr,binsize,strand=1,plottype="dot",plotshape="arrow",
   }
 }
 
-plotXScale <- function(chr,start,end) {
+plotXScale <- function(chr,rstart,rend) {
   
   sizeArray <- c(50,100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000,1000000,2000000,5000000,10000000,20000000,50000000,100000000,200000000)
-  grid.xaxis(at=c(start,end),label=c(" "," "))
-  grid.text(label=formatBP(end-start))
-  grid.text(label=prettyNum(start,big.mark=","),x=unit(0,"npc"),just="left")
-  grid.text(label=prettyNum(end,big.mark=","),x=unit(1,"npc"),just="right")
+  grid.xaxis(at=c(rstart,rend),label=c(" "," "))
+  grid.text(label=formatBP(rend-rstart))
+  grid.text(label=prettyNum(rstart,big.mark=","),x=unit(0,"npc"),just="left")
+  grid.text(label=prettyNum(rend,big.mark=","),x=unit(1,"npc"),just="right")
 }
 
 
-plotFeatures <- function(features,chr,start,end) {
+plotFeatures <- function(features,chr,rstart,rend) {
   grid.text(features$Name,x=unit((features$Start+features$End)/2,"native"),y=unit(1-(((0:(nrow(features)-1))%%3))*0.33,"npc"),just="top",gp=gpar(cex=0.75))
 #   grid.text(features$Name,x=unit((features$Start+features$End)/2,"native"),y=unit(0,"npc"),just="bottom",gp=gpar(cex=0.75))
   
@@ -143,33 +143,33 @@ printHeader <- function(tlxfile,tlxdisp,tlxtot,assembly,chr,denom,pal,plottype,p
 #   grid.text(titletext,gp=gpar(cex=min(2,1/convertHeight(stringHeight(titletext),"npc",valueOnly=T),1/convertWidth(stringWidth(titletext),"npc",valueOnly=T))))
 }
 
-createGenomicRanges <- function (chrlen,start=0,end=0,mid=0,window=0,binsize=0,binnum=0) {
+createGenomicRanges <- function (chrlen,rstart=0,rend=0,rmid=0,rwindow=0,binsize=0,binnum=0) {
   if (length(chrlen) > 1) {
-    ends <- unlist(lapply(chrlen,function(x){rev(seq(from=x,to=1,by=-binsize,))}))
-    starts <- unlist(lapply(ends,function(end){ max(1,end-binsize+1) } ))
+    rends <- unlist(lapply(chrlen,function(x){rev(seq(from=x,to=1,by=-binsize,))}))
+    rstarts <- unlist(lapply(rends,function(rend){ max(1,rend-binsize+1) } ))
     chrs <- rep(names(chrlen),c(ceiling((chrlen)/binsize)))
     strands <- rep(c("+","-"),each=length(chrs))
-  } else if (mid != 0 && window != 0) {
-    if (binnum != 0) binsize <- ceiling(2*window/binnum)
-    starts <- c(rev(seq(from=mid-binsize,to=mid-window,by=-binsize)),seq(from=mid,to=mid+window-binsize,by=binsize))
-    ends <- starts + binsize - 1
-    chrs <- rep(names(chrlen),length(starts))
+  } else if (rmid != 0 && rwindow != 0) {
+    if (binnum != 0) binsize <- ceiling(2*rwindow/binnum)
+    rstarts <- c(rev(seq(from=rmid-binsize,to=rmid-rwindow,by=-binsize)),seq(from=rmid,to=rmid+rwindow-binsize,by=binsize))
+    rends <- rstarts + binsize - 1
+    chrs <- rep(names(chrlen),length(rstarts))
     strands <- rep(c("+","-"),each=length(chrs))
-  } else if (start != 0 && end != 0 ) {
-    if (binnum != 0) binsize <- ceiling((end-start+1)/binnum)
-    starts <- seq(from=start,to=end-binsize+1,by=binsize)
-    ends <- starts + binsize - 1
-    chrs <- rep(names(chrlen),length(starts))
+  } else if (rstart != 0 && rend != 0 ) {
+    if (binnum != 0) binsize <- ceiling((rend-rstart+1)/binnum)
+    rstarts <- seq(from=rstart,to=rend-binsize+1,by=binsize)
+    rends <- rstarts + binsize - 1
+    chrs <- rep(names(chrlen),length(rstarts))
     strands <- rep(c("+","-"),each=length(chrs))
   } else {
-    if (binnum != 0) binsize <- ceiling((end-start+1)/binnum)
-    ends <- unlist(lapply(chrlen,function(x){rev(seq(from=x,to=1,by=-binsize,))}))
-    starts <- unlist(lapply(ends,function(end){ max(1,end-binsize+1) } ))
-    chrs <- rep(names(chrlen),length(starts))
+    if (binnum != 0) binsize <- ceiling((rend-rstart+1)/binnum)
+    rends <- unlist(lapply(chrlen,function(x){rev(seq(from=x,to=1,by=-binsize,))}))
+    rstarts <- unlist(lapply(rends,function(rend){ max(1,rend-binsize+1) } ))
+    chrs <- rep(names(chrlen),length(rstarts))
     strands <- rep(c("+","-"),each=length(chrs))
   }
   
-  gr <- GRanges(seqnames=rep(chrs,2),ranges=IRanges(start=rep(starts,2),end=rep(ends,2)),strand=strands,seqlengths=chrlen)
+  gr <- GRanges(seqnames=rep(chrs,2),ranges=IRanges(start=rep(rstarts,2),end=rep(rends,2)),strand=strands,seqlengths=chrlen)
   seqlevels(gr) <- names(chrlen)
   return(gr)
 } 
@@ -196,6 +196,12 @@ getCytoBands <- function (assembly) {
   # Create new color column in cytoband data
   cyto$Color <- cytocolor[match(cyto$Type,names(cytocolor))]
   return(cyto)
+}
+
+getFeatures <- function (assembly,featurefile) {
+  if (featurefile == "") featurefile <- paste(Sys.getenv('GENOME_DB'),assembly,'annotation/refGene.bed',sep="/")
+  features <- read.delim(featurefile,header=F,as.is=T,col.names=c('Chr','Start','End','Name'))
+  return(features)
 }
 
 getCytoColor <- function() {

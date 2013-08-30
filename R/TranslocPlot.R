@@ -8,13 +8,24 @@ if (commandArgs()[1] != "RStudio") {
   )
   
   OPTS <- c(
-    "binsize","integer",2000000,"bps per bin",
+    "binsize","integer",2500000,"bps per bin",
     "assembly","character","mm9","genome assembly",
+    "strand","integer",0,"1 for positive strand, -1 for minus strand, 0 for both strands, 2 for combined strands",    
+    "brkchr","character","","",
+    "brksite","integer",0,"",
+    "brkstrand","integer",0,"",
     "featurefile","character","","e.g. RefGene",
     "chr","character","","",
-    "start","integer",0,"start",
-    "end","integer",0,"end",
-    "strand","integer",0,"1 for positive strand, -1 for minus strand, 0 for both strands, 2 for combined strands"
+    "rstart","integer",0,"start",
+    "rend","integer",0,"end",
+    "rmid","integer",0,"",
+    "rwindow","integer",0,"",
+    "binnum","integer",0,"",
+    "plottype","character","dot","",
+    "plotshape","character","arrow","",
+    "showM","integer",0,"",
+    "showY","integer",0,"",
+    "ymax","integer",0,""
   )
   
   
@@ -35,13 +46,13 @@ if (commandArgs()[1] != "RStudio") {
   output <- "~/Working/TranslocTesting/TranslocPlot.pdf"
   binsize <- 2500000
   assembly <- "mm9"
-  featurefile <- "/Volumes/AltLab/Genomes/mm9/annotation/refGene.bed"
-  chr <- ""
-  strand <- 2
-  start <- 0
-  end <- 0
-  mid <- 61818880
-  window <- 200000
+  featurefile <- ""
+  chr <- "chr15"
+  strand <- 0
+  rstart <- 0
+  rend <- 0
+  rmid <- 61818880
+  rwindow <- 10000
   binnum <- 100
   showM <- 0
   showY <- 0
@@ -55,7 +66,8 @@ if (commandArgs()[1] != "RStudio") {
 
 #argument checking
 if (chr == "") plottype <- "dot"
-if (strand <- 2) plotshape <- "diamond"
+if (strand == 2) plotshape <- "diamond"
+
 
 suppressPackageStartupMessages(library(Rsamtools))
 suppressPackageStartupMessages(library(Rsamtools))
@@ -73,6 +85,7 @@ pal <- c("black",pal[c(1,5,2,3,4)])
 
 # Read in cytogenetic band data
 cyto <- getCytoBands(assembly)
+features <- getFeatures(assembly,featurefile)
 
 # Read in chomrosome length data
 chrlen <- getChromLens(assembly)
@@ -85,7 +98,7 @@ if (chr != "") {
   if (!showY) chrlen <- chrlen[names(chrlen)!="chrY"]
 }
 
-gr <- createGenomicRanges(chrlen,start=start,end=end,mid=mid,window=window,binsize=binsize,binnum=binnum)
+gr <- createGenomicRanges(chrlen,rstart=rstart,rend=rend,rmid=rmid,rwindow=rwindow,binsize=binsize,binnum=binnum)
 binsize <- end(gr)[length(gr)] - start(gr)[length(gr)] + 1
 
 header <- readHeader(tlxfile)
@@ -125,7 +138,7 @@ pdf(output,width=11,height=8.5)
 marginsize <- 0.5
 marginunits <- "inches"
 
-pageVP <- viewport(name="page",width=unit(1,"npc")-unit(2*marginsize,marginunits),height=unit(1,"npc")-unit(2*marginsize,marginunit))
+pageVP <- viewport(name="page",width=unit(1,"npc")-unit(2*marginsize,marginunits),height=unit(1,"npc")-unit(2*marginsize,marginunits))
 pushViewport(pageVP)
 
 headerheight <- 3
@@ -146,7 +159,7 @@ if (length(chrlen) > 1) {
   rotateVP <- 1
   
   chrwidth <- 2
-  chrwidthunits <- "mm"
+  chrwidthunit <- "mm"
   
   chrpos <- rep(0,length(chrlen))
   names(chrpos) <- names(chrlen)
@@ -190,16 +203,20 @@ if (length(chrlen) > 1) {
   cyto$Xpos <-chrpos[match(cyto$Chr,names(chrpos))]
   grid.rect(x=unit(cyto$Xpos,"native"),y=unit(chrlen[cyto$Chr] - cyto$Start,"native"),width=unit(chrwidth,chrwidthunit),height=unit(cyto$End-cyto$Start,"native"),just=c("left","top"),gp=gpar(fill=cyto$Color,lty=0))
   
-  arrowlen <- 5
-  arrowlenunit <- "mm"
-  arrowlennative <- convertHeight(unit(arrowlen,arrowlenunit),"native",valueOnly=T)
   
-  
-  grid.rect(x=unit(chrpos[brkchr],"native"),y=unit(chrlen[brkchr]-brksite,"native"),width=unit(chrwidth,chrwidthunit),just="left",height=unit(1,"mm"),gp=gpar(fill="yellow",linejoin="mitre"))
-  ypoints <- unit(chrlen[brkchr]-c(brksite-arrowlennative,brksite-arrowlennative/2,brksite-arrowlennative/2,brksite,brksite-arrowlennative/2,brksite-arrowlennative/2,brksite-arrowlennative),"native")
-  xpoints <- unit(c(chrpos[brkchr]+chrwidthnative*3/4,chrpos[brkchr]+chrwidthnative*3/4,chrpos[brkchr]+chrwidthnative,chrpos[brkchr]+chrwidthnative/2,chrpos[brkchr],chrpos[brkchr]+chrwidthnative*1/4,chrpos[brkchr]+chrwidthnative*1/4),"native") 
-  grid.polygon(x=xpoints,y=ypoints,gp=gpar(fill="yellow",linejoin="mitre"))
-
+  if (brkchr %in% names(chrpos) && brksite > 0) {
+    arrowlen <- 5
+    arrowlenunit <- "mm"
+    arrowlennative <- convertHeight(unit(arrowlen,arrowlenunit),"native",valueOnly=T)
+    
+    
+    grid.rect(x=unit(chrpos[brkchr],"native"),y=unit(chrlen[brkchr]-brksite,"native"),width=unit(chrwidth,chrwidthunit),just="left",height=unit(1,"mm"),gp=gpar(fill="yellow",linejoin="mitre"))
+    if (brkstrand == 1 || brkstrand == -1) {
+      ypoints <- unit(chrlen[brkchr]-c(brksite-arrowlennative,brksite-arrowlennative/2,brksite-arrowlennative/2,brksite,brksite-arrowlennative/2,brksite-arrowlennative/2,brksite-arrowlennative),"native")
+      xpoints <- unit(c(chrpos[brkchr]+chrwidthnative*3/4,chrpos[brkchr]+chrwidthnative*3/4,chrpos[brkchr]+chrwidthnative,chrpos[brkchr]+chrwidthnative/2,chrpos[brkchr],chrpos[brkchr]+chrwidthnative*1/4,chrpos[brkchr]+chrwidthnative*1/4),"native") 
+      grid.polygon(x=xpoints,y=ypoints,gp=gpar(fill="yellow",linejoin="mitre"))
+    }
+  }
   
   chrVPs <- list()
   
@@ -224,8 +241,8 @@ if (length(chrlen) > 1) {
   
   rotateVP <- 0
   
-  start <- min(start(gr))
-  end <- max(end(gr))
+  rstart <- min(start(gr))
+  rend <- max(end(gr))
   
   if (plottype == "dot") {
     yscalewidth = unit(0,"lines")
@@ -233,14 +250,14 @@ if (length(chrlen) > 1) {
     yscalewidth = unit(2,"lines")
   }
   
-  xscaleVP <- viewport(name="xscale",x=yscalewidth,width=unit(1,"npc")-yscalewidth,y=unit(1,"npc"),height=unit(2,"lines"),just=c("left","top"),xscale=c(start,end),clip="off")
+  xscaleVP <- viewport(name="xscale",x=yscalewidth,width=unit(1,"npc")-yscalewidth,y=unit(1,"npc"),height=unit(2,"lines"),just=c("left","top"),xscale=c(rstart,rend),clip="off")
   pushViewport(xscaleVP)
-  plotXScale(chr,start,end)
+  plotXScale(chr,rstart,rend)
   popViewport()
   
  
   
-  genomeVP <- viewport(name="genome",x=yscalewidth,width=unit(1,"npc")-yscalewidth,height=unit(1,"npc")-unit(4,"lines"),just=c("left"),xscale=c(start,end),yscale=c(-1,1))
+  genomeVP <- viewport(name="genome",x=yscalewidth,width=unit(1,"npc")-yscalewidth,height=unit(1,"npc")-unit(4,"lines"),just=c("left"),xscale=c(rstart,rend),yscale=c(-1,1))
   pushViewport(genomeVP)
   
   chrwidth <- 3
@@ -248,39 +265,39 @@ if (length(chrlen) > 1) {
   
   grid.rect(y=unit(0,"native"),height=unit(chrwidth,chrwidthunit))  
     
-  if (end - start < 2000000) {
-    features <- read.delim(featurefile,header=F,as.is=T)
-    colnames(features) <- c("Chr","Start","End","Name")
-    features <- subset(features,Chr == chr & End >= start & Start <= end)
+  if (rend - rstart < 2000000) {
+    features <- subset(features,Chr == chr & End >= rstart & Start <= rend)
     features <- features[!duplicated(features$Name),]
     features <- features[with(features,order(Start)),]
-    features$Start <- ifelse(features$Start < start, start, features$Start)
-    features$End <- ifelse(features$End > end, end, features$End)
+    features$Start <- ifelse(features$Start < rstart, rstart, features$Start)
+    features$End <- ifelse(features$End > rend, rend, features$End)
     grid.rect(x=unit(features$Start,"native"),y=unit(0,"native"),width=unit(features$End-features$Start,"native"),height=unit(chrwidth,chrwidthunit),just="left",gp=gpar(fill=getCytoColor()["gpos25"]))
-    featureVP <- viewport(name="feature",y=unit(0,"npc"),height=unit(2,"lines"),just="top",xscale=c(start,end),clip="off")
+    featureVP <- viewport(name="feature",y=unit(0,"npc"),height=unit(2,"lines"),just="top",xscale=c(rstart,rend),clip="off")
     pushViewport(featureVP)
-    plotFeatures(features,chr,start,end)
+    plotFeatures(features,chr,rstart,rend)
     popViewport()
       
   } else {
-    cyto <- subset(cyto, Chr == chr & End >= start & Start <= end)
-    cyto$Start <- ifelse(cyto$Start < start, start, cyto$Start)
-    cyto$End <- ifelse(cyto$End > end, end, cyto$End)
+    cyto <- subset(cyto, Chr == chr & End >= rstart & Start <= rend)
+    cyto$Start <- ifelse(cyto$Start < rstart, rstart, cyto$Start)
+    cyto$End <- ifelse(cyto$End > rend, rend, cyto$End)
     grid.rect(x=unit(cyto$Start,"native"),y=unit(0,"native"),width=unit(cyto$End-cyto$Start,"native"),height=unit(chrwidth,chrwidthunit),just="left",gp=gpar(fill=cyto$Color,lty=0))
   }
   
   
   
-  if (names(chrlen)[1] == brkchr && brksite >= start && brksite <= end) {
+  if (names(chrlen)[1] == brkchr && brksite >= rstart && brksite <= rend) {
     grid.rect(x=unit(brksite,"native"),y=unit(0,"native"),width=unit(1,"mm"),height=unit(chrwidth,chrwidthunit),gp=gpar(fill="yellow",linejoin="mitre"))
     
-    arrowlen <- 5
-    arrowlenunit <- "mm"
-    arrowlennative <- convertWidth(unit(arrowlen,arrowlenunit),"native",valueOnly=T)
-    
-    xpoints <- unit(c(brksite-arrowlennative,brksite-arrowlennative/2,brksite-arrowlennative/2,brksite,brksite-arrowlennative/2,brksite-arrowlennative/2,brksite-arrowlennative),"native")
-    ypoints <- unit(0,"native")+unit(c(chrwidth/4,chrwidth/4,chrwidth/2,0,-chrwidth/2,-chrwidth/4,-chrwidth/4),chrwidthunit)
-    grid.polygon(x=xpoints,y=ypoints,gp=gpar(fill="yellow",linejoin="mitre"))
+    if (brkstrand == 1 || brkstrand == -1) {
+      arrowlen <- 5
+      arrowlenunit <- "mm"
+      arrowlennative <- convertWidth(unit(arrowlen,arrowlenunit),"native",valueOnly=T)
+      
+      xpoints <- unit(c(brksite-arrowlennative,brksite-arrowlennative/2,brksite-arrowlennative/2,brksite,brksite-arrowlennative/2,brksite-arrowlennative/2,brksite-arrowlennative),"native")
+      ypoints <- unit(0,"native")+unit(c(chrwidth/4,chrwidth/4,chrwidth/2,0,-chrwidth/2,-chrwidth/4,-chrwidth/4),chrwidthunit)
+      grid.polygon(x=xpoints,y=ypoints,gp=gpar(fill="yellow",linejoin="mitre"))
+    }
   }
   
   ymin <- 0
@@ -294,8 +311,8 @@ if (length(chrlen) > 1) {
     }
   }
     
-  posVP <- viewport(y=unit(0,"native")+unit(chrwidth/2,chrwidthunit),height=unit(0.45,"npc")-unit(chrwidth/2,chrwidthunit),just="bottom",xscale=c(start,end),yscale=c(ymin,ymax),clip="on")
-  negVP <- viewport(y=unit(0,"native")-unit(chrwidth/2,chrwidthunit),height=unit(0.45,"npc")-unit(chrwidth/2,chrwidthunit),just="top",xscale=c(start,end),yscale=c(ymax,ymin),clip="on")
+  posVP <- viewport(y=unit(0,"native")+unit(chrwidth/2,chrwidthunit),height=unit(0.45,"npc")-unit(chrwidth/2,chrwidthunit),just="bottom",xscale=c(rstart,rend),yscale=c(ymin,ymax),clip="on")
+  negVP <- viewport(y=unit(0,"native")-unit(chrwidth/2,chrwidthunit),height=unit(0.45,"npc")-unit(chrwidth/2,chrwidthunit),just="top",xscale=c(rstart,rend),yscale=c(ymax,ymin),clip="on")
   chrVPs <- list(list(posVP,negVP))
   
   if (plottype != "dot") {
