@@ -299,13 +299,15 @@ sub write_stats_file {
 sub clean_up {
 
 	print "\nCleaning up\n";
+
+	System("rm $outdir/multx/*");
+
 	unless ($join) {
 		System("mv $outdir/mcf/* $outdir/",1);
 	} else {
 		System("mv $outdir/join/* $outdir/",1);
+		System("rm $outdir/mcf/*")
 	}
-
-	System("rm -rf $outdir/mcf $outdir/join",1);
 
 }
 

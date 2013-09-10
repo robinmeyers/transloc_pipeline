@@ -8,6 +8,7 @@ if (commandArgs()[1] != "RStudio") {
   )
   
   OPTS <- c(
+    "binfile","character","","write bin info to file",
     "binsize","integer",2500000,"bps per bin",
     "assembly","character","mm9","genome assembly",
     "strand","integer",0,"1 for positive strand, -1 for minus strand, 0 for both strands, 2 for combined strands",    
@@ -44,6 +45,7 @@ if (commandArgs()[1] != "RStudio") {
   source("~/TranslocPipeline/R/TranslocHelper.R")
   tlxfile <- "/Volumes/AltLab/Translocation/RawData/Alt024-20130429/NewPipelineTest/results-full//CC004_Alt024/CC004_Alt024.tlx"
   output <- "~/Working/TranslocTesting/TranslocPlot.pdf"
+  binfile <- "~/Working/TranslocTesting/TranslocPlot_bins.txt"
   binsize <- 2500000
   assembly <- "mm9"
   featurefile <- ""
@@ -346,73 +348,14 @@ for (i in 1:length(chrlen)) {
 
 
 dev.off()
-# 
-# ymax <- max(chrlen[names(chrlen) %in% chrdisp])
-# 
-# pushViewport(viewport(name="PlotArea",y=unit(2,"lines"),height=unit(1,"npc")-unit(8,"lines"),width=unit(1,"npc")-unit(2,"lines"),just="bottom",xscale=c(0,rightlim),yscale=c(0,ymax)))
-# 
-# 
-# pushViewport(viewport(name="Title",y=unit(1,"npc"),height=unit(6,"lines"),just="bottom"))
-# grid.text(length(gr),y=unit(1,"lines"),gp=gpar(cex=1.5))
-# grid.text(sub(".tlx","",basename(tlxfile)),y=unit(2,"lines"),gp=gpar(cex=2))
-# popViewport()
-# pushViewport(viewport(name="Legend",x=unit(0.8,"npc"),y=unit(1,"npc")-unit(5,"lines"),width=unit(4,"lines"),height=unit(8,"lines"),just=c("right","bottom")))
-# grid.rect()
-# grid.text(label=denom,x=unit(0.9,"npc"),y=unit(1:length(denom),"lines"),just="right")
-# grid.polygon(x=unit(rep(c(0.5,0.5,1),each=length(denom)),"lines"),y=unit(c(1:length(denom)-0.25,1:length(denom)+0.25,1:length(denom)),"lines"),id=rep(1:length(denom),3),gp=gpar(fill=pal,lty=0))
-# popViewport()
-# 
-# dataheight <- convertY(unit(binsize,"native"),"mm")
-# xwidth <- min(dataheight*rightlim,convertX(unit(rightlim,"native"),"mm"))
-# 
-# pushViewport(viewport(name="Genome",width=xwidth,xscale=c(0,rightlim),yscale=c(0,ymax)))
-# grid.rect(x=unit(chrpos,"native"),y=unit(0,"npc"),height=unit(chrlen[names(chrlen) %in% chrdisp],"native"),width=unit(0.2,"lines"),just=c("center","bottom"))
-# 
-# cyto <- cyto[cyto$Chr %in% names(chrpos),]
-# cyto$Xpos <- chrpos[match(cyto$Chr,names(chrpos))]
-# grid.rect(x=unit(cyto$Xpos,"native"),y=unit(chrlen[cyto$Chr] - cyto$Start,"native"),width=unit(0.2,"lines"),height=unit(cyto$End-cyto$Start,"native"),just="top",gp=gpar(fill=cyto$Color,lty=0))
-# pushViewport(viewport(name="ChrLabels",y=unit(0,"npc"),height=unit(1,"lines"),just="top",xscale=c(0,rightlim)))
-# grid.text(sub("chr","",names(chrpos)),x=unit(chrpos,"native"),y=0.5,just="center")
-# popViewport()
-# 
-# for (i in 1:length(chrdisp)) {
-#   
-#   chrnegbins <- gr[seqnames(gr) == chrdisp[i] & strand(gr) == "-"]
-#   datapoints <- data.frame(type=unlist(chrnegbins$hitvec),start=rep(start(chrnegbins),unlist(lapply(chrnegbins$hitvec,length))),end=rep(end(chrnegbins),unlist(lapply(chrnegbins$hitvec,length))),stackpos=unlist(lapply(lapply(chrnegbins$hitvec,length),function(x) { if (x>0) seq(1,x) })))
-#   
-#   if (nrow(datapoints) > 0) {  
-#     
-#     xmax <- max(unlist(lapply(chrnegbins$hitvec,length)))
-#     
-#     dataheight <- convertY(unit(binsize,"native"),"mm")
-#     xwidth <- min(unit(xmax,"native"),xmax*dataheight)
-#     
-#     pushViewport(viewport(x=unit(chrpos[i],"native")-unit(0.1,"lines"),y=unit(0,"npc"),width=xwidth,height=unit(chrlen[names(chrlen) %in% chrdisp][i],"native"),just=c("right","bottom"),xscale=c(xmax+0.5,0.5),yscale=c(chrlen[names(chrlen) %in% chrdisp][i],0)))
-#     
-#     grid.polygon(x=unit(c(datapoints$stackpos-0.5,datapoints$stackpos+0.5,datapoints$stackpos),"native"),y=unit(c(datapoints$start+binsize/2,datapoints$start+binsize/2,datapoints$start-binsize/2),"native"),id=rep(1:nrow(datapoints),3),gp=gpar(fill=pal[datapoints$type],lty=0))
-#     
-#     popViewport()
-#   }
-#   
-#   chrposbins <- gr[seqnames(gr) == chrdisp[i] & strand(gr) == "+"]
-#   datapoints <- data.frame(type=unlist(chrposbins$hitvec),start=rep(start(chrposbins),unlist(lapply(chrposbins$hitvec,length))),end=rep(end(chrposbins),unlist(lapply(chrposbins$hitvec,length))),stackpos=unlist(lapply(lapply(chrposbins$hitvec,length),function(x) { if (x>0) seq(1,x) })))
-#   
-#   if (nrow(datapoints) > 0) {
-#     
-#     
-#     xmax <- max(unlist(lapply(chrposbins$hitvec,length)))
-#     
-#     dataheight <- convertY(unit(binsize,"native"),"mm")
-#     xwidth <- min(unit(xmax,"native"),xmax*dataheight)
-#     
-#     pushViewport(viewport(x=unit(chrpos[i],"native")+unit(0.1,"lines"),y=unit(0,"npc"),width=xwidth,height=unit(chrlen[names(chrlen) %in% chrdisp][i],"native"),just=c("left","bottom"),xscale=c(0.5,xmax+0.5),yscale=c(chrlen[names(chrlen) %in% chrdisp][i],0)))
-#     
-#     grid.polygon(x=unit(c(datapoints$stackpos-0.5,datapoints$stackpos+0.5,datapoints$stackpos),"native"),y=unit(c(datapoints$start+binsize/2,datapoints$start+binsize/2,datapoints$start+1.5*binsize),"native"),id=rep(1:nrow(datapoints),3),gp=gpar(fill=pal[datapoints$type],lty=0))
-#     
-#     popViewport()
-#   }
-#   
-#   
-# }
-# 
-# dev.off()
+
+if (binfile != "") {
+  if (strand == 2) {
+    bin_output <- data.frame(Rname=seqnames(gr),Rstart=start(gr),Rend=end(gr),Hits=gr$hits)
+  } else {
+    bin_output <- data.frame(Rname=as.vector(seqnames(gr)),Rstart=start(gr),Rend=end(gr),Strand=as.vector(strand(gr)),Hits=gr$hits)
+  }
+  
+  write.table(bin_output,binfile,quote=F,sep="\t",na="",row.names=F,col.names=T)
+}
+
