@@ -162,9 +162,11 @@ createGenomicRanges <- function (chrlen,rstart=0,rend=0,rmid=0,rwindow=0,binsize
     chrs <- rep(names(chrlen),length(rstarts))
     strands <- rep(c("+","-"),each=length(chrs))
   } else {
+    rstart <- 1
+    rend <- chrlen
     if (binnum != 0) binsize <- ceiling((rend-rstart+1)/binnum)
-    rends <- unlist(lapply(chrlen,function(x){rev(seq(from=x,to=1,by=-binsize,))}))
-    rstarts <- unlist(lapply(rends,function(rend){ max(1,rend-binsize+1) } ))
+    rends <- rev(seq(from=rend,to=rstart,by=-binsize))
+    rstarts <- unlist(lapply(rends,function(rend){max(1,rend-binsize+1)}))
     chrs <- rep(names(chrlen),length(rstarts))
     strands <- rep(c("+","-"),each=length(chrs))
   }
@@ -224,9 +226,9 @@ getCytoColor <- function() {
 
 formatBP <- function(x,pts=1) {
   unlist(lapply(x, function (bp) {
-    if (bp > 100000000) paste(round(bp/1000000000,pts),"Gb") else
-    if (bp > 100000) paste(round(bp/1000000,pts),"Mb") else
-    if (bp > 100) paste(round(bp/1000,pts),"Kb") else
+    if (bp > 1000000000) paste(round(bp/1000000000,pts),"Gb") else
+    if (bp > 1000000) paste(round(bp/1000000,pts),"Mb") else
+    if (bp > 1000) paste(round(bp/1000,pts),"Kb") else
     paste(bp,"bp")
   }))
 }

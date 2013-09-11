@@ -53,8 +53,8 @@ if (commandArgs()[1] != "RStudio") {
   strand <- 0
   rstart <- 0
   rend <- 0
-  rmid <- 61818880
-  rwindow <- 10000
+  rmid <- 0
+  rwindow <- 0
   binnum <- 100
   showM <- 0
   showY <- 0
