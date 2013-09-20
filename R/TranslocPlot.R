@@ -43,7 +43,7 @@ if (commandArgs()[1] != "RStudio") {
 } else {
   source("~/TranslocPipeline/R/Rsub.R")
   source("~/TranslocPipeline/R/TranslocHelper.R")
-  tlxfile <- "/Volumes/AltLab/Translocation/RawData/Alt024-20130429/NewPipelineTest/results-full//CC004_Alt024/CC004_Alt024.tlx"
+  tlxfile <- "~/Desktop/BS_combined.tlx"
   output <- "~/Working/TranslocTesting/TranslocPlot.pdf"
   binfile <- "~/Working/TranslocTesting/TranslocPlot_bins.txt"
   binsize <- 2500000
@@ -51,11 +51,11 @@ if (commandArgs()[1] != "RStudio") {
   featurefile <- ""
   chr <- "chr15"
   strand <- 0
-  rstart <- 0
-  rend <- 0
+  rstart <- 61923234
+  rend <- 61923277
   rmid <- 0
   rwindow <- 0
-  binnum <- 100
+  binnum <- 44
   showM <- 0
   showY <- 0
   plottype <- "linear"
@@ -214,7 +214,7 @@ if (length(chrlen) > 1) {
     
     grid.rect(x=unit(chrpos[brkchr],"native"),y=unit(chrlen[brkchr]-brksite,"native"),width=unit(chrwidth,chrwidthunit),just="left",height=unit(1,"mm"),gp=gpar(fill="yellow",linejoin="mitre"))
     if (brkstrand == 1 || brkstrand == -1) {
-      ypoints <- unit(chrlen[brkchr]-c(brksite-arrowlennative,brksite-arrowlennative/2,brksite-arrowlennative/2,brksite,brksite-arrowlennative/2,brksite-arrowlennative/2,brksite-arrowlennative),"native")
+      ypoints <- unit(chrlen[brkchr]-c(brksite-brkstrand*arrowlennative,brksite-brkstrand*arrowlennative/2,brksite-brkstrand*arrowlennative/2,brksite,brksite-brkstrand*arrowlennative/2,brksite-brkstrand*arrowlennative/2,brksite-brkstrand*arrowlennative),"native")
       xpoints <- unit(c(chrpos[brkchr]+chrwidthnative*3/4,chrpos[brkchr]+chrwidthnative*3/4,chrpos[brkchr]+chrwidthnative,chrpos[brkchr]+chrwidthnative/2,chrpos[brkchr],chrpos[brkchr]+chrwidthnative*1/4,chrpos[brkchr]+chrwidthnative*1/4),"native") 
       grid.polygon(x=xpoints,y=ypoints,gp=gpar(fill="yellow",linejoin="mitre"))
     }
@@ -273,12 +273,13 @@ if (length(chrlen) > 1) {
     features <- features[with(features,order(Start)),]
     features$Start <- ifelse(features$Start < rstart, rstart, features$Start)
     features$End <- ifelse(features$End > rend, rend, features$End)
-    grid.rect(x=unit(features$Start,"native"),y=unit(0,"native"),width=unit(features$End-features$Start,"native"),height=unit(chrwidth,chrwidthunit),just="left",gp=gpar(fill=getCytoColor()["gpos25"]))
-    featureVP <- viewport(name="feature",y=unit(0,"npc"),height=unit(2,"lines"),just="top",xscale=c(rstart,rend),clip="off")
-    pushViewport(featureVP)
-    plotFeatures(features,chr,rstart,rend)
-    popViewport()
-      
+    if (nrow(features) > 1) {
+      grid.rect(x=unit(features$Start,"native"),y=unit(0,"native"),width=unit(features$End-features$Start,"native"),height=unit(chrwidth,chrwidthunit),just="left",gp=gpar(fill=getCytoColor()["gpos25"]))
+      featureVP <- viewport(name="feature",y=unit(0,"npc"),height=unit(2,"lines"),just="top",xscale=c(rstart,rend),clip="off")
+      pushViewport(featureVP)
+      plotFeatures(features,chr,rstart,rend)
+      popViewport()
+    }
   } else {
     cyto <- subset(cyto, Chr == chr & End >= rstart & Start <= rend)
     cyto$Start <- ifelse(cyto$Start < rstart, rstart, cyto$Start)
@@ -296,7 +297,7 @@ if (length(chrlen) > 1) {
       arrowlenunit <- "mm"
       arrowlennative <- convertWidth(unit(arrowlen,arrowlenunit),"native",valueOnly=T)
       
-      xpoints <- unit(c(brksite-arrowlennative,brksite-arrowlennative/2,brksite-arrowlennative/2,brksite,brksite-arrowlennative/2,brksite-arrowlennative/2,brksite-arrowlennative),"native")
+      xpoints <- unit(c(brksite-brkstrand*arrowlennative,brksite-brkstrand*arrowlennative/2,brksite-brkstrand*arrowlennative/2,brksite,brksite-brkstrand*arrowlennative/2,brksite-brkstrand*arrowlennative/2,brksite-brkstrand*arrowlennative),"native")
       ypoints <- unit(0,"native")+unit(c(chrwidth/4,chrwidth/4,chrwidth/2,0,-chrwidth/2,-chrwidth/4,-chrwidth/4),chrwidthunit)
       grid.polygon(x=xpoints,y=ypoints,gp=gpar(fill="yellow",linejoin="mitre"))
     }
@@ -351,7 +352,7 @@ dev.off()
 
 if (binfile != "") {
   if (strand == 2) {
-    bin_output <- data.frame(Rname=seqnames(gr),Rstart=start(gr),Rend=end(gr),Hits=gr$hits)
+    bin_output <- data.frame(Rname=as.vector(seqnames(gr)),Rstart=start(gr),Rend=end(gr),Hits=gr$hits)
   } else {
     bin_output <- data.frame(Rname=as.vector(seqnames(gr)),Rstart=start(gr),Rend=end(gr),Strand=as.vector(strand(gr)),Hits=gr$hits)
   }

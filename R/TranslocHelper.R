@@ -170,7 +170,7 @@ createGenomicRanges <- function (chrlen,rstart=0,rend=0,rmid=0,rwindow=0,binsize
     chrs <- rep(names(chrlen),length(rstarts))
     strands <- rep(c("+","-"),each=length(chrs))
   }
-  
+    
   gr <- GRanges(seqnames=rep(chrs,2),ranges=IRanges(start=rep(rstarts,2),end=rep(rends,2)),strand=strands,seqlengths=chrlen)
   seqlevels(gr) <- names(chrlen)
   return(gr)

@@ -17,8 +17,8 @@ sub filter_unjoined ($) {
   } else {
     foreach my $tlxl (@$tlxls[1..$#{$tlxls}]) {
       last if $tlxl->{Rname} eq "Adapter";
-      next if defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} < 2;
-      next if defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} < 2;
+      next if defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} >= 0 && $tlxl->{R1_Rgap} < 3;
+      next if defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} >= 0 && $tlxl->{R2_Rgap} < 3;
       $junctions++;
     }
     $filter = "Unjoined" unless $junctions;

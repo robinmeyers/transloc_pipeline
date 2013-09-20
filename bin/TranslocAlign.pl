@@ -975,7 +975,7 @@ sub score_edge ($;$) {
 
     # $PEgap_pen = defined $PEgap && $PEgap > 1 ? $Brk_pen_min + $Brk_pen_mult * log10($PEgap)**$Brk_pen_power : 0;
     $PEgap_pen = defined $PEgap && $PEgap > 1 ? $PE_pen_min + $PE_pen_mult * log10($PEgap)**$PE_pen_power : 0;
-    print $node1->{R1}->{Qname}." - $PEgap - $PEgap_pen\n" if defined $PEgap;
+    # print $node1->{R1}->{Qname}." - $PEgap - $PEgap_pen\n" if defined $PEgap;
 
     $score = $node1->{score} + $R1_AS + $R2_AS - $PEgap_pen - $Brk_pen - $Qgap_pen - $OL_correction - $Rgap_pen;
 
