@@ -865,27 +865,8 @@ sub score_edge ($;$) {
     my $Len1 = 0;
     my $Len2 = 0;
 
-
-
-    if (defined $node2->{R1}) {
-      return undef unless defined $node1->{R1};
-      return undef if $node1->{R1}->{Rname} eq "Adapter";
-      return undef if $node2->{R1} == $node1->{R1};
-      return undef unless $node2->{R1}->{Qend} >= $node1->{R1}->{Qend};
-      $Rname1 = $node1->{R1}->{Rname};
-      $Strand1 = $node1->{R1}->{Strand};
-      $Rname2 = $node2->{R1}->{Rname};
-      $Strand2 = $node2->{R1}->{Strand};
-      $R1_Qgap = $node2->{R1}->{Qstart} - $node1->{R1}->{Qend} - 1;
-      $R1_Rdist = find_genomic_distance($node1->{R1},$node2->{R1},$brk_hash);
-      $Len1 += $node1->{R1}->{Qend} - $node1->{R1}->{Qstart} + 1;
-      $Len2 += $node2->{R1}->{Qend} - $node2->{R1}->{Qstart} + 1;
-    } else {
-      return undef unless defined $node1->{R2};
-    }
-
-
-    if (defined $node1->{R2}) {
+    if ( defined $node1->{R2} ) {
+      return undef if defined $node2->{R1};
       return undef unless defined $node2->{R2};
       return undef if $node1->{R2}->{Rname} eq "Adapter";
       return undef if $node2->{R2} == $node1->{R2};
@@ -900,6 +881,18 @@ sub score_edge ($;$) {
       $Len2 += $node2->{R2}->{Qend} - $node2->{R2}->{Qstart} + 1;
     } else {
       return undef unless defined $node2->{R1};
+      return undef if $node1->{R1}->{Rname} eq "Adapter";
+      return undef if $node2->{R1} == $node1->{R1};
+      return undef unless $node2->{R1}->{Qend} >= $node1->{R1}->{Qend};
+      $Rname1 = $node1->{R1}->{Rname};
+      $Strand1 = $node1->{R1}->{Strand};
+      $Rname2 = $node2->{R1}->{Rname};
+      $Strand2 = $node2->{R1}->{Strand};
+      $R1_Qgap = $node2->{R1}->{Qstart} - $node1->{R1}->{Qend} - 1;
+      $R1_Rdist = find_genomic_distance($node1->{R1},$node2->{R1},$brk_hash);
+      $Len1 += $node1->{R1}->{Qend} - $node1->{R1}->{Qstart} + 1;
+      $Len2 += $node2->{R1}->{Qend} - $node2->{R1}->{Qstart} + 1;
+
     }
 
     my $totalOverlap = -min($R1_Qgap,0) -min($R2_Qgap,0);
