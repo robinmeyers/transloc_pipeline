@@ -453,7 +453,7 @@ sub create_tlx_entries ($$) {
 
     # print "\nsegment $i\n";
 
-    if ((defined $tlxls->[$i+1] && defined $tlxls->[$i+1]->{R1_ID}) || ! defined $tlxl->{R2_ID}) {
+    unless ( defined $tlxls->[$i]->{R2_ID} ) { #(defined $tlxls->[$i+1] && defined $tlxls->[$i+1]->{R1_ID}) || ! defined $tlxl->{R2_ID}) {
       # print "R1 only\n";
       if ($R1_Qpos < $tlxl->{R1_Qend}) {
         my $old_Qpos = scalar @Qseq;

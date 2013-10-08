@@ -864,28 +864,10 @@ sub score_edge ($;$) {
     my $R2_Rdist;
     my $Len1 = 0;
     my $Len2 = 0;
+    my $OL_correction;
 
-
-
-    if (defined $node2->{R1}) {
-      return undef unless defined $node1->{R1};
-      return undef if $node1->{R1}->{Rname} eq "Adapter";
-      return undef if $node2->{R1} == $node1->{R1};
-      return undef unless $node2->{R1}->{Qend} >= $node1->{R1}->{Qend};
-      $Rname1 = $node1->{R1}->{Rname};
-      $Strand1 = $node1->{R1}->{Strand};
-      $Rname2 = $node2->{R1}->{Rname};
-      $Strand2 = $node2->{R1}->{Strand};
-      $R1_Qgap = $node2->{R1}->{Qstart} - $node1->{R1}->{Qend} - 1;
-      $R1_Rdist = find_genomic_distance($node1->{R1},$node2->{R1},$brk_hash);
-      $Len1 += $node1->{R1}->{Qend} - $node1->{R1}->{Qstart} + 1;
-      $Len2 += $node2->{R1}->{Qend} - $node2->{R1}->{Qstart} + 1;
-    } else {
-      return undef unless defined $node1->{R2};
-    }
-
-
-    if (defined $node1->{R2}) {
+    if ( defined $node1->{R2} ) {
+      return undef if defined $node2->{R1};
       return undef unless defined $node2->{R2};
       return undef if $node1->{R2}->{Rname} eq "Adapter";
       return undef if $node2->{R2} == $node1->{R2};
@@ -898,70 +880,56 @@ sub score_edge ($;$) {
       $R2_Rdist = find_genomic_distance($node1->{R2},$node2->{R2},$brk_hash);
       $Len1 += $node1->{R2}->{Qend} - $node1->{R2}->{Qstart} + 1;
       $Len2 += $node2->{R2}->{Qend} - $node2->{R2}->{Qstart} + 1;
+      $Junc1 = $Strand1 == 1 ? $node1->{R2}->{Rend} : $node1->{R2}->{Rstart};
+      $Junc2 = $Strand2 == 1 ? $node2->{R2}->{Rstart} : $node1->{R2}->{Rend};
+      $OL_correction = $OL_mult * max(0,-$R2_Qgap);
     } else {
       return undef unless defined $node2->{R1};
+      return undef if $node1->{R1}->{Rname} eq "Adapter";
+      return undef if $node2->{R1} == $node1->{R1};
+      return undef unless $node2->{R1}->{Qend} >= $node1->{R1}->{Qend};
+      $Rname1 = $node1->{R1}->{Rname};
+      $Strand1 = $node1->{R1}->{Strand};
+      $Rname2 = $node2->{R1}->{Rname};
+      $Strand2 = $node2->{R1}->{Strand};
+      $R1_Qgap = $node2->{R1}->{Qstart} - $node1->{R1}->{Qend} - 1;
+      $R1_Rdist = find_genomic_distance($node1->{R1},$node2->{R1},$brk_hash);
+      $Len1 += $node1->{R1}->{Qend} - $node1->{R1}->{Qstart} + 1;
+      $Len2 += $node2->{R1}->{Qend} - $node2->{R1}->{Qstart} + 1;
+      $Junc1 = $Strand1 == 1 ? $node1->{R1}->{Rend} : $node1->{R1}->{Rstart};
+      $Junc2 = $Strand2 == 1 ? $node2->{R1}->{Rstart} : $node1->{R1}->{Rend};
+      $OL_correction = $OL_mult * max(0,-$R1_Qgap);
+
     }
 
-    my $totalOverlap = -min($R1_Qgap,0) -min($R2_Qgap,0);
-    # return undef if $totalOverlap > $ol_thresh * $Len1 || $totalOverlap > $ol_thresh * $Len2;
-    return undef if $totalOverlap > $Len1 - 20  || $totalOverlap > $Len2 - 20;
+    # my $totalOverlap = -min($R1_Qgap,0) -min($R2_Qgap,0);
+    # # return undef if $totalOverlap > $ol_thresh * $Len1 || $totalOverlap > $ol_thresh * $Len2;
+    # return undef if $totalOverlap > $Len1 - 20  || $totalOverlap > $Len2 - 20;
 
 
-
-    my $OL_correction;
-    my $Qgap_pen;
-    my $Rgap_pen;
-    my $Brk_pen;
-
-    if (defined $node2->{R1} && defined $node1->{R2}) {
-      
-      $Junc1 = $Strand1 == 1 ? max($node1->{R1}->{Rend},$node1->{R2}->{Rend}) : min($node1->{R1}->{Rstart},$node1->{R2}->{Rstart});
-      $Junc2 = $Strand2 == 1 ? min($node2->{R1}->{Rstart},$node2->{R2}->{Rstart}) : max($node2->{R1}->{Rend},$node2->{R2}->{Rend});
-      $OL_correction = $OL_mult * max(0,-$R1_Qgap) + $OL_mult * max(0,-$R2_Qgap);
-      $Qgap_pen = $Dif_mult * abs($R1_Qgap - $R2_Qgap); #$Dif_mult * (max(abs($R1_Qgap),abs($R2_Qgap)) + abs($R1_Qgap - $R2_Qgap));
-      $Rgap_pen = $Dif_mult * abs($node2->{R1}->{Rstart} - $node2->{R2}->{Rstart});
-    } else {
-
-      if (defined $node2->{R1}) {
-        $Junc1 = $Strand1 == 1 ? $node1->{R1}->{Rend} : $node1->{R1}->{Rstart};
-        $Junc2 = $Strand2 == 1 ? $node2->{R1}->{Rstart} : $node1->{R1}->{Rend};
-        $OL_correction = $OL_mult * max(0,-$R1_Qgap);
-        #$Qgap_pen = $Dif_mult * abs($R1_Qgap);
-      } else {
-        $Junc1 = $Strand1 == 1 ? $node1->{R2}->{Rend} : $node1->{R2}->{Rstart};
-        $Junc2 = $Strand2 == 1 ? $node2->{R2}->{Rstart} : $node1->{R2}->{Rend};
-        $OL_correction = $OL_mult * max(0,-$R2_Qgap);
-        #$Qgap_pen = $Dif_mult * abs($R2_Qgap);
-      }
-      $Qgap_pen = 0;
-      $Rgap_pen = 0;
-    }
 
     
 
+    my $Brk_pen;
+
+
     if ($Rname2 eq "Adapter") {
+      
       $Brk_pen = 0;
-    # } elsif ($Rname1 eq "Breaksite" && $Rname2 eq "Breaksite" && $Strand1 == 1 && $Strand2 == 1 && $Junc1 < $Junc2) {
-    #   $Brk_pen = 0;
+
+    } elsif (defined $R1_Rdist) {
+
+      $Brk_pen = $R1_Rdist > 1 || $R1_Rdist < 0 ? $Brk_pen_min + $Brk_pen_mult * log10(abs($R1_Rdist))**$Brk_pen_power : 0;
+
+    } elsif (defined $R2_Rdist) {
+      $Brk_pen = $R2_Rdist > 1 || $R2_Rdist < 0 ? $Brk_pen_min + $Brk_pen_mult * log10(abs($R2_Rdist))**$Brk_pen_power : 0;
+
     } else {
 
-      my $R1_Brk_pen;
-      my $R2_Brk_pen;
+      $Brk_pen = $Brk_pen_max;
 
-      if (defined $R1_Rdist) {
-        $R1_Brk_pen = $R1_Rdist > 1 || $R1_Rdist < 0 ? $Brk_pen_min + $Brk_pen_mult * log10(abs($R1_Rdist))**$Brk_pen_power : 0;
-      } else {
-        $R1_Brk_pen = $Brk_pen_max;
-      }
-
-      if (defined $R2_Rdist) {
-        $R2_Brk_pen = $R2_Rdist > 1 || $R2_Rdist < 0 ? $Brk_pen_min + $Brk_pen_mult * log10(abs($R2_Rdist))**$Brk_pen_power : 0;
-      } else {
-        $R2_Brk_pen = $Brk_pen_max;
-      }
-
-      $Brk_pen = min($R1_Brk_pen,$R2_Brk_pen,$Brk_pen_max);;
     }
+
 
 
     my $R1_AS = defined $node2->{R1} ? $node2->{R1}->{AS} : 0;
@@ -977,10 +945,9 @@ sub score_edge ($;$) {
     $PEgap_pen = defined $PEgap && $PEgap > 1 ? $PE_pen_min + $PE_pen_mult * log10($PEgap)**$PE_pen_power : 0;
     # print $node1->{R1}->{Qname}." - $PEgap - $PEgap_pen\n" if defined $PEgap;
 
-    $score = $node1->{score} + $R1_AS + $R2_AS - $PEgap_pen - $Brk_pen - $Qgap_pen - $OL_correction - $Rgap_pen;
+    $score = $node1->{score} + $R1_AS + $R2_AS - $PEgap_pen - $Brk_pen - $OL_correction;
 
-    my $qname = defined $node1->{R1} ? $node1->{R1}->{Qname} : $node1->{R2}->{Qname};
-
+    # my $qname = defined $node1->{R1} ? $node1->{R1}->{Qname} : $node1->{R2}->{Qname};
     # print "$qname PE: $score\n" if $Rname2 eq "Adapter" && defined $node2->{R1} && defined $node2->{R2};
     # print "$qname SE1: $score\n" if $Rname2 eq "Adapter" && (defined $node2->{R1} && !defined $node2->{R2});
     # print "$qname SE2: $score\n" if $Rname2 eq "Adapter" && (!defined $node2->{R1} && defined $node2->{R2});
