@@ -61,6 +61,8 @@ my $join;
 my $join_max_dif = 10;
 my $join_min_ol = 30;
 my $skipclean;
+my $forward_adapter = "AGATCGGAAGAGCGGTTCAG";
+my $reverse_adapter = "AGATCGGAAGAGCGTCGTGT";
 my $adapter_fa = "$FindBin::Bin/../ref/IlluminaAdapters-PE.fa";
 
 
@@ -94,7 +96,7 @@ unless (defined $indir) {
 
 update_stats_from_barcode;
 
-mkdir "$outdir/mcf";
+mkdir "$outdir/trim";
 mkdir "$outdir/join";
 mkdir "$outdir/logs";
 
@@ -236,24 +238,25 @@ sub process_experiment ($) {
 	System("echo \"Pre-processing $expt\" > $logfile",1);
 
 
-	$meta{$expt}->{R1mcf} = "$outdir/mcf/${expt}_R1.fq.gz";
-	$meta{$expt}->{R2mcf} = "$outdir/mcf/${expt}_R2.fq.gz";
+	$meta{$expt}->{R1trim} = "$outdir/trim/${expt}_R1.fq.gz";
+	$meta{$expt}->{R2trim} = "$outdir/trim/${expt}_R2.fq.gz";
 
-	System("echo \"Running fastq-mcf on $expt\" >> $logfile",1);
+	System("echo \"Running SeqPrep on $expt\" >> $logfile",1);
 
-	my $t0_mcf = [gettimeofday];
+	my $t0_trim = [gettimeofday];
 						
 
-	my $mcf_cmd = join(" ","fastq-mcf -k 0 -x 0 -p $adapt_max_dif -q $quality -w $window -l $minlen $adapter_fa",
-		$meta{$expt}->{R1},$meta{$expt}->{R2},"-o",$meta{$expt}->{R1mcf},"-o",$meta{$expt}->{R2mcf},">> $logfile");
+	my $trim_cmd = join(" ","SeqPrep -f",$meta{$expt}->{R1},"-r",$meta{$expt}->{R2},
+													"-1",$meta{$expt}->{R1trim},"-2",$meta{$expt}->{R2trim},
+													"-L $minlen -A $forward_adapter -B $reverse_adapter >> $logfile 2>&1");
 
-	System("echo \"$mcf_cmd\" >> $logfile",1);
+	System("echo \"$trim_cmd\" >> $logfile",1);
 
-	System($mcf_cmd,1) or croak "Error: failed running fastq-mcf on $expt";
+	System($trim_cmd,1) or croak "Error: failed running SeqPrep on $expt";
 
-	my $t1_mcf = tv_interval($t0_mcf);
+	my $t1_trim = tv_interval($t0_trim);
 
-	System("echo \"Finished fastq-mcf on $expt in $t1_mcf seconds\" >> $logfile",1);
+	System("echo \"Finished fastq-trim on $expt in $t1_trim seconds\" >> $logfile",1);
 
 	if ($join) {
 		$meta{$expt}->{R1join} = "$outdir/join/${expt}_R1.fq.gz";
@@ -264,12 +267,12 @@ sub process_experiment ($) {
 
 		my $t0_join = [gettimeofday];
 
-		my $join_cmd = join(" ","fastq-join -p $join_max_dif -m $join_min_ol",$meta{$expt}->{R1mcf},$meta{$expt}->{R2mcf},
+		my $join_cmd = join(" ","fastq-join -p $join_max_dif -m $join_min_ol",$meta{$expt}->{R1trim},$meta{$expt}->{R2trim},
 			"-o",$meta{$expt}->{R1join},"-o",$meta{$expt}->{R2join},"-o",$meta{$expt}->{join},">> $logfile");
 
 		System("echo \"$join_cmd\" >> $logfile",1);
 
-		System($join_cmd,1) or croak "Error: failed running fastq-mcf on $expt";
+		System($join_cmd,1) or croak "Error: failed running fastq-join on $expt";
 
 		my $t1_join = tv_interval($t0_join);
 
@@ -303,10 +306,10 @@ sub clean_up {
 	System("rm $outdir/multx/*");
 
 	unless ($join) {
-		System("mv $outdir/mcf/* $outdir/",1);
+		System("mv $outdir/trim/* $outdir/",1);
 	} else {
 		System("mv $outdir/join/* $outdir/",1);
-		System("rm $outdir/mcf/*")
+		System("rm $outdir/trim/*")
 	}
 
 }
