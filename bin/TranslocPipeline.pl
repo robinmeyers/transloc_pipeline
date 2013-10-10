@@ -303,13 +303,14 @@ sub align_to_breaksite {
   System("samtools view -bS -o $R1_brk_bam $R1_brk_sam") unless sam_file_is_empty($R1_brk_sam);
   System("touch $R1_brk_bam",1);
 
-  my $R2_brk_bt2_cmd = "bowtie2 $bt2_break_opt -x $break_bt2idx -U $read2 -S $R2_brk_sam";
+  if (defined $read2)
+    my $R2_brk_bt2_cmd = "bowtie2 $bt2_break_opt -x $break_bt2idx -U $read2 -S $R2_brk_sam";
 
-  System($R2_brk_bt2_cmd);
+    System($R2_brk_bt2_cmd);
 
-  System("samtools view -bS -o $R2_brk_bam $R2_brk_sam") unless sam_file_is_empty($R2_brk_sam);
-  System("touch $R2_brk_bam",1);
-
+    System("samtools view -bS -o $R2_brk_bam $R2_brk_sam") unless sam_file_is_empty($R2_brk_sam);
+    System("touch $R2_brk_bam",1);
+  }
 }
 
 sub align_to_adapter {
@@ -324,13 +325,14 @@ sub align_to_adapter {
   System("samtools view -bS -o $R1_adpt_bam $R1_adpt_sam") unless sam_file_is_empty($R1_adpt_sam);
   System("touch $R1_adpt_bam",1);
 
-  my $R2_adpt_bt2_cmd = "bowtie2 $bt2_adapt_opt -x $adapt_bt2idx -U $read2 -S $R2_adpt_sam";
+  if (defined $read2)
+    my $R2_adpt_bt2_cmd = "bowtie2 $bt2_adapt_opt -x $adapt_bt2idx -U $read2 -S $R2_adpt_sam";
 
-  System($R2_adpt_bt2_cmd);
+    System($R2_adpt_bt2_cmd);
 
-  System("samtools view -bS -o $R2_adpt_bam $R2_adpt_sam") unless sam_file_is_empty($R2_adpt_sam);
-  System("touch $R2_adpt_bam",1);
-
+    System("samtools view -bS -o $R2_adpt_bam $R2_adpt_sam") unless sam_file_is_empty($R2_adpt_sam);
+    System("touch $R2_adpt_bam",1);
+  }
 }
 
 sub align_to_genome {
@@ -344,63 +346,82 @@ sub align_to_genome {
   System("samtools view -bS -o $R1_bam $R1_sam") unless sam_file_is_empty($R1_sam);
   System("touch $R1_bam",1);
 
-  my $R2_bt2_cmd = "bowtie2 $bt2_opt -x $assembly -U $read2 -S $R2_sam";
+    if (defined $read2) {
+    my $R2_bt2_cmd = "bowtie2 $bt2_opt -x $assembly -U $read2 -S $R2_sam";
 
-  System($R2_bt2_cmd);
+    System($R2_bt2_cmd);
 
-  System("samtools view -bS -o $R2_bam $R2_sam") unless sam_file_is_empty($R2_sam);
-  System("touch $R2_bam",1);
-
+    System("samtools view -bS -o $R2_bam $R2_sam") unless sam_file_is_empty($R2_sam);
+    System("touch $R2_bam",1);
+  }
   
 }
 
 sub process_alignments {
 
   print "\nReading alignments\n";
-
+  my ($R1_brk_iter,$R2_brk_iter);
+  my ($R1_adpt_iter,$R2_adpt_iter);
+  my ($R1_iter,$R2_iter);
+  my ($next_R1_brk_aln,$next_R2_brk_aln);
+  my ($next_R1_adpt_aln,$next_R2_adpt_aln);
+  my ($next_R1_aln,$next_R2_aln);
 
   $R1_brk_samobj = Bio::DB::Sam->new(-bam => $R1_brk_bam,
                                      -fasta => $break_fa,
                                      -expand_flags => 1);
 
-  $R2_brk_samobj = Bio::DB::Sam->new(-bam => $R2_brk_bam,
-                                     -fasta => $break_fa,
-                                     -expand_flags => 1);
+
 
   $R1_adpt_samobj = Bio::DB::Sam->new(-bam => $R1_adpt_bam,
-                                     -fasta => $adapt_fa,
-                                     -expand_flags => 1);
+                                      -fasta => $adapt_fa,
+                                      -expand_flags => 1);
 
-  $R2_adpt_samobj = Bio::DB::Sam->new(-bam => $R2_adpt_bam,
-                                     -fasta => $adapt_fa,
-                                     -expand_flags => 1);
+
 
   $R1_samobj = Bio::DB::Sam->new(-bam => $R1_bam,
                                  -fasta => $assembly_fa,
                                  -expand_flags => 1);
 
-  $R2_samobj = Bio::DB::Sam->new(-bam => $R2_bam,
-                                 -fasta => $assembly_fa,
-                                 -expand_flags => 1);
 
-  my $R1_brk_iter = $R1_brk_samobj->get_seq_stream();
-  my $R2_brk_iter = $R2_brk_samobj->get_seq_stream();
-  my $R1_adpt_iter = $R1_adpt_samobj->get_seq_stream();
-  my $R2_adpt_iter = $R2_adpt_samobj->get_seq_stream();
-  my $R1_iter = $R1_samobj->get_seq_stream();
-  my $R2_iter = $R2_samobj->get_seq_stream();
-
-
-  my ($next_R1_brk_aln,$next_R2_brk_aln);# :shared;
-  my ($next_R1_adpt_aln,$next_R2_adpt_aln);# :shared;
-  my ($next_R1_aln,$next_R2_aln);# :shared;
+  $R1_brk_iter = $R1_brk_samobj->get_seq_stream();
+  $R1_adpt_iter = $R1_adpt_samobj->get_seq_stream();
+  $R1_iter = $R1_samobj->get_seq_stream();
 
   $next_R1_brk_aln = wrap_alignment("R1",$R1_brk_iter->next_seq);
-  $next_R2_brk_aln = wrap_alignment("R2",$R2_brk_iter->next_seq);
   $next_R1_adpt_aln = wrap_alignment("R1",$R1_adpt_iter->next_seq);
-  $next_R2_adpt_aln = wrap_alignment("R2",$R2_adpt_iter->next_seq);
   $next_R1_aln = wrap_alignment("R1",$R1_iter->next_seq);
-  $next_R2_aln = wrap_alignment("R2",$R2_iter->next_seq);
+
+
+
+  if (defined $read2) {
+
+    $R2_adpt_samobj = Bio::DB::Sam->new(-bam => $R2_adpt_bam,
+                                        -fasta => $adapt_fa,
+                                        -expand_flags => 1);
+    
+    $R2_brk_samobj = Bio::DB::Sam->new(-bam => $R2_brk_bam,
+                                       -fasta => $break_fa,
+                                       -expand_flags => 1);
+
+    $R2_samobj = Bio::DB::Sam->new(-bam => $R2_bam,
+                                   -fasta => $assembly_fa,
+                                   -expand_flags => 1);
+
+    
+    $R2_brk_iter = $R2_brk_samobj->get_seq_stream();
+    $R2_adpt_iter = $R2_adpt_samobj->get_seq_stream();
+    $R2_iter = $R2_samobj->get_seq_stream();
+    
+    $next_R2_brk_aln = wrap_alignment("R2",$R2_brk_iter->next_seq);
+    $next_R2_adpt_aln = wrap_alignment("R2",$R2_adpt_iter->next_seq);
+    $next_R2_aln = wrap_alignment("R2",$R2_iter->next_seq);
+  
+  }
+
+
+
+  
 
   croak "Error: no R1 alignments to breaksite" unless defined $next_R1_brk_aln;
 
@@ -1089,9 +1110,10 @@ sub parse_command_line {
 
   #Check options
 
-  croak "Error: cannot read sequence files" unless (-r $read1 & -r $read2);
+  croak "Error: must specify --read1" unless defined $read1;
+  croak "Error: cannot read read1 file" unless -r $read1;
+  croak "Error: cannot read read2 file" if defined $read2 && ! -r $read2;
   croak "Error: working directory does not exist" unless (-d $workdir);
-  croak "Error: pipeline requires at least 3 threads" if ($max_threads < 2);
   
 
 
