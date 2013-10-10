@@ -142,7 +142,7 @@ sub process_experiment ($) {
 
   my $assembly = $expt_hash->{mask} =~ /\S/ ? $expt_hash->{mask_assembly} : $expt_hash->{assembly};
 
-  my $tl_cmd = join(" ","TranslocAlign.pl --read1",$expt_hash->{R1},"--read2",$expt_hash->{R2},"--workdir",$expt_hash->{exptdir},
+  my $tl_cmd = join(" ","TranslocPipeline.pl --read1",$expt_hash->{R1},"--read2",$expt_hash->{R2},"--workdir",$expt_hash->{exptdir},
                     "--assembly",$assembly,"--chr",$expt_hash->{chr},"--start",$expt_hash->{start},"--end",$expt_hash->{end},"--strand",$expt_hash->{strand},"--threads $expt_threads --bt2opt \"$user_bowtie_opt\" --bt2brkopt \"$user_bowtie_breaksite_opt\"");
 
   $tl_cmd .= " --usecurrtlx" if defined $use_current_tlx;
