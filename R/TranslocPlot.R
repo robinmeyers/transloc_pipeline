@@ -59,7 +59,7 @@ if (commandArgs()[1] != "RStudio") {
   showM <- 0
   showY <- 0
   plottype <- "linear"
-  plotshape <- "diamond"
+  plotshape <- "octogon"
   ymax <- 0
   brkchr <- "chr15"
   brksite <- 61818880
@@ -68,7 +68,7 @@ if (commandArgs()[1] != "RStudio") {
 
 #argument checking
 if (chr == "") plottype <- "dot"
-if (strand == 2) plotshape <- "diamond"
+if (strand == 2) plotshape <- "octogon"
 
 
 suppressPackageStartupMessages(library(Rsamtools))
@@ -82,8 +82,8 @@ suppressPackageStartupMessages(library(RColorBrewer))
 # pal <- c("black",pal[c(1,5,2,3,4,7)])
 
 denom <- c(1,5,20,100,500,2000)
-pal <- brewer.pal(9,"Set1")
-pal <- c("black",pal[c(1,5,2,3,4)])
+pal <- brewer.pal(7,"Set1")
+pal <- c("black",pal[1],rgb(255,162,14,maxColorValue=255),pal[c(3,2,4)])
 
 # Read in cytogenetic band data
 cyto <- getCytoBands(assembly)

@@ -21,21 +21,27 @@ plotJunctions <- function (gr,binsize,strand=1,plottype="dot",plotshape="arrow",
       ypoints <- unit(c(dots$stackpos-1/3,dots$stackpos-1/3,dots$stackpos,dots$stackpos-1/2,dots$stackpos-1,dots$stackpos-2/3,dots$stackpos-2/3)*dotheight,"native")
       vertices <- 7
     } else if (plotshape == "triangle") {
-    xpoints <- unit(c(dots$mids-strand*binsize/2,dots$mids-strand*binsize/2,dots$mids+strand*binsize/2),"native")
-    ypoints <- unit(c(dots$stackpos-1,dots$stackpos,dots$stackpos-0.5)*dotheight,"native")
-    vertices <- 3
-    } else if (plotshape == "diamond") {
-      xpoints <- unit(c(dots$mids,dots$mids-strand*binsize/2,dots$mids,dots$mids+strand*binsize/2),"native")
-      ypoints <- unit(c(dots$stackpos-1,dots$stackpos-0.5,dots$stackpos,dots$stackpos-0.5)*dotheight,"native")
-      vertices <- 4
+      xpoints <- unit(c(dots$mids-strand*binsize/2,dots$mids-strand*binsize/2,dots$mids+strand*binsize/2),"native")
+      ypoints <- unit(c(dots$stackpos-1,dots$stackpos,dots$stackpos-0.5)*dotheight,"native")
+      vertices <- 3
+    } else if (plotshape == "octogon") {
+      xpoints <- unit(c(dots$mids+strand*binsize/5,dots$mids+strand*binsize/2,dots$mids+strand*binsize/2,dots$mids+strand*binsize/5,
+                        dots$mids-strand*binsize/5,dots$mids-strand*binsize/2,dots$mids-strand*binsize/2,dots$mids-strand*binsize/5),"native")
+      ypoints <- unit(c(dots$stackpos,dots$stackpos-3/10,dots$stackpos-7/10,dots$stackpos-1,
+                        dots$stackpos-1,dots$stackpos-7/10,dots$stackpos-3/10,dots$stackpos)*dotheight,"native")
+      vertices <- 8
     }
+    
+    
     if (rotateVP) {
       tmp <- xpoints
       xpoints <- ypoints
       ypoints <- tmp
     }
     
-    grid.polygon(x=xpoints,y=ypoints,id=rep(1:nrow(dots),vertices),gp=gpar(fill=pal[dots$value],lty=0))
+    grid.polygon(x=xpoints,y=ypoints,id=rep(1:nrow(dots),vertices),gp=gpar(fill=pal[dots$value],lty=0))  
+  
+    
     
     
   } else {
@@ -92,10 +98,10 @@ printHeader <- function(tlxfile,tlxdisp,tlxtot,assembly,chr,denom,pal,plottype,p
       vertices <- 3
       xpoints <- rep(x_legend-unit(1,"mm"),each=vertices) - unit(c(4,0,4),"mm")
       ypoints <- rep(y_legend,each=vertices) + unit(c(2,0,-2),"mm")
-    } else if (plotshape == "diamond") {
-      vertices <- 4      
-      xpoints <- rep(x_legend-unit(1,"mm"),each=vertices) - unit(c(4,2,0,2),"mm")
-      ypoints <- rep(y_legend,each=vertices) + unit(c(0,2,0,-2),"mm")
+    } else if (plotshape == "octogon") {
+      vertices <- 8      
+      xpoints <- rep(x_legend-unit(1,"mm"),each=vertices) - unit(c(3/10,0,0,3/10,7/10,1,1,7/10)*4,"mm")
+      ypoints <- rep(y_legend,each=vertices) + unit(c(1/2,1/5,-1/5,-1/2,-1/2,-1/5,1/5,1/2)*4,"mm")
     }
     
     grid.polygon(x=xpoints,y=ypoints,id=rep(1:length(denom),each=vertices),gp=gpar(fill=pal,lty=0))
