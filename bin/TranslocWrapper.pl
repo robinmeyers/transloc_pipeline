@@ -142,8 +142,12 @@ sub process_experiment ($) {
 
   my $assembly = $expt_hash->{mask} =~ /\S/ ? $expt_hash->{mask_assembly} : $expt_hash->{assembly};
 
-  my $tl_cmd = join(" ","TranslocPipeline.pl --read1",$expt_hash->{R1},"--read2",$expt_hash->{R2},"--workdir",$expt_hash->{exptdir},
-                    "--assembly",$assembly,"--chr",$expt_hash->{chr},"--start",$expt_hash->{start},"--end",$expt_hash->{end},"--strand",$expt_hash->{strand},"--threads $expt_threads --bt2opt \"$user_bowtie_opt\" --bt2brkopt \"$user_bowtie_breaksite_opt\"");
+
+  my $tl_cmd = join(" ","TranslocPipeline.pl --workdir",$expt_hash->{exptdir},
+                    "--assembly",$assembly,"--chr",$expt_hash->{chr},"--start",$expt_hash->{start},"--end",$expt_hash->{end},"--strand",$expt_hash->{strand},"--threads $expt_threads --bt2opt \"$user_bowtie_opt\" --bt2brkopt \"$user_bowtie_breaksite_opt\"",
+                    "--read1",$expt_hash->{R1});
+  $tl_cmd .= " --read2 " . $expt_hash->{R2} if defined $expt_hash->{R2};
+
 
   $tl_cmd .= " --usecurrtlx" if defined $use_current_tlx;
 
@@ -239,12 +243,15 @@ sub check_existance_of_files {
 	foreach my $expt_id (sort keys %meta) {
 		my $base = $seqdir."/".$expt_id;
 
-    if (-r $base."_R1.fq.gz" && -r $base."_R2.fq.gz") {
+    if (-r $base."_R1.fq.gz") {
       $meta{$expt_id}->{R1} = $base."_R1.fq.gz";
-      $meta{$expt_id}->{R2} = $base."_R2.fq.gz";
+      $meta{$expt_id}->{R2} = $base."_R2.fq.gz" if -r $base."_R2.fq.gz";
+    } elsif  (-r $base.".fq.gz") {
+      $meta{$expt_id}->{R1} = $base.".fq.gz";
     } else {
-      croak "Error: could not locate reads files for $expt_id in $seqdir";
+      croak "Error: could not locate read 1 file for $expt_id in $seqdir";
     }
+
   }
 }
 
