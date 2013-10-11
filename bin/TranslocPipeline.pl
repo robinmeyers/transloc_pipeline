@@ -980,7 +980,7 @@ sub score_edge ($;$) {
     return undef unless $node1->{R1}->{Rname} eq "Breaksite";
     return undef unless $node1->{R1}->{Strand} == 1;
 
-    my $brk_start_gap = $node1->{R1}->{Rstart} - $primer_start;
+    my $brk_start_dif = abs($node1->{R1}->{Rstart} - $primer_start);
 
     my $R1_AS = $node1->{R1}->{AS};
     my $R2_AS = defined $node1->{R2} ? $node1->{R2}->{AS} : 0;
@@ -996,7 +996,7 @@ sub score_edge ($;$) {
     $PEgap_pen = defined $PEgap && $PEgap > 1 ? $PE_pen_min + $PE_pen_mult * log10($PEgap)**$PE_pen_power : 0;
     print $node1->{R1}->{Qname}." - $PEgap - $PEgap_pen\n" if defined $PEgap;
 
-    $score = $R1_AS + $R2_AS - $PEgap_pen - $Dif_mult * $brk_start_gap;
+    $score = $R1_AS + $R2_AS - $PEgap_pen - $Dif_mult * $brk_start_dif;
 
   }
 
