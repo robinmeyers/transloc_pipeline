@@ -172,7 +172,7 @@ sub filter_freq_cutter ($$) {
       }
 
       if ($cutter =~ /\S/) {
-        if (uc($tlxl->{tlx}->{JuncSeq}) =~ $cutter || substr($tlxl->{tlx}->{Qseq},0,$tlxl->{tlx}->{Qstart}-1) =~ $cutter) {
+        if (uc($tlxl->{tlx}->{JuncSeq}) =~ $cutter || substr($tlxl->{tlx}->{Seq},0,$tlxl->{tlx}->{Qstart}+4) =~ $cutter) {
           $filter = "FreqCutter";
           $tlxl->{tlx}->{Filter} = $filter;
           next;

@@ -826,7 +826,7 @@ sub process_optimal_coverage_set ($$$) {
     $stats->{freqcut} += $no_freq_cutter;
     $stats->{freq_reads}++ if $no_freq_cutter > 0;
 
-    print "filter breaksite\n";
+    # print "filter breaksite\n";
     my $outside_breaksite = filter_breaksite($tlxls);
 
     $stats->{breaksite} += $outside_breaksite;
@@ -1053,6 +1053,11 @@ sub post_process_junctions {
 
   (my $html_reads = $tlxfile) =~ s/tlx$/html/;
   System("TranslocHTMLReads.pl $tlxfile $html_reads --primer ".$primseq->seq." --adapter ".$adaptseq->seq);  
+
+  (my $pdf_plot = $tlxfile) =~ s/tlx$/pdf/;
+
+  System("TranslocPlot.R $tlxfile $pdf_plot binsize=2000000 strand=2 assembly=$assembly " .
+          "brkchr=$brk_chr brksite=$brk_end brkstrand=" . ($brk_strand eq "+" ? "1" : "-1") );
 
 }
 
