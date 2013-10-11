@@ -303,7 +303,7 @@ sub align_to_breaksite {
   System("samtools view -bS -o $R1_brk_bam $R1_brk_sam") unless sam_file_is_empty($R1_brk_sam);
   System("touch $R1_brk_bam",1);
 
-  if (defined $read2)
+  if (defined $read2) {
     my $R2_brk_bt2_cmd = "bowtie2 $bt2_break_opt -x $break_bt2idx -U $read2 -S $R2_brk_sam";
 
     System($R2_brk_bt2_cmd);
@@ -325,7 +325,7 @@ sub align_to_adapter {
   System("samtools view -bS -o $R1_adpt_bam $R1_adpt_sam") unless sam_file_is_empty($R1_adpt_sam);
   System("touch $R1_adpt_bam",1);
 
-  if (defined $read2)
+  if (defined $read2) {
     my $R2_adpt_bt2_cmd = "bowtie2 $bt2_adapt_opt -x $adapt_bt2idx -U $read2 -S $R2_adpt_sam";
 
     System($R2_adpt_bt2_cmd);
@@ -346,7 +346,7 @@ sub align_to_genome {
   System("samtools view -bS -o $R1_bam $R1_sam") unless sam_file_is_empty($R1_sam);
   System("touch $R1_bam",1);
 
-    if (defined $read2) {
+  if (defined $read2) {
     my $R2_bt2_cmd = "bowtie2 $bt2_opt -x $assembly -U $read2 -S $R2_sam";
 
     System($R2_bt2_cmd);
