@@ -43,23 +43,23 @@ if (commandArgs()[1] != "RStudio") {
 } else {
   source("~/TranslocPipeline/R/Rsub.R")
   source("~/TranslocPipeline/R/TranslocHelper.R")
-  tlxfile <- "~/Desktop/BS_combined.tlx"
+  tlxfile <- "/Volumes//AltLab/Translocation//RawData/Alt024-20130429/NewPipelineTest/results-full/CC004_Alt024/CC004_Alt024.tlx"
   output <- "~/Working/TranslocTesting/TranslocPlot.pdf"
   binfile <- "~/Working/TranslocTesting/TranslocPlot_bins.txt"
-  binsize <- 2500000
+  binsize <- 2000000
   assembly <- "mm9"
   featurefile <- ""
   chr <- "chr15"
   strand <- 0
-  rstart <- 61923234
-  rend <- 61923277
+  rstart <- 0
+  rend <- 0
   rmid <- 0
   rwindow <- 0
-  binnum <- 44
+  binnum <- 100
   showM <- 0
   showY <- 0
   plottype <- "linear"
-  plotshape <- "octogon"
+  plotshape <- "arrow"
   ymax <- 0
   brkchr <- "chr15"
   brksite <- 61818880

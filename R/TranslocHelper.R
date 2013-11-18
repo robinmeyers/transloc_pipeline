@@ -163,7 +163,7 @@ createGenomicRanges <- function (chrlen,rstart=0,rend=0,rmid=0,rwindow=0,binsize
     strands <- rep(c("+","-"),each=length(chrs))
   } else if (rstart != 0 && rend != 0 ) {
     if (binnum != 0) binsize <- ceiling((rend-rstart+1)/binnum)
-    rstarts <- seq(from=rstart,to=rend-binsize+1,by=binsize)
+    rstarts <- seq(from=rstart,to=rend-1,by=binsize)
     rends <- rstarts + binsize - 1
     chrs <- rep(names(chrlen),length(rstarts))
     strands <- rep(c("+","-"),each=length(chrs))

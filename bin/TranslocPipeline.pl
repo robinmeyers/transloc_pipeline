@@ -71,19 +71,18 @@ my $priming_bp = 12;
 
 my $OL_mult = 2;
 my $Dif_mult = 1;
-my $Brk_pen_min = 20;
+my $Brk_pen_min = 40;
 my $Brk_pen_power = 4;
-my $Brk_pen_max = 60;
+my $Brk_pen_max = 40;
 my $Brk_dist_max = 100000000;
 my $Brk_pen_mult = ($Brk_pen_max-$Brk_pen_min)/(log10($Brk_dist_max)**$Brk_pen_power);
 
 # print "$Brk_pen_mult\n";
 
 my $max_frag_len = 1500;
-my $PE_pen_min = 0;
-my $PE_pen_max = 60;
-my $PE_pen_power = 2;
-my $PE_pen_mult = ($PE_pen_max-$PE_pen_min)/(log10($max_frag_len)**$PE_pen_power);
+my $PE_pen_min = 10;
+my $PE_pen_max = 40;
+my $PE_pen_mult = ($PE_pen_max-$PE_pen_min)/$max_frag_len;
 
 
 my $ol_thresh = 0.75;
@@ -130,9 +129,9 @@ parse_command_line;
 # my $default_bowtie_breaksite_opt = "--local -D 20 -R 3 -N 1 -L 12 -i C,6 --score-min C,40 --mp 10,2 --rfg 10,10 --rdg 10,10 -p $max_threads -k 50 --reorder -t";
 # my $default_bowtie_opt = "--local -D 20 -R 3 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $max_threads -k 50 --no-unal --reorder -t";
 
-my $default_bowtie_adapter_opt = "--local -D 20 -R 3 -N 1 -L 6 -i C,4 --score-min C,40 -p $max_threads --no-unal --reorder -t";
-my $default_bowtie_breaksite_opt = "--local -D 20 -R 3 -N 1 -L 12 -i C,6 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $max_threads -k 50 --reorder -t";
-my $default_bowtie_opt = "--local -D 20 -R 3 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $max_threads -k 50 --no-unal --reorder -t";
+my $default_bowtie_adapter_opt = "--local -D 20 -R 3 -N 1 -L 6 -i C,4 --score-min C,20 -p $max_threads --no-unal --reorder -t";
+my $default_bowtie_breaksite_opt = "--local -D 20 -R 3 -N 1 -L 12 -i C,2 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $max_threads -k 50 --reorder -t";
+my $default_bowtie_opt = "--local -D 20 -R 3 -N 0 -L 18 -i C,6 --score-min C,40 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $max_threads -k 50 --no-unal --reorder -t";
 
 
 my $bt2_break_opt = manage_program_options($default_bowtie_breaksite_opt,$user_bowtie_breaksite_opt);
@@ -190,8 +189,9 @@ my $breaklen = length($breakseq->seq);
 my $prim_io = Bio::SeqIO->new(-file => $prim_fa, -format => 'fasta');
 my $primseq = $prim_io->next_seq();
 my $primlen = length($primseq->seq);
-my $priming_threshold = $primlen + $priming_bp;
 my $primer_start = index($breakseq->seq,$primseq->seq)+1;
+my $priming_threshold = $primer_start + $primlen + $priming_bp;
+
 croak "Error: could not find primer within breaksite sequence" unless $primer_start > 0;
 
 my $adpt_io = Bio::SeqIO->new(-file => $adapt_fa, -format => 'fasta');
@@ -579,8 +579,8 @@ sub find_optimal_coverage_set ($$) {
 
       # print "\nbefore sort ". Dumper($R2_alns_ref) if @$R2_alns_ref < 2;
 
-      my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart}} @$R1_alns_ref;
-      my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart}} @$R2_alns_ref;
+      my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} @$R1_alns_ref;
+      my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} @$R2_alns_ref;
 
       # print "\nafter sort ".Dumper(\@R2_alns) if @R2_alns < 2;
 
@@ -963,7 +963,7 @@ sub score_edge ($;$) {
     }
 
     # $PEgap_pen = defined $PEgap && $PEgap > 1 ? $Brk_pen_min + $Brk_pen_mult * log10($PEgap)**$Brk_pen_power : 0;
-    $PEgap_pen = defined $PEgap && $PEgap > 1 ? $PE_pen_min + $PE_pen_mult * log10($PEgap)**$PE_pen_power : 0;
+    $PEgap_pen = defined $PEgap && $PEgap > 1 ? $PE_pen_min + $PE_pen_mult * $PEgap : 0;
     # print $node1->{R1}->{Qname}." - $PEgap - $PEgap_pen\n" if defined $PEgap;
 
     $score = $node1->{score} + $R1_AS + $R2_AS - $PEgap_pen - $Brk_pen - $OL_correction;
@@ -993,7 +993,7 @@ sub score_edge ($;$) {
     }
 
     # $PEgap_pen = defined $PEgap && $PEgap > 1 ? $Brk_pen_min + $Brk_pen_mult * log10($PEgap)**$Brk_pen_power : 0;
-    $PEgap_pen = defined $PEgap && $PEgap > 1 ? $PE_pen_min + $PE_pen_mult * log10($PEgap)**$PE_pen_power : 0;
+    $PEgap_pen = defined $PEgap && $PEgap > 1 ? $PE_pen_min + $PE_pen_mult * $PEgap : 0;
     print $node1->{R1}->{Qname}." - $PEgap - $PEgap_pen\n" if defined $PEgap;
 
     $score = $R1_AS + $R2_AS - $PEgap_pen - $Dif_mult * $brk_start_dif;
