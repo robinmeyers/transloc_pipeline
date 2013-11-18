@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 
 use strict;
@@ -19,8 +19,11 @@ use Cwd qw(abs_path);
 use FindBin;
 use lib abs_path("$FindBin::Bin/../lib");
 
+print("@INC");
+
 require "PerlSub.pl";
 require "PipelineHelper.pl";
+
 
 
 # Flush output after every write
