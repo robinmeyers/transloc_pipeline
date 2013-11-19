@@ -1,4 +1,4 @@
-#!/usr/bin/Rscript
+#!/usr/bin/env Rscript
 
 if (commandArgs()[1] != "RStudio") {
   

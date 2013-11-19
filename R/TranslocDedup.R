@@ -1,4 +1,4 @@
-#!/usr/bin/Rscript
+#!/usr/bin/env Rscript
 
 if (commandArgs()[1] != "RStudio") {
   
@@ -24,9 +24,9 @@ if (commandArgs()[1] != "RStudio") {
   parseArgs("TranslocDedup.R", ARGS, OPTS)
   
 } else {
-  source("~/Pipelines/R/Rsub.R")
-  tlxfile <- "/Volumes/AltLab/Translocation/RawData/Alt024-20130429/NewPipelineTest/test/CC004_Alt024/CC004_Alt024.tlx"
-  output <- "/Volumes/AltLab/Translocation/RawData/Alt024-20130429/NewPipelineTest/test/CC004_Alt024/CC004_Alt024_dedup.txt"
+  source("~/TranslocPipeline//R/Rsub.R")
+  tlxfile <- "/Volumes/AltLab/Translocation/RawData/Alt024-20130429/NewPipelineTest/results-new/CC004_Alt024/CC004_Alt024.tlx"
+  output <- "/Volumes/AltLab/Translocation/RawData/Alt024-20130429/NewPipelineTest/results-new//CC004_Alt024/CC004_Alt024_dedup.txt"
   rdist <- 10
   qdist <- 2
   cores <- 4
@@ -51,14 +51,13 @@ tlxs$Offset <- with(tlxs,ifelse(Strand==1,Junction-Qstart,Junction+Qstart))
 tlxs$B_Junction <- with(tlxs,ifelse(B_Strand==1,B_Rend,B_Rstart))
 tlxs$B_Offset <- with(tlxs,ifelse(B_Strand==1,B_Junction-B_Qend,B_Junction+B_Qend))
 
-tlxs_by_chr <- split(tlxs,tlxs$Rname)
+tlxs_by_chr_and_strand <- split(tlxs,list(tlxs$Rname,tlxs$Strand))
 
-findDuplicates <- function(tlx,tlxs,tlxs_by_chr) {
-  tlx <- tlxs[tlx,]
-  tlxs_by_chr <- tlxs_by_chr[[tlx$Rname]]
-  matches <- subset(tlxs_by_chr, Qname>tlx$Qname & Strand==tlx$Strand &
+findDuplicates <- function(n,tlxs,split_tlxs) {
+  tlx <- tlxs[n,]
+  tlxs_by_chr_and_strand <- split_tlxs[[paste(tlx$Rname,tlx$Strand,sep='.')]]
+  matches <- subset(tlxs_by_chr_and_strand, Qname>tlx$Qname &
                       abs(Offset-tlx$Offset)<=qdist & abs(Junction-tlx$Junction)<=rdist &
-                      B_Rname == tlx$B_Rname & B_Strand == tlx$B_Strand &
                       abs(B_Offset-tlx$B_Offset)<=qdist & abs(B_Junction-tlx$B_Junction)<=rdist)
   if (nrow(matches) > 0) {
     return(paste(matches$Qname,collapse=","))
@@ -67,6 +66,6 @@ findDuplicates <- function(tlx,tlxs,tlxs_by_chr) {
   }
 }
 
-dups <- mclapply(1:nrow(tlxs),findDuplicates,tlxs,tlxs_by_chr,mc.cores=cores)
+dups <- mclapply(1:nrow(tlxs),findDuplicates,tlxs,tlxs_by_chr_and_strand,mc.cores=cores)
 tlxs$Dups <- unlist(dups)
 write.table(tlxs[tlxs$Dups != "",c("Qname","Dups")],output,sep="\t",quote=F,na="",row.names=F,col.names=F)
