@@ -43,6 +43,7 @@ sub process_experiment ($);
 my $meta_file;
 my $seqdir;
 my $outdir;
+my $which;
 my $pipeline_threads = 2;
 my $expt_threads = 4;
 my $use_current_tlx;
@@ -66,11 +67,27 @@ parse_command_line;
 
 my $t0 = [gettimeofday];
 
+my @which = ();
+if (defined $which) {
+  my @tmpwhich = split(",",$which);
+  foreach (@tmpwhich) {
+    if (/(\d+)-(\d+)/) {
+      push(@which,$1..$2);
+    } elsif (/(\d+)/) {
+      push(@which,$1);
+    } else {
+      croak "Error: invalid 'which' statement";
+    }
+  }
+}
+
 read_in_meta_file;
 
 check_existance_of_files;
 
 prepare_reference_genomes (\%meta);
+
+
 
 if (defined $bsub) {
   foreach my $expt_id (sort keys %meta) {
@@ -176,7 +193,11 @@ sub read_in_meta_file {
 	my $header = $csv->getline($metafh);
 	$csv->column_names( map { lc } @$header );
 
+  my $i = 0;
 	while (my $expt = $csv->getline_hr($metafh)) {
+
+    $i++;
+    next unless $i ~~ @which && @which > 0;
 
 		my $expt_id = $expt->{experiment} . "_" . $expt->{sequencing};
 		$meta{$expt_id} = $expt;
@@ -260,7 +281,8 @@ sub parse_command_line {
 
 	usage() if (scalar @ARGV == 0);
 
-	my $result = GetOptions ( "bsub" => \$bsub,
+	my $result = GetOptions ( "which=s" => \$which,
+                            "bsub" => \$bsub,
 														"othreads=i" => \$pipeline_threads,
                             "ithreads=i" => \$expt_threads,
                             "usecurrtlx" => \$use_current_tlx,
