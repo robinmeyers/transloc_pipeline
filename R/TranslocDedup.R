@@ -25,8 +25,8 @@ if (commandArgs()[1] != "RStudio") {
   
 } else {
   source("~/TranslocPipeline//R/Rsub.R")
-  tlxfile <- "/Volumes/AltLab/Translocation/RawData/Alt024-20130429/NewPipelineTest/results-new/CC004_Alt024/CC004_Alt024.tlx"
-  output <- "/Volumes/AltLab/Translocation/RawData/Alt024-20130429/NewPipelineTest/results-new//CC004_Alt024/CC004_Alt024_dedup.txt"
+  tlxfile <- "~/Working/NewPipelineValidations/DedupTesting/YZ101_r.tlx"
+  output <- "~/Working/NewPipelineValidations/DedupTesting/YZ101_r_dedup.txt"
   rdist <- 10
   qdist <- 2
   cores <- 4
@@ -60,7 +60,7 @@ findDuplicates <- function(n,tlxs,split_tlxs) {
                       abs(Offset-tlx$Offset)<=qdist & abs(Junction-tlx$Junction)<=rdist &
                       abs(B_Offset-tlx$B_Offset)<=qdist & abs(B_Junction-tlx$B_Junction)<=rdist)
   if (nrow(matches) > 0) {
-    return(paste(matches$Qname,collapse=","))
+    return(paste(matches$Qname,"(",matches$B_Junction-tlx$B_Junction,",",matches$Junction-tlx$Junction,")",sep="",collapse=","))
   } else {
     return("")
   }
