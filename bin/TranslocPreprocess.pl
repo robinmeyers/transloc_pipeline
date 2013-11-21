@@ -57,8 +57,6 @@ my $max_threads = 4;
 my $bc_len = 10;
 my $bc_mismatch = 2;
 my $adapt_max_dif = 20;
-my $quality = 15;
-my $window = 10;
 my $minlen = 30;
 my $join;
 my $join_max_dif = 10;
@@ -163,12 +161,14 @@ sub read_in_meta_file {
 
 	while (my $expt = $csv->getline_hr($metafh)) {
 
-		$meta{$expt->{experiment}} = $expt;
+		my $name = $expt->{library} . "_" . $expt->{sequencing};
+
+		$meta{$name} = $expt;
 		
 		my %temp_stats_hash :shared;
 		$temp_stats_hash{totreads} = 0;
 		
-		$stats{$expt->{experiment}} = \%temp_stats_hash;
+		$stats{$name} = \%temp_stats_hash;
 	}
 
 	$metafh->close;
@@ -333,8 +333,6 @@ sub parse_command_line {
 				"join" => \$join,
 				"join_max_dif=i" => \$join_max_dif,
 				"join_min_ol=i" => \$join_min_ol,
-				"quality=i" => \$quality,
-				"window=i" => \$window,
 				"minlen=i" => \$minlen,
 				"skipclean" => \$skipclean,
 				"help" => \$help
@@ -388,8 +386,6 @@ $arg{"--adapt_max_dif","Maximum percent difference for match with adapter",$adap
 $arg{"--join","Stitch reads together using fastq-join"}
 $arg{"--join_max_dif","Maximum percent difference between reads for quality-trimmed stitching",$join_max_dif}
 $arg{"--join_min_ol","Minimum basepair overlap between two reads for quality-trimmed stitching",$join_min_ol}
-$arg{"--quality","Minimum quality score threshold",$quality}
-$arg{"--window","Size of window (in bp) to slide across read for trimming by quality",$window}
 $arg{"--minlength","Minimum length of quality trimmed reads",$minlen}
 $arg{"--help","This helpful help screen."}
 

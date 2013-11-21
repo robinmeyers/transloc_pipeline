@@ -178,7 +178,7 @@ sub read_in_meta_file {
 
 	while (my $expt = $csv->getline_hr($metafh)) {
 
-		my $expt_id = $expt->{experiment};
+		my $expt_id = $expt->{experiment} . "_" . $expt->{sequencing};
 		$meta{$expt_id} = $expt;
 		$meta{$expt_id}->{exptdir} = "$outdir/$expt_id";
 
@@ -260,7 +260,7 @@ sub parse_command_line {
 
 	usage() if (scalar @ARGV == 0);
 
-	my $result = GetOptions ( 
+	my $result = GetOptions ( "bsub" => \$bsub,
 														"othreads=i" => \$pipeline_threads,
                             "ithreads=i" => \$expt_threads,
                             "usecurrtlx" => \$use_current_tlx,
