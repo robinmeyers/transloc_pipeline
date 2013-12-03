@@ -1,0 +1,70 @@
+% tlx_format.tex - An article describing the *.tlx file format used as output in the AltLab Translocation Pipeline.
+
+\documentclass{article}
+%\usepackage{times}
+
+\begin{document}
+
+\title{TLX File Format Specification \\ \large The Output File of the Translocation Pipeline}
+\author{Robin M. Meyers\\
+  Laboratory of Fredrick W. Alt,\\
+  Boston Children's Hopsital, Harvard Medical School\\
+  \texttt{robin.meyers@childrens.harvard.edu}}
+\date{\today}
+\maketitle
+
+\begin{abstract}
+The format of the TLX file, which is the primary output file of the Translocation Pipeline, is defined and discussed in depth. Suggestions are also given for interpretting the data included and further manipulating it. 
+\end{abstract}
+
+\section{Introduction}
+\paragraph{} The TLX file is the primary output file of the Translocation Pipeline. It consists of TLX records. Each tlx record represents a junction, which is defined as two adjacent alignments on a single query sequence which map to distinct sites on the reference genome. 
+
+\subsection*{File Naming Convention}
+\paragraph{} There are in fact a few TLX files that are output as part of the Translocation Pipeline. They will all be named like \texttt{LIBNAME[\_DESC].tlx} where LIBNAME is the name of the library and DESC is an optional descriptor about the tlx records in that file. Currently, the tlx records that passed all filters during the pipeline has no descriptor and tlx records that were filtered will exist in either the \texttt{LIBNAME\_unjoined.tlx} or \texttt{LIBRARYNAME\_filtered.tlx} file. See the current Translocation Pipeline Documentation for more details.
+
+\subsection*{TLX Records}
+
+
+\section{The TLX File}
+
+\subsection*{Format}
+\paragraph{} The TLX file is a tab-delimited plain text file that includes a header row, followed by a row for each TLX record. Each row should be separated by the UNIX newline character. However, researchers will most frequently edit the TLX file using Microsoft Excel which, upon saving regular text files, writes the carriage-return character between rows in place of the newline character. \emph{Therefore, any downstream processing modules must first replace these carriage-return characters, usually denoted} \texttt{\textbackslash{}r}\emph{, with the newline character,} \texttt{\textbackslash{}n}\emph{.}
+
+\subsection*{Header}
+\paragraph{} The header row consists of the names of the columns each separated by a tab. There is no strict ordering of the columns and the column names are not case-sensitive. \emph {Future development of the pipeline, and downstream processing modules, must allow for flexibility with respect to these features.} There is however a recommended ordering of the columns, see below, and a recommended capitalization convention - namely that the first letter of any string of alphanumeric characters is uppercase and the rest are lowercase. For example, ``\texttt{B\_Qstart}'' would be the recommended capitalization for that column name, since an underscore is not considered alphanumeric.
+
+
+\subsection*{Columns}
+
+\begin{itemize}
+  \item \textbf{Qname} - Query name, the character string assigned to this query sequence by the sequencer
+  \item \textbf{Rname} - Reference name, the name of the reference sequence which the capture alignment mapped to
+  \item \textbf{Junction} - the coordinate of the junction end of the capture alignment
+  \item \textbf{Strand} - the strandedness of the capture alignment 
+\end{itemize}
+
+\section{Column Descriptions}
+\subsection*{Qname}
+\subsection*{Rname}
+\subsection*{Junction}
+\subsection*{Strand}
+
+
+\section{Glossary of Terms}
+
+\begin{description}
+
+  \item[alignment] the mapping of a query sequence to a reference sequence. Key features include the name, coordinates, and strand of the reference sequence that the query has mapped to, as well as the portion of the query sequence that has aligned.
+  \item[bait] the first of the two alignments that make up a junction.
+  \item[breaksite] same as bait alignment
+  \item[junction] what a junction is
+  \item[capture]
+  \item[query]
+  \item[reference]
+  \item[split junction]
+  \item[tlx record] tlx record represents a junction
+
+\end{description}
+
+\end{document}
