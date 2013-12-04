@@ -172,7 +172,7 @@ sub filter_freq_cutter ($$) {
       }
 
       if ($cutter =~ /\S/) {
-        if (uc($tlxl->{tlx}->{JuncSeq}) =~ $cutter || substr($tlxl->{tlx}->{Seq},0,$tlxl->{tlx}->{Qstart}+4) =~ $cutter) {
+        if (uc($tlxl->{tlx}->{J_Seq}) =~ $cutter || substr($tlxl->{tlx}->{Seq},0,$tlxl->{tlx}->{Qstart}+4) =~ $cutter) {
           $filter = "FreqCutter";
           $tlxl->{tlx}->{Filter} = $filter;
           next;
@@ -221,7 +221,7 @@ sub filter_breaksite ($) {
   return $outside_breaksite;
 }
 
-sub filter_split_junctions ($) {
+sub filter_sequential_junctions ($) {
   my $tlxls = shift;
 
   my $filter;
@@ -239,7 +239,7 @@ sub filter_split_junctions ($) {
       }
 
       $primary_junction++;
-      $filter = "SplitJunction";
+      $filter = "SequentialJunction";
 
 
     }

@@ -18,13 +18,13 @@ The format of the TLX file, which is the primary output file of the Translocatio
 \end{abstract}
 
 \section{Introduction}
-\paragraph{} The TLX file is the primary output file of the Translocation Pipeline. It consists of TLX records. Each tlx record represents a junction, which is defined as two adjacent alignments on a single query sequence which map to distinct sites on the reference genome. 
+\paragraph{} The TLX file is the primary output file of the Translocation Pipeline. It consists of TLX records, which is the fundamental data type of the pipeline's output. Each TLX record represents a translocation junction, which is defined, for our purposes, as two adjacent alignments on a single query sequence that each map to distinct sites on the reference genome. The TLX records for each read are computed in the pipeline after the application of the optimal query coverage algorithm and before any of the filters are applied to that read. 
 
 \subsection*{File Naming Convention}
 \paragraph{} There are in fact a few TLX files that are output as part of the Translocation Pipeline. They will all be named like \texttt{LIBNAME[\_DESC].tlx} where LIBNAME is the name of the library and DESC is an optional descriptor about the tlx records in that file. Currently, the tlx records that passed all filters during the pipeline has no descriptor and tlx records that were filtered will exist in either the \texttt{LIBNAME\_unjoined.tlx} or \texttt{LIBRARYNAME\_filtered.tlx} file. See the current Translocation Pipeline Documentation for more details.
 
 \subsection*{TLX Records}
-
+\paragraph{} The TLX record represents a single translocation junction. It is composed of two adjacent alignments on the query sequence read. Every query may have zero, one, or more TLX records associated with it. The two alignments will be termed the bait alignment and the capture alignment. Assuming that the library was sequenced from the forward primer, the bait alignment occurs on the 5' end of the junction. That is, it occurs first when reading from left to right. The capture alignment is at the 3' end of the junction, occuring second in the sequence. The bait alignment will typically also be the alignment to the breaksite. However, on a query with multiple junctions, the capture alignment of the first TLX record will also be the bait alignment in the second TLX record.
 
 \section{The TLX File}
 
@@ -36,12 +36,39 @@ The format of the TLX file, which is the primary output file of the Translocatio
 
 
 \subsection*{Columns}
-
+\subsubsection*{The Primary Fields}
 \begin{itemize}
   \item \textbf{Qname} - Query name, the character string assigned to this query sequence by the sequencer
   \item \textbf{Rname} - Reference name, the name of the reference sequence which the capture alignment mapped to
   \item \textbf{Junction} - the coordinate of the junction end of the capture alignment
   \item \textbf{Strand} - the strandedness of the capture alignment 
+\end{itemize}
+
+\subsubsection*{Bait Alignment}
+\begin{itemize}
+  \item \textbf{B\_Rname} - 
+  \item \textbf{B\_Rstart} - 
+  \item \textbf{B\_Rend} - 
+  \item \textbf{B\_Strand} - 
+  \item \textbf{B\_Qstart} - 
+  \item \textbf{B\_Qend} - 
+\end{itemize}
+
+\subsubsection*{Capture Alignment}
+\begin{itemize}
+  \item \textbf{Rstart} - 
+  \item \textbf{Rend} - 
+  \item \textbf{Qstart} - 
+  \item \textbf{Qend} - 
+\end{itemize}
+Note that Rname and Strand were included as part of the primary fields.
+
+
+\subsubsection*{The Rest}
+\begin{itemize}
+  \item \textbf{Qlen} - 
+  \item \textbf{J\_Seq} - 
+  \item \textbf{Seq} - 
 \end{itemize}
 
 \section{Column Descriptions}
@@ -63,7 +90,7 @@ The format of the TLX file, which is the primary output file of the Translocatio
   \item[query]
   \item[reference]
   \item[split junction]
-  \item[tlx record] tlx record represents a junction
+  \item[TLX record] tlx record represents a junction
 
 \end{description}
 

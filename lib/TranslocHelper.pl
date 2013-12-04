@@ -129,7 +129,7 @@ sub sam_file_is_empty ($) {
 sub tlx_header {
   my @tlx_header = ( qw(Qname Rname Junction Strand Rstart Rend),
                       qw(B_Rname B_Rstart B_Rend B_Strand B_Qstart B_Qend),
-                      qw(Qstart Qend Qlen Seq JuncSeq) );
+                      qw(Qstart Qend Qlen Seq J_Seq) );
   return (@tlx_header);
 }
 
@@ -889,7 +889,7 @@ sub create_tlx_entries ($$) {
       case "Adapter" { $ref = $refs->{adpt}; }
       else { $ref = $refs->{genome}; }
     }
-    $tlx->{JuncSeq} = $tlx->{Strand} == 1 ? $ref->seq($tlx->{Rname},$tlx->{Rstart}-10,$tlx->{Rstart}+9) :
+    $tlx->{J_Seq} = $tlx->{Strand} == 1 ? $ref->seq($tlx->{Rname},$tlx->{Rstart}-10,$tlx->{Rstart}+9) :
                                             $ref->seq($tlx->{Rname},$tlx->{Rend}-9,$tlx->{Rend}+10);
 
 

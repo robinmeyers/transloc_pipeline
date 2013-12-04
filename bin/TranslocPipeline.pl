@@ -113,8 +113,8 @@ $stats->{freqcut} = 0;
 $stats->{freq_reads} = 0;
 $stats->{breaksite} = 0;
 $stats->{break_reads} = 0;
-$stats->{splitjuncs} = 0;
-$stats->{split_reads} = 0;
+$stats->{sequentialjuncs} = 0;
+$stats->{sequential_reads} = 0;
 $stats->{dedup} = 0;
 $stats->{final} = 0;
 
@@ -275,7 +275,7 @@ print("\nStats\n".join("\n","Total Reads: ".$stats->{totalreads},
                           "Priming: ".$stats->{priming}." (".$stats->{prim_reads}.")",
                           "FrequentCutter: ".$stats->{freqcut}." (".$stats->{freq_reads}.")",
                           "Breaksite: ".$stats->{breaksite}." (".$stats->{break_reads}.")",
-                          "SplitJuncs: ".$stats->{splitjuncs}." (".$stats->{split_reads}.")",
+                          "SequentialJuncs: ".$stats->{sequentialjuncs}." (".$stats->{sequential_reads}.")",
                           "Dedup: ".$stats->{dedup})."\n");
 
 
@@ -833,11 +833,11 @@ sub process_optimal_coverage_set ($$$) {
     $stats->{break_reads}++ if $outside_breaksite > 0;
 
 
-    # print "filter split juctions\n";
-    my $primary_junction = filter_split_junctions($tlxls);
+    # print "filter sequential juctions\n";
+    my $primary_junction = filter_sequential_junctions($tlxls);
 
-    $stats->{splitjuncs} += $primary_junction;
-    $stats->{split_reads}++ if $primary_junction > 0;
+    $stats->{sequentialjuncs} += $primary_junction;
+    $stats->{sequential_reads}++ if $primary_junction > 0;
 
     write_tlxls($tlxls);
 
@@ -1072,7 +1072,7 @@ sub write_stats_file {
                             "Priming",
                             "FrequentCutter",
                             "Breaksite",
-                            "SplitJuncs",
+                            "SequentialJuncs",
                             "DeDup")."\n");
 
   $statsfh->print(join("\t",$stats->{totalreads},
@@ -1082,7 +1082,7 @@ sub write_stats_file {
                             $stats->{priming}." (".$stats->{prim_reads}.")",
                             $stats->{freqcut}." (".$stats->{freq_reads}.")",
                             $stats->{breaksite}." (".$stats->{break_reads}.")",
-                            $stats->{splitjuncs}." (".$stats->{split_reads}.")",
+                            $stats->{sequentialjuncs}." (".$stats->{sequential_reads}.")",
                             $stats->{dedup})."\n");
 
   $statsfh->close;
