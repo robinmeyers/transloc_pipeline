@@ -85,7 +85,7 @@ read_in_meta_file;
 
 check_existance_of_files;
 
-prepare_reference_genomes (\%meta);
+# prepare_reference_genomes (\%meta);
 
 
 
@@ -158,8 +158,7 @@ sub process_experiment ($) {
 
 	prepare_working_directory($expt_id);
 
-  my $assembly = $expt_hash->{mask} =~ /\S/ ? $expt_hash->{mask_assembly} : $expt_hash->{assembly};
-
+  # my $assembly = $expt_hash->{mask} =~ /\S/ ? $expt_hash->{mask_assembly} : $expt_hash->{assembly};
 
   my $tl_cmd = join(" ","TranslocPipeline.pl --workdir",$expt_hash->{exptdir},
                     "--read1",$expt_hash->{R1});
@@ -167,7 +166,7 @@ sub process_experiment ($) {
   $tl_cmd = join(" ", $tl_cmd, "--read2", $expt_hash->{R2}) if defined $expt_hash->{R2};
                 
   $tl_cmd = join(" ", $tl_cmd, "--threads $expt_threads",
-                    "--assembly",$assembly,
+                    "--assembly",$expt_hash->{assembly},
                     "--chr",$expt_hash->{chr},
                     "--start",$expt_hash->{start},
                     "--end",$expt_hash->{end},
@@ -218,7 +217,7 @@ sub read_in_meta_file {
 
     check_validity_of_metadata($expt);
 
-		my $expt_id = $expt->{experiment} . "_" . $expt->{sequencing};
+		my $expt_id = $expt->{library} . "_" . $expt->{sequencing};
     croak "Error: Experiment ID $expt_id is already taken" if exists $meta{$expt_id};
 		$meta{$expt_id} = $expt;
 		$meta{$expt_id}->{exptdir} = "$outdir/$expt_id";
@@ -237,10 +236,13 @@ sub read_in_meta_file {
 sub check_validity_of_metadata ($) {
   my $expt = shift;
 
-  croak "Metadata error: assembly must be one of mm9 or hg19" unless $expt->{assembly} ~~ qw(mm9 hg19);
-  croak "Metadata error: chr must be valid" unless $expt->{chr} ~~ map {"chr" . $_} push((1..22),"X","Y"); 
+  croak "Metadata error: assembly must be one of mm9 or hg19" unless $expt->{assembly} ~~ [qw(mm9 hg19)];
+  my @chrlist = 1..22;
+  push(@chrlist,qw(X Y));
+  @chrlist = map {"chr" . $_} @chrlist;
+  croak "Metadata error: chr must be valid" unless $expt->{chr} ~~ @chrlist; 
   croak "Metadata error: end must be greater than start" unless $expt->{end} > $expt->{start};
-  croak "Metadata error: strand must be one of + or -" unless $expt->{strand} ~~ qw(+ -);
+  croak "Metadata error: strand must be one of + or -" unless $expt->{strand} ~~ [qw(+ -)];
 
   croak "Metadata error: breaksite sequence contains non AGCT characters" unless $expt->{breaksite} =~ /^[AGCTagct]*$/;
   croak "Metadata error: primer sequence contains non AGCT characters" unless $expt->{primer} =~ /^[AGCTagct]*$/;

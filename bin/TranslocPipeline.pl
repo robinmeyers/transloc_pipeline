@@ -49,6 +49,7 @@ sub score_edge ($;$);
 sub deduplicate_junctions;
 sub post_process_junctions;
 sub write_stats_file;
+sub clean_up;
 
 
 
@@ -70,7 +71,8 @@ my $cut_fa;
 my $threads = 4;
 
 my $skip_alignment;
-my $overwrite_tlx;
+my $skip_process;
+my $no_clean;
 
 
 my $priming_bp = 12;
@@ -136,8 +138,8 @@ parse_command_line;
 # my $default_bowtie_opt = "--local -D 20 -R 3 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $threads -k 50 --no-unal --reorder -t";
 
 my $default_bowtie_adapter_opt = "--local -D 20 -R 3 -N 1 -L 6 -i C,4 --score-min C,20 -p $threads --no-unal --reorder -t";
-my $default_bowtie_breaksite_opt = "--local -D 20 -R 3 -N 1 -L 12 -i C,2 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $threads -k 50 --reorder -t";
-my $default_bowtie_opt = "--local -D 20 -R 3 -N 0 -L 18 -i C,6 --score-min C,40 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $threads -k 50 --no-unal --reorder -t";
+my $default_bowtie_breaksite_opt = "--local -D 20 -R 3 -N 1 -L 18 -i C,6 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $threads -k 50 --no-unal --reorder -t";
+my $default_bowtie_opt = "--local -D 20 -R 3 -N 1 -L 18 -i C,6 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $threads -k 50 --reorder -t";
 
 
 my $bt2_break_opt = manage_program_options($default_bowtie_breaksite_opt,$user_bowtie_breaksite_opt);
@@ -153,8 +155,13 @@ my $expt_stub = "$workdir/$expt";
 
 
 my $assembly_fa = $ENV{'GENOME_DB'}."/$assembly/$assembly.fa";
-my $break_bt2idx = join("",parseFilename($break_fa)[0..1]) if defined $break_fa;
-my $adapt_bt2idx = join("",parseFilename($adapt_fa)[0..1]);
+my $break_bt2idx;
+if (defined $break_fa) {
+  my @brk_file_path = parseFilename($break_fa);
+  $break_bt2idx = join("",@brk_file_path[0..1]);
+}
+my @adapt_file_path = parseFilename($adapt_fa);
+my $adapt_bt2idx = join("",@adapt_file_path[0..1]);
 
 my $R1_brk_sam = "${expt_stub}_R1_brk.sam";
 my $R2_brk_sam = "${expt_stub}_R2_brk.sam";
@@ -183,80 +190,66 @@ my $statsfile = "${expt_stub}_stats.txt";
 
 my $dedup_output = "${expt_stub}_dedup.txt";
 
-my $brk_hash = {chr => $brk_chr,
+
+# Prepare breaksite hash
+my $brksite = {chr => $brk_chr,
                 start => $brk_start,
                 end => $brk_end,
-                strand => $brk_strand,
-                len => $breaklen};
+                strand => $brk_strand};
 
-my ($breakseq,$breaklen);
+# Read in primer sequence
+my $prim_io = Bio::SeqIO->new(-file => $prim_fa, -format => 'fasta');
+$brksite->{primer} = $prim_io->next_seq();
+
+
+# Add sequence to hash unless library has endogenous breaksite
 if (defined $break_fa) {
-  $brk_hash->{endogenous} = 0 unless defined $breakseq;
+  $brksite->{endogenous} = 0;
   my $brk_io = Bio::SeqIO->new(-file => $break_fa, -format => 'fasta');
-  $breakseq = $brk_io->next_seq();
-  $breaklen = length($breakseq->seq);
+  $brksite->{seq} = $brk_io->next_seq();
+  $brksite->{len} = $brksite->{seq}->length;
+  $brksite->{aln_name} = "Breaksite";
+  $brksite->{aln_strand} = 1;
+  $brksite->{primer_start} = index($brksite->{seq}->seq,$brksite->{primer}->seq)+1;
 } else {
-  $brk_hash->{endogenous} = 1;
+  $brksite->{endogenous} = 1;
+  $brksite->{aln_name} = $brksite->{chr};
+  $brksite->{aln_strand} = $brksite->{strand} eq "+" ? 1 : -1;
+  $brksite->{primer_start} = $brksite->{strand} eq "+" ? $brksite->{start} : $brksite->{end} - 1;
 }
 
-my $prim_io = Bio::SeqIO->new(-file => $prim_fa, -format => 'fasta');
-my $primseq = $prim_io->next_seq();
-my $primlen = length($primseq->seq);
-my $primer_start = $brk_hash->{endogenous} ? $brk_hash->{start} : index($breakseq->seq,$primseq->seq)+1;
-croak "Error: could not find primer within breaksite sequence" unless $primer_start > 0;
-my $priming_threshold = $primer_start + $primlen + $priming_bp;
+# Calculate thresholds for mispriming filters
+croak "Error: could not find primer within breaksite sequence" unless $brksite->{primer_start} > 0;
+$brksite->{priming_threshold} = $brksite->{primer_start} + $brksite->{aln_strand} * ($brksite->{primer}->length - 1 + $priming_bp);
 
-
+# Read in adapter sequence
 my $adpt_io = Bio::SeqIO->new(-file => $adapt_fa, -format => 'fasta');
 my $adaptseq = $adpt_io->next_seq();
-my $adaptlen = length($adaptseq->seq);
 
-my $cut_io = Bio::SeqIO->new(-file => $cut_fa, -format => 'fasta');
-my $cutseq = $cut_io->next_seq();
+# Read in cutter sequence
+my $cutseq;
+if (defined $cut_fa) {
+  my $cut_io = Bio::SeqIO->new(-file => $cut_fa, -format => 'fasta');
+  $cutseq = $cut_io->next_seq();
+}
 
 
+unless ($skip_alignment || $skip_process) {
 
-
-unless ($skip_alignment) {
-
-  align_to_breaksite unless $brk_hash->{endogenous};
-
+  align_to_breaksite unless $brksite->{endogenous};
   align_to_adapter unless -r $R1_adpt_bam && -r $R2_adpt_bam;
-
   align_to_genome unless -r $R1_bam && -r $R2_bam;
 
 } else {
-
-  if ($brk_hash->{endogenous}) {
+  unless ($brksite->{endogenous}) {
     croak "Error: could not find breaksite alignment files when skipping align step" unless -r $R1_brk_bam && -r $R2_brk_bam;
   }
   croak "Error: could not find genome alignment files when skipping align step" unless -r $R1_bam && -r $R2_bam;
-  croak "Error: could not find adaoter alignment files when skipping align step" unless -r $R1_adpt_bam && -r $R2_adpt_bam;
-
-
+  croak "Error: could not find adapter alignment files when skipping align step" unless -r $R1_adpt_bam && -r $R2_adpt_bam;
 }
 
-# my $aln_queue = Thread::Queue->new();
-# my $ocs_queue = Thread::Queue->new();
 
-# my $aln_reader_thr = threads->create('read_alignments');
-
-# my @ocs_finder_thrs = ();
-# foreach my $i (1..($threads-2)) {
-#   my $thr = threads->create('find_optimal_coverage_set');
-#   push(@ocs_finder_thrs,$thr);
-# }
-
-# # my $ocs_processer_thr = threads->create('process_OCS');
-
-# $aln_reader_thr->join;
-# foreach my $thr (@ocs_finder_thrs) {
-#   $thr->join;
-# }
-# $ocs_processer_thr->join;
-
-if (! -r $tlxfile || $overwrite_tlx) {
-
+unless ($skip_process) {
   $tlxlfh = IO::File->new(">$tlxlfile");
   $tlxfh = IO::File->new(">$tlxfile");
   $filt_tlxfh = IO::File->new(">$filt_tlxfile");
@@ -277,11 +270,12 @@ if (! -r $tlxfile || $overwrite_tlx) {
   deduplicate_junctions;
 
   write_stats_file;
+
+} else {
+  croak "Error: could not find tlx file when skipping processing step" unless -r $tlxfile;
 }
 
 post_process_junctions;
-
-
 
 
 my $t1 = tv_interval($t0);
@@ -298,6 +292,7 @@ print("\nStats\n".join("\n","Total Reads: ".$stats->{totalreads},
                           "SplitJuncs: ".$stats->{splitjuncs}." (".$stats->{split_reads}.")",
                           "Dedup: ".$stats->{dedup})."\n");
 
+clean_up unless $no_clean;
 
 
 #
@@ -387,15 +382,22 @@ sub process_alignments {
   my ($next_R1_adpt_aln,$next_R2_adpt_aln);
   my ($next_R1_aln,$next_R2_aln);
 
-  $R1_brk_samobj = Bio::DB::Sam->new(-bam => $R1_brk_bam,
-                                     -fasta => $break_fa,
-                                     -expand_flags => 1);
+  unless ($brksite->{endogenous}) {
+    $R1_brk_samobj = Bio::DB::Sam->new(-bam => $R1_brk_bam,
+                                       -fasta => $break_fa,
+                                       -expand_flags => 1);
 
+    $R1_brk_iter = $R1_brk_samobj->get_seq_stream();
+    $next_R1_brk_aln = wrap_alignment("R1",$R1_brk_iter->next_seq);
+  }
 
 
   $R1_adpt_samobj = Bio::DB::Sam->new(-bam => $R1_adpt_bam,
                                       -fasta => $adapt_fa,
                                       -expand_flags => 1);
+  $R1_adpt_iter = $R1_adpt_samobj->get_seq_stream();
+  $next_R1_adpt_aln = wrap_alignment("R1",$R1_adpt_iter->next_seq);
+
 
 
 
@@ -403,84 +405,112 @@ sub process_alignments {
                                  -fasta => $assembly_fa,
                                  -expand_flags => 1);
 
-
-  $R1_brk_iter = $R1_brk_samobj->get_seq_stream();
-  $R1_adpt_iter = $R1_adpt_samobj->get_seq_stream();
   $R1_iter = $R1_samobj->get_seq_stream();
-
-  $next_R1_brk_aln = wrap_alignment("R1",$R1_brk_iter->next_seq);
-  $next_R1_adpt_aln = wrap_alignment("R1",$R1_adpt_iter->next_seq);
   $next_R1_aln = wrap_alignment("R1",$R1_iter->next_seq);
 
 
 
   if (defined $read2) {
 
+    unless ($brksite->{endogenous}) {
+      $R2_brk_samobj = Bio::DB::Sam->new(-bam => $R2_brk_bam,
+                                         -fasta => $break_fa,
+                                         -expand_flags => 1);
+    $R2_brk_iter = $R2_brk_samobj->get_seq_stream();
+    $next_R2_brk_aln = wrap_alignment("R2",$R2_brk_iter->next_seq);
+
+    }
+
     $R2_adpt_samobj = Bio::DB::Sam->new(-bam => $R2_adpt_bam,
                                         -fasta => $adapt_fa,
                                         -expand_flags => 1);
+    $R2_adpt_iter = $R2_adpt_samobj->get_seq_stream();
+    $next_R2_adpt_aln = wrap_alignment("R2",$R2_adpt_iter->next_seq);
     
-    $R2_brk_samobj = Bio::DB::Sam->new(-bam => $R2_brk_bam,
-                                       -fasta => $break_fa,
-                                       -expand_flags => 1);
+    
 
     $R2_samobj = Bio::DB::Sam->new(-bam => $R2_bam,
                                    -fasta => $assembly_fa,
                                    -expand_flags => 1);
 
     
-    $R2_brk_iter = $R2_brk_samobj->get_seq_stream();
-    $R2_adpt_iter = $R2_adpt_samobj->get_seq_stream();
     $R2_iter = $R2_samobj->get_seq_stream();
-    
-    $next_R2_brk_aln = wrap_alignment("R2",$R2_brk_iter->next_seq);
-    $next_R2_adpt_aln = wrap_alignment("R2",$R2_adpt_iter->next_seq);
     $next_R2_aln = wrap_alignment("R2",$R2_iter->next_seq);
   
   }
 
+  if ($brksite->{endogenous}) {
+    my $primer_check = $R1_samobj->seq($brksite->{chr},$brksite->{start},$brksite->{start}+$brksite->{primer}->length-1);
+    $primer_check = reverseComplement($primer_check) if $brksite->{strand} eq "-";
+    print $brksite->{primer}->seq ." $primer_check\n"; 
+    croak "Error: primer sequence does not match reference genome"
+        unless $brksite->{primer}->seq eq $primer_check;
+  }
+
+  croak "Error: no R1 alignments" unless defined $next_R1_aln;
 
 
-  
-
-  croak "Error: no R1 alignments to breaksite" unless defined $next_R1_brk_aln;
+  while (defined $next_R1_aln) {
 
 
-  while (defined $next_R1_brk_aln) {
+    # The strategy here is to read in all alignments from the genome, adapter,
+    # and breaksite (for non-endogenous libraries) and pool them all into
+    # an array for read 1, and read 2 if the library is paired-end
 
-    # my @aln_block :shared;
+    my $qname = $next_R1_aln->{Qname};
 
-    # for (my $i=0; $i < $qblocksize; $i++) {
-
-    #   last unless defined $next_R1_brk_aln;
-
-    my $qname = $next_R1_brk_aln->{Qname};
-
-    my @R1_alns = ();# :shared;
-    my @R2_alns = ();# :shared;
+    my @R1_alns = ();
+    my @R2_alns = ();
 
        
-    push(@R1_alns,$next_R1_brk_aln);
-    undef $next_R1_brk_aln;
+    push(@R1_alns,$next_R1_aln);
+    undef $next_R1_aln;
 
-    while(my $aln = $R1_brk_iter->next_seq) {
-      $next_R1_brk_aln = wrap_alignment("R1",$aln);
-      last unless $next_R1_brk_aln->{Qname} eq $qname;
-      push(@R1_alns,$next_R1_brk_aln);
-      undef $next_R1_brk_aln;
+    while(my $aln = $R1_iter->next_seq) {
+      $next_R1_aln = wrap_alignment("R1",$aln);
+      last unless $next_R1_aln->{Qname} eq $qname;
+      push(@R1_alns,$next_R1_aln);
+      undef $next_R1_aln;
     }
 
-    if (defined $next_R2_brk_aln && $next_R2_brk_aln->{Qname} eq $qname) {
-      push(@R2_alns,$next_R2_brk_aln);
-      undef $next_R2_brk_aln;
-      while(my $aln = $R2_brk_iter->next_seq) {
-        $next_R2_brk_aln = wrap_alignment("R2",$aln);
-        last unless $next_R2_brk_aln->{Qname} eq $qname;
-        push(@R2_alns,$next_R2_brk_aln);
-        undef $next_R2_brk_aln;
+    if (defined $next_R2_aln && $next_R2_aln->{Qname} eq $qname) {
+      push(@R2_alns,$next_R2_aln);
+      undef $next_R2_aln;
+      while(my $aln = $R2_iter->next_seq) {
+        $next_R2_aln = wrap_alignment("R2",$aln);
+        last unless $next_R2_aln->{Qname} eq $qname;
+        push(@R2_alns,$next_R2_aln);
+        undef $next_R2_aln;
       }
     }
 
+    # Read in Breaksite alignments only if brksite is non-endogenous
+    unless ($brksite->{endogenous}) {
+      if (defined $next_R1_brk_aln && $next_R1_brk_aln->{Qname} eq $qname) {
+        push(@R1_alns,$next_R1_brk_aln);
+        undef $next_R1_brk_aln;
+        while(my $aln = $R1_brk_iter->next_seq) {
+          $next_R1_brk_aln = wrap_alignment("R1",$aln);
+          last unless $next_R1_brk_aln->{Qname} eq $qname;
+          push(@R1_alns,$next_R1_brk_aln);
+          undef $next_R1_brk_aln;
+        }
+      }
+
+      if (defined $next_R2_brk_aln && $next_R2_brk_aln->{Qname} eq $qname) {
+        push(@R2_alns,$next_R2_brk_aln);
+        undef $next_R2_brk_aln;
+        while(my $aln = $R2_brk_iter->next_seq) {
+          $next_R2_brk_aln = wrap_alignment("R2",$aln);
+          last unless $next_R2_brk_aln->{Qname} eq $qname;
+          push(@R2_alns,$next_R2_brk_aln);
+          undef $next_R2_brk_aln;
+        }
+      }
+    }
+
+
+    # Read in Adapter alignments
     if (defined $next_R1_adpt_aln && $next_R1_adpt_aln->{Qname} eq $qname) {
       push(@R1_alns,$next_R1_adpt_aln);
       undef $next_R1_adpt_aln;
@@ -503,27 +533,7 @@ sub process_alignments {
       }
     }
 
-    if (defined $next_R1_aln && $next_R1_aln->{Qname} eq $qname) {
-      push(@R1_alns,$next_R1_aln);
-      undef $next_R1_aln;
-      while(my $aln = $R1_iter->next_seq) {
-        $next_R1_aln = wrap_alignment("R1",$aln);
-        last unless $next_R1_aln->{Qname} eq $qname;
-        push(@R1_alns,$next_R1_aln);
-        undef $next_R1_aln;
-      }
-    }
-
-    if (defined $next_R2_aln && $next_R2_aln->{Qname} eq $qname) {
-      push(@R2_alns,$next_R2_aln);
-      undef $next_R2_aln;
-      while(my $aln = $R2_iter->next_seq) {
-        $next_R2_aln = wrap_alignment("R2",$aln);
-        last unless $next_R2_aln->{Qname} eq $qname;
-        push(@R2_alns,$next_R2_aln);
-        undef $next_R2_aln;
-      }
-    }
+    
 
     # print "\nbefore ocs ". Dumper(\@R2_alns) if @R2_alns < 2;
 
@@ -539,21 +549,6 @@ sub process_alignments {
 
   }
 
-  #   while (1) {
-  #     unless ($aln_queue->pending < $max_queue_size) {
-  #       sleep 1;
-  #       next;
-  #     }
-  #     my $t0 = [gettimeofday];
-  #     $aln_queue->enqueue(\@aln_block);
-  #     my $t1 = tv_interval($t0);
-  #     print "queued alignments in $t1\n";
-
-  #     last;
-  #   }
-  # }
-
-  # $aln_queue->end;
 
 }
 
@@ -565,223 +560,167 @@ sub find_optimal_coverage_set ($$) {
 
 
 
-  # while (my $aln_block = $aln_queue->dequeue) {
+  my $R1_alns_ref = shift;
+  my $R2_alns_ref = shift;
 
-  #   my $t1 = tv_interval($t0);
-  #   print "dequeued alignments in $t1\n";
+  my @graph = ();
+  my $OCS_ptr;
 
-  #   my @OCS_block :shared;
+  my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} @$R1_alns_ref;
+  my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} @$R2_alns_ref;
 
-  #   foreach my $aln_item (@$aln_block) {
+  # print "\nafter sort ".Dumper(\@R2_alns) if @R2_alns < 2;
 
-      # my ($R1_alns_ref,$R2_alns_ref) :shared;
-      my $R1_alns_ref = shift;
-      my $R2_alns_ref = shift;
+  foreach my $R1_aln (@R1_alns) {
 
-      my @graph = ();
-      my $OCS_ptr;
+    next if $R1_aln->{Unmapped};
+
+    my $graphsize = scalar @graph;
+
+    my $new_node = {R1 => $R1_aln};
 
 
-     
 
-      
-      # if ($R1_alns_ref->[0]->{Unmapped}) {
-      #   my @OCS_item;
-      #   @OCS_item = (shared_clone(\@unmapped_OCS),$R1_alns_ref,$R2_alns_ref);
-      #   push(@OCS_block,\@OCS_item);
-      #   next;
-      # }
+    my $init_score = score_edge($new_node);
+    $new_node->{score} = $init_score if defined $init_score;
 
-      # if ($R1_alns_ref->[0]->{Unmapped}) {
-      #   return \@unmapped_OCS;
-      #   next;
-      # }
+    # print "not a possible initial node\n" unless defined $init_score;
+    # print "initialized node to $init_score\n" if defined $init_score;
 
-      # print "\nbefore sort ". Dumper($R2_alns_ref) if @$R2_alns_ref < 2;
+    my $nodenum = 1;
+    foreach my $node (@graph) {
+      # print "scoring edge against node $nodenum\n";
+      my $edge_score = score_edge($node,$new_node);
+      next unless defined $edge_score;
+      # print "found edge score of $edge_score\n";
 
-      my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} @$R1_alns_ref;
-      my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} @$R2_alns_ref;
+      if (! exists $new_node->{score} || $edge_score > $new_node->{score}) {
+        $new_node->{score} = $edge_score;
+        $new_node->{back_ptr} = $node;
 
-      # print "\nafter sort ".Dumper(\@R2_alns) if @R2_alns < 2;
+        # print "setting back pointer to $nodenum\n";
+      }
+      $nodenum++;
+    }
 
-      foreach my $R1_aln (@R1_alns) {
+    if (defined $new_node->{score}) {
+      push(@graph,$new_node) ;
+      # print "pushed node into position ".scalar @graph." with score ".$new_node->{score}."\n";
+      # print "setting OCS pointer to node\n" if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
+      $OCS_ptr = $new_node if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
+    }
 
-        next if $R1_aln->{Unmapped};
+    foreach my $R2_aln (@R2_alns) {
+      # print $R1_aln->{Qname}."\n" if ! defined $R2_aln->{Unmapped};
+      # print Dumper($R2_aln) if $R2_aln->{Unmapped};
 
-        my $graphsize = scalar @graph;
+      next unless defined $R2_aln && ! $R2_aln->{Unmapped};
 
-        my $new_node = {R1 => $R1_aln};
+      # print "testing proper-pairedness with R2:\n";
+      # print_aln($R2_aln_wrap);
 
-        # my %new_node :shared;
-        # $new_node{R1} = $R1_aln;
-        # my $new_node = \%new_node;
+      next unless pair_is_proper($R1_aln,$R2_aln,$max_frag_len);
 
-        my $init_score = score_edge($new_node);
-        $new_node->{score} = $init_score if defined $init_score;
+      my $new_pe_node = {R1 => $R1_aln, R2 => $R2_aln};
 
-        # print "not a possible initial node\n" unless defined $init_score;
-        # print "initialized node to $init_score\n" if defined $init_score;
 
-        my $nodenum = 1;
-        foreach my $node (@graph) {
+
+      # print "pair is proper\n";
+      my $init_score = score_edge($new_pe_node);
+      $new_pe_node->{score} = $init_score if defined $init_score;
+      # print "not a possible initial node\n" unless defined $init_score;
+      # print "initialized node to $init_score\n" if defined $init_score;
+      $nodenum = 1;
+      if ($graphsize > 0) {
+        foreach my $node (@graph[0..($graphsize-1)]) {
           # print "scoring edge against node $nodenum\n";
-          my $edge_score = score_edge($node,$new_node);
+
+          my $edge_score = score_edge($node,$new_pe_node);
           next unless defined $edge_score;
           # print "found edge score of $edge_score\n";
 
-          if (! exists $new_node->{score} || $edge_score > $new_node->{score}) {
-            $new_node->{score} = $edge_score;
-            $new_node->{back_ptr} = $node;
+          if (! defined $new_pe_node->{score} || $edge_score > $new_pe_node->{score}) {
+            $new_pe_node->{score} = $edge_score;
+            $new_pe_node->{back_ptr} = $node;
 
             # print "setting back pointer to $nodenum\n";
+
           }
           $nodenum++;
         }
-
-        if (defined $new_node->{score}) {
-          push(@graph,$new_node) ;
-          # print "pushed node into position ".scalar @graph." with score ".$new_node->{score}."\n";
-          # print "setting OCS pointer to node\n" if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
-          $OCS_ptr = $new_node if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
-        }
-
-        foreach my $R2_aln (@R2_alns) {
-          # print $R1_aln->{Qname}."\n" if ! defined $R2_aln->{Unmapped};
-          # print Dumper($R2_aln) if $R2_aln->{Unmapped};
-
-          next unless defined $R2_aln && ! $R2_aln->{Unmapped};
-
-          # print "testing proper-pairedness with R2:\n";
-          # print_aln($R2_aln_wrap);
-
-          next unless pair_is_proper($R1_aln,$R2_aln,$max_frag_len);
-
-          my $new_pe_node = {R1 => $R1_aln, R2 => $R2_aln};
-          # my %new_pe_node :shared;
-          # $new_pe_node{R1} = $R1_aln;
-          # $new_pe_node{R2} = $R2_aln;
-          # my $new_pe_node = \%new_pe_node;
-
-
-          # print "pair is proper\n";
-          my $init_score = score_edge($new_pe_node);
-          $new_pe_node->{score} = $init_score if defined $init_score;
-          # print "not a possible initial node\n" unless defined $init_score;
-          # print "initialized node to $init_score\n" if defined $init_score;
-          $nodenum = 1;
-          if ($graphsize > 0) {
-            foreach my $node (@graph[0..($graphsize-1)]) {
-              # print "scoring edge against node $nodenum\n";
-
-              my $edge_score = score_edge($node,$new_pe_node);
-              next unless defined $edge_score;
-              # print "found edge score of $edge_score\n";
-
-              if (! defined $new_pe_node->{score} || $edge_score > $new_pe_node->{score}) {
-                $new_pe_node->{score} = $edge_score;
-                $new_pe_node->{back_ptr} = $node;
-
-                # print "setting back pointer to $nodenum\n";
-
-              }
-              $nodenum++;
-            }
-          }
-          if (defined $new_pe_node->{score}) {
-            push(@graph,$new_pe_node);
-            # print "pushed node into position ".scalar @graph." with score ".$new_pe_node->{score}."\n";
-            # print "setting OCS pointer to node\n" if ! defined $OCS_ptr || $new_pe_node->{score} > $OCS_ptr->{score};
-            $OCS_ptr = $new_pe_node if ! defined $OCS_ptr || $new_pe_node->{score} > $OCS_ptr->{score};
-          }
-        }
       }
-
-      foreach my $R2_aln (@R2_alns) {
-
-        # print "\nStarting test for R2:\n";
-        # print_aln($R2_aln_wrap);
-        next unless defined $R2_aln && ! $R2_aln->{Unmapped};
-
-        my $new_node = {R2 => $R2_aln};
-        # my %new_node :shared;
-        # $new_node{R2} = $R2_aln;
-        # my $new_node = \%new_node;
-
-        my $nodenum = 1;
-        foreach my $node (@graph) {
-          # print "scoring edge against node $nodenum\n";
-          my $edge_score = score_edge($node,$new_node);
-          next unless defined $edge_score;
-          # print "found edge score of $edge_score\n";
-
-          if (! defined $new_node->{score} || $edge_score > $new_node->{score}) {
-            $new_node->{score} = $edge_score;
-            $new_node->{back_ptr} = $node;
-            # print "setting back pointer to $nodenum\n";
-          }
-          $nodenum++;
-        }
-
-        if (defined $new_node->{score}) {
-          push(@graph,$new_node) ;
-          # print "pushed node into position ".scalar @graph." with score ".$new_node->{score}."\n";
-          # print "setting OCS pointer to node\n" if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
-          $OCS_ptr = $new_node if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
-        }
-
+      if (defined $new_pe_node->{score}) {
+        push(@graph,$new_pe_node);
+        # print "pushed node into position ".scalar @graph." with score ".$new_pe_node->{score}."\n";
+        # print "setting OCS pointer to node\n" if ! defined $OCS_ptr || $new_pe_node->{score} > $OCS_ptr->{score};
+        $OCS_ptr = $new_pe_node if ! defined $OCS_ptr || $new_pe_node->{score} > $OCS_ptr->{score};
       }
+    }
+  }
 
-      unless (defined $OCS_ptr) {
-        my @unmapped_OCS = ( { R1 => { Qname => $R1_alns_ref->[0]->{Qname},
-                                       Seq => $R1_alns_ref->[0]->{Seq},
-                                       Qual => $R1_alns_ref->[0]->{Qual},
-                                       Unmapped => 1 },
-                               R2 => { Qname => $R2_alns_ref->[0]->{Qname},
-                                       Seq => $R2_alns_ref->[0]->{Seq},
-                                       Qual => $R2_alns_ref->[0]->{Qual},
-                                       Unmapped => 1 } } );
-        return \@unmapped_OCS;
-        # my @OCS_item :shared;
-        # @OCS_item = (shared_clone(\@unmapped_OCS),$R1_alns_ref,$R2_alns_ref);
-        # push(@OCS_block,\@OCS_item);
-        next;
+  foreach my $R2_aln (@R2_alns) {
+
+    # print "\nStarting test for R2:\n";
+    # print_aln($R2_aln_wrap);
+    next unless defined $R2_aln && ! $R2_aln->{Unmapped};
+
+    my $new_node = {R2 => $R2_aln};
+
+
+    my $nodenum = 1;
+    foreach my $node (@graph) {
+      # print "scoring edge against node $nodenum\n";
+      my $edge_score = score_edge($node,$new_node);
+      next unless defined $edge_score;
+      # print "found edge score of $edge_score\n";
+
+      if (! defined $new_node->{score} || $edge_score > $new_node->{score}) {
+        $new_node->{score} = $edge_score;
+        $new_node->{back_ptr} = $node;
+        # print "setting back pointer to $nodenum\n";
       }
+      $nodenum++;
+    }
 
-      my @OCS;# :shared;
+    if (defined $new_node->{score}) {
+      push(@graph,$new_node) ;
+      # print "pushed node into position ".scalar @graph." with score ".$new_node->{score}."\n";
+      # print "setting OCS pointer to node\n" if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
+      $OCS_ptr = $new_node if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
+    }
 
-      while (defined $OCS_ptr->{back_ptr}) {
-        unshift(@OCS,$OCS_ptr);
-        $OCS_ptr->{R1_Rgap} = find_genomic_distance($OCS_ptr->{back_ptr}->{R1},$OCS_ptr->{R1},$brk_hash)
-          if defined $OCS_ptr->{R1} && defined $OCS_ptr->{back_ptr}->{R1};
-        $OCS_ptr->{R2_Rgap} = find_genomic_distance($OCS_ptr->{back_ptr}->{R2},$OCS_ptr->{R2},$brk_hash)
-          if defined $OCS_ptr->{R2} && defined $OCS_ptr->{back_ptr}->{R2};
-        $OCS_ptr->{back_ptr}->{score} = $OCS_ptr->{score};
-        $OCS_ptr = $OCS_ptr->{back_ptr};
-      }
-      unshift(@OCS,$OCS_ptr) if defined $OCS_ptr;
+  }
+
+  unless (defined $OCS_ptr) {
+    my @unmapped_OCS = ( { R1 => { Qname => $R1_alns_ref->[0]->{Qname},
+                                   Seq => $R1_alns_ref->[0]->{Seq},
+                                   Qual => $R1_alns_ref->[0]->{Qual},
+                                   Unmapped => 1 },
+                           R2 => { Qname => $R2_alns_ref->[0]->{Qname},
+                                   Seq => $R2_alns_ref->[0]->{Seq},
+                                   Qual => $R2_alns_ref->[0]->{Qual},
+                                   Unmapped => 1 } } );
+    return \@unmapped_OCS;
+
+    next;
+  }
+
+  my @OCS;
+
+  while (defined $OCS_ptr->{back_ptr}) {
+    unshift(@OCS,$OCS_ptr);
+    $OCS_ptr->{R1_Rgap} = find_genomic_distance($OCS_ptr->{back_ptr}->{R1},$OCS_ptr->{R1},$brksite)
+      if defined $OCS_ptr->{R1} && defined $OCS_ptr->{back_ptr}->{R1};
+    $OCS_ptr->{R2_Rgap} = find_genomic_distance($OCS_ptr->{back_ptr}->{R2},$OCS_ptr->{R2},$brksite)
+      if defined $OCS_ptr->{R2} && defined $OCS_ptr->{back_ptr}->{R2};
+    $OCS_ptr->{back_ptr}->{score} = $OCS_ptr->{score};
+    $OCS_ptr = $OCS_ptr->{back_ptr};
+  }
+  unshift(@OCS,$OCS_ptr) if defined $OCS_ptr;
 
 
-      return \@OCS;
+  return \@OCS;
 
-      # my @OCS_item; # :shared;
-      # @OCS_item = (\@OCS,$R1_alns_ref,$R2_alns_ref);
-
-      # push(@OCS_block,\@OCS_item);      
-
-  #   while (1) {
-
-  #     unless ($ocs_queue->pending < $max_queue_size) {
-  #       sleep 1;
-  #       next;
-  #     }
-  #     $ocs_queue->enqueue(\@OCS_block);
-  #     last;
-  #   }
-
-  #   $t0 = [gettimeofday]
-  # }
-
-  # $ocs_queue->end();
 
 }
 
@@ -790,79 +729,65 @@ sub find_optimal_coverage_set ($$) {
 
 sub process_optimal_coverage_set ($$$) {
 
-  # print "processing OCSs\n";
-
-  # use Bio::DB::Fasta;
-
-  # my $genome_obj = Bio::DB::Fasta->new($assembly_fa);
-  # my $break_obj = Bio::DB::Fasta->new($break_fa);
-  # my $adpt_obj = Bio::DB::Fasta->new($adapt_fa);
-
   
-
-  # while (my $ocs_item = $ocs_queue->dequeue) {
-
-  #   my ($OCS_ref,$R1_alns,$R2_alns) = @$ocs_item;
     
-    my $OCS_ref = shift;
-    my $R1_alns = shift;
-    my $R2_alns = shift;
+  my $OCS_ref = shift;
+  my $R1_alns = shift;
+  my $R2_alns = shift;
 
 
-    # print "create tlxls\n";
-    my $tlxls = create_tlxl_entries($OCS_ref);
+  # print "create tlxls\n";
+  my $tlxls = create_tlxl_entries($OCS_ref);
 
-    $stats->{totalreads}++;
+  $stats->{totalreads}++;
 
-    $stats->{aligned}++ unless $tlxls->[0]->{Unmapped};
-     
-    # print "create tlxs\n";
-    create_tlx_entries($tlxls, { genome => $R1_samobj,
-                                 brk => $R1_brk_samobj,
-                                 adpt => $R1_adpt_samobj} )  ;
+  $stats->{aligned}++ unless $tlxls->[0]->{Unmapped};
+   
+  # print "create tlxs\n";
+  create_tlx_entries($tlxls, { genome => $R1_samobj,
+                               brk => $R1_brk_samobj,
+                               adpt => $R1_adpt_samobj} )  ;
 
-    # print "filter unjoined\n";
-    my $junctions = filter_unjoined($tlxls);
+  # print "filter unjoined\n";
+  my $junctions = filter_unjoined($tlxls);
 
-    $stats->{junctions} += $junctions;
-    $stats->{junc_reads}++ if $junctions > 0;
+  $stats->{junctions} += $junctions;
+  $stats->{junc_reads}++ if $junctions > 0;
 
-    # print "filter map quality\n";
-    my $quality_maps = filter_mapping_quality($tlxls,$R1_alns,$R2_alns,
-                                        $ol_thresh,$score_thresh,$max_frag_len);
+  # print "filter map quality\n";
+  my $quality_maps = filter_mapping_quality($tlxls,$R1_alns,$R2_alns,
+                                      $ol_thresh,$score_thresh,$max_frag_len);
 
-    $stats->{mapqual} += $quality_maps;
-    $stats->{mapq_reads}++ if $quality_maps > 0;
+  $stats->{mapqual} += $quality_maps;
+  $stats->{mapq_reads}++ if $quality_maps > 0;
 
-    # print "filter mispriming\n";
-    my $correct_priming = filter_mispriming($tlxls,$priming_threshold);
+  # print "filter mispriming\n";
+  my $correct_priming = filter_mispriming($tlxls,$brksite);
 
-    $stats->{priming} += $correct_priming;
-    $stats->{prim_reads}++ if $correct_priming > 0;
+  $stats->{priming} += $correct_priming;
+  $stats->{prim_reads}++ if $correct_priming > 0;
 
-    # print "filter frequent cutter\n";
-    my $no_freq_cutter = filter_freq_cutter($tlxls,$cutseq->seq);
+  # print "filter frequent cutter\n";
+  my $no_freq_cutter = filter_freq_cutter($tlxls,$cutseq);
 
-    $stats->{freqcut} += $no_freq_cutter;
-    $stats->{freq_reads}++ if $no_freq_cutter > 0;
+  $stats->{freqcut} += $no_freq_cutter;
+  $stats->{freq_reads}++ if $no_freq_cutter > 0;
 
-    # print "filter breaksite\n";
-    my $outside_breaksite = filter_breaksite($tlxls);
+  # print "filter breaksite\n";
+  my $outside_breaksite = filter_breaksite($tlxls);
 
-    $stats->{breaksite} += $outside_breaksite;
-    $stats->{break_reads}++ if $outside_breaksite > 0;
-
-
-    # print "filter split juctions\n";
-    my $primary_junction = filter_split_junctions($tlxls);
-
-    $stats->{splitjuncs} += $primary_junction;
-    $stats->{split_reads}++ if $primary_junction > 0;
-
-    write_tlxls($tlxls);
+  $stats->{breaksite} += $outside_breaksite;
+  $stats->{break_reads}++ if $outside_breaksite > 0;
 
 
-  
+  # print "filter split juctions\n";
+  my $primary_junction = filter_split_junctions($tlxls);
+
+  $stats->{splitjuncs} += $primary_junction;
+  $stats->{split_reads}++ if $primary_junction > 0;
+
+  write_tlxls($tlxls);
+
 
 }
 
@@ -918,7 +843,7 @@ sub score_edge ($;$) {
       $Rname2 = $node2->{R2}->{Rname};
       $Strand2 = $node2->{R2}->{Strand};
       $R2_Qgap = $node2->{R2}->{Qstart} - $node1->{R2}->{Qend} - 1;
-      $R2_Rdist = find_genomic_distance($node1->{R2},$node2->{R2},$brk_hash);
+      $R2_Rdist = find_genomic_distance($node1->{R2},$node2->{R2},$brksite);
       $Len1 += $node1->{R2}->{Qend} - $node1->{R2}->{Qstart} + 1;
       $Len2 += $node2->{R2}->{Qend} - $node2->{R2}->{Qstart} + 1;
       $Junc1 = $Strand1 == 1 ? $node1->{R2}->{Rend} : $node1->{R2}->{Rstart};
@@ -934,7 +859,7 @@ sub score_edge ($;$) {
       $Rname2 = $node2->{R1}->{Rname};
       $Strand2 = $node2->{R1}->{Strand};
       $R1_Qgap = $node2->{R1}->{Qstart} - $node1->{R1}->{Qend} - 1;
-      $R1_Rdist = find_genomic_distance($node1->{R1},$node2->{R1},$brk_hash);
+      $R1_Rdist = find_genomic_distance($node1->{R1},$node2->{R1},$brksite);
       $Len1 += $node1->{R1}->{Qend} - $node1->{R1}->{Qstart} + 1;
       $Len2 += $node2->{R1}->{Qend} - $node2->{R1}->{Qstart} + 1;
       $Junc1 = $Strand1 == 1 ? $node1->{R1}->{Rend} : $node1->{R1}->{Rstart};
@@ -997,10 +922,16 @@ sub score_edge ($;$) {
   } else {
 
     return undef unless defined $node1->{R1};
-    return undef unless $node1->{R1}->{Rname} eq "Breaksite";
-    return undef unless $node1->{R1}->{Strand} == 1;
+    return undef unless $node1->{R1}->{Rname} eq $brksite->{aln_name};
+    return undef unless $node1->{R1}->{Strand} == $brksite->{aln_strand};
 
-    my $brk_start_dif = abs($node1->{R1}->{Rstart} - $primer_start);
+    my $brk_start_dif = $brksite->{aln_strand} == 1 ?
+                          abs($node1->{R1}->{Rstart} - $brksite->{primer_start}) :
+                          abs($node1->{R1}->{Rend} - $brksite->{primer_start}) ;
+
+    my $maximum_brk_start_dif = 15;
+    return undef unless $brk_start_dif < $maximum_brk_start_dif;
+
 
     my $R1_AS = $node1->{R1}->{AS};
     my $R2_AS = defined $node1->{R2} ? $node1->{R2}->{AS} : 0;
@@ -1014,7 +945,7 @@ sub score_edge ($;$) {
 
     # $PEgap_pen = defined $PEgap && $PEgap > 1 ? $Brk_pen_min + $Brk_pen_mult * log10($PEgap)**$Brk_pen_power : 0;
     $PEgap_pen = defined $PEgap && $PEgap > 1 ? $PE_pen_min + $PE_pen_mult * $PEgap : 0;
-    print $node1->{R1}->{Qname}." - $PEgap - $PEgap_pen\n" if defined $PEgap;
+    # print $node1->{R1}->{Qname}." - $PEgap - $PEgap_pen\n" if defined $PEgap;
 
     $score = $R1_AS + $R2_AS - $PEgap_pen - $Dif_mult * $brk_start_dif;
 
@@ -1072,7 +1003,7 @@ sub deduplicate_junctions {
 sub post_process_junctions {
 
   (my $html_reads = $tlxfile) =~ s/tlx$/html/;
-  System("TranslocHTMLReads.pl $tlxfile $html_reads --primer ".$primseq->seq." --adapter ".$adaptseq->seq);  
+  System("TranslocHTMLReads.pl $tlxfile $html_reads --primer ".$brksite->{primer}->seq." --adapter ".$adaptseq->seq);  
 
   (my $pdf_plot = $tlxfile) =~ s/tlx$/pdf/;
 
@@ -1109,6 +1040,15 @@ sub write_stats_file {
 
 }
 
+sub clean_up {
+
+  print "\nCleaning up\n";
+
+  System("rm ${expt_stub}*.sam");
+
+
+}
+
 sub parse_command_line {
 	my $help;
 
@@ -1129,6 +1069,7 @@ sub parse_command_line {
                             "breaksite=s" => \$break_fa,
                             "adapter=s" => \$adapt_fa,
                             "cutter=s" => \$cut_fa,
+                            "skipalign" => \$skip_alignment,
                             # "bt2opt=s" => \$user_bowtie_opt,
                             # "bt2brkopt=s" => \$user_bowtie_breaksite_opt,
                             # "usecurrtlx" => \$use_current_tlx,

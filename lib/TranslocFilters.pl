@@ -130,15 +130,15 @@ sub filter_mapping_quality ($$$$$$){
 
 sub filter_mispriming ($$) {
   my $tlxls = shift;
-  my $priming_threshold = shift;
+  my $brksite = shift;
 
   my $filter;
   my $priming = 0;
 
   return 0 unless defined $tlxls->[0]->{R1_ID};
 
-  $filter = "Mispriming" unless $tlxls->[0]->{Rname} eq "Breaksite";
-  $filter = "Mispriming" if $tlxls->[0]->{R1_Rend} < $priming_threshold;
+  $filter = "Mispriming" if $brksite->{aln_strand} == 1 && $tlxls->[0]->{R1_Rend} < $brksite->{priming_threshold};
+  $filter = "Mispriming" if $brksite->{aln_strand} == -1 && $tlxls->[0]->{R1_Rstart} > $brksite->{priming_threshold};
 
   foreach my $tlxl (@$tlxls) {
     if (defined $tlxl->{tlx} && ! defined $tlxl->{tlx}->{Filter}) {
@@ -171,8 +171,8 @@ sub filter_freq_cutter ($$) {
         next;
       }
 
-      if ($cutter =~ /\S/) {
-        if (uc($tlxl->{tlx}->{JuncSeq}) =~ $cutter || substr($tlxl->{tlx}->{Seq},0,$tlxl->{tlx}->{Qstart}+4) =~ $cutter) {
+      if (defined $cutter && $cutter->seq =~ /\S/) {
+        if (uc($tlxl->{tlx}->{JuncSeq}) =~ $cutter->seq || substr($tlxl->{tlx}->{Seq},0,$tlxl->{tlx}->{Qstart}+4) =~ $cutter->seq) {
           $filter = "FreqCutter";
           $tlxl->{tlx}->{Filter} = $filter;
           next;
