@@ -93,6 +93,7 @@ if (defined $bsub) {
   foreach my $expt_id (sort keys %meta) {
     
     process_experiment($expt_id);
+    sleep(1);
     
   }
 } else {
@@ -161,20 +162,36 @@ sub process_experiment ($) {
 
 
   my $tl_cmd = join(" ","TranslocPipeline.pl --workdir",$expt_hash->{exptdir},
-                    "--assembly",$assembly,"--chr",$expt_hash->{chr},"--start",$expt_hash->{start},"--end",$expt_hash->{end},"--strand",$expt_hash->{strand},"--threads $expt_threads --bt2opt \"$user_bowtie_opt\" --bt2brkopt \"$user_bowtie_breaksite_opt\"",
                     "--read1",$expt_hash->{R1});
-  $tl_cmd .= " --read2 " . $expt_hash->{R2} if defined $expt_hash->{R2};
+
+  $tl_cmd = join(" ", $tl_cmd, "--read2", $expt_hash->{R2}) if defined $expt_hash->{R2};
+                
+  $tl_cmd = join(" ", $tl_cmd, "--threads $expt_threads",
+                    "--assembly",$assembly,
+                    "--chr",$expt_hash->{chr},
+                    "--start",$expt_hash->{start},
+                    "--end",$expt_hash->{end},
+                    "--strand",$expt_hash->{strand},
+                    "--primer",$expt_hash->{primfa},
+                    "--adapter",$expt_hash->{adaptfa});
+
+  $tl_cmd = join(" ", $tl_cmd, "--mid", $expt_hash->{midfa}) if -r $expt_hash->{midfa};
+  $tl_cmd = join(" ", $tl_cmd, "--breaksite", $expt_hash->{breakfa}) if -r $expt_hash->{breakfa};
+  $tl_cmd = join(" ", $tl_cmd, "--cutter", $expt_hash->{cutfa}) if -r $expt_hash->{cutfa};
 
 
-  $tl_cmd .= " --usecurrtlx" if defined $use_current_tlx;
 
-  my $bsubopt = manage_program_options($default_bsub_opt,$user_bsub_opt);
+  # $tl_cmd .= " --tlx" if defined $use_current_tlx;
 
   my $log = $expt_hash->{exptdir} . "/$expt_id.log";
 
-  $tl_cmd = join(" ","bsub",$bsubopt,"-J $expt_id -o $log",$tl_cmd) if defined $bsub;
+  if (defined $bsub) {
+    my $bsubopt = manage_program_options($default_bsub_opt,$user_bsub_opt);
+    $tl_cmd = join(" ","bsub",$bsubopt,"-J $expt_id -o $log",$tl_cmd);
+  } else {
+    $tl_cmd .= " > $log 2>&1";
+  }
 
-  $tl_cmd .= " > $log 2>&1" unless defined $bsub;
 
   System($tl_cmd);
 
@@ -199,7 +216,10 @@ sub read_in_meta_file {
     $i++;
     next unless $i ~~ @which && @which > 0;
 
+    check_validity_of_metadata($expt);
+
 		my $expt_id = $expt->{experiment} . "_" . $expt->{sequencing};
+    croak "Error: Experiment ID $expt_id is already taken" if exists $meta{$expt_id};
 		$meta{$expt_id} = $expt;
 		$meta{$expt_id}->{exptdir} = "$outdir/$expt_id";
 
@@ -214,47 +234,71 @@ sub read_in_meta_file {
   }
 }
 
+sub check_validity_of_metadata ($) {
+  my $expt = shift;
+
+  croak "Metadata error: assembly must be one of mm9 or hg19" unless $expt->{assembly} ~~ qw(mm9 hg19);
+  croak "Metadata error: chr must be valid" unless $expt->{chr} ~~ map {"chr" . $_} push((1..22),"X","Y"); 
+  croak "Metadata error: end must be greater than start" unless $expt->{end} > $expt->{start};
+  croak "Metadata error: strand must be one of + or -" unless $expt->{strand} ~~ qw(+ -);
+
+  croak "Metadata error: breaksite sequence contains non AGCT characters" unless $expt->{breaksite} =~ /^[AGCTagct]*$/;
+  croak "Metadata error: primer sequence contains non AGCT characters" unless $expt->{primer} =~ /^[AGCTagct]*$/;
+  croak "Metadata error: adapter sequence contains non AGCT characters" unless $expt->{adapter} =~ /^[AGCTagct]*$/;
+  croak "Metadata error: cutter sequence contains non AGCT characters" unless $expt->{cutter} =~ /^[AGCTagct]*$/;
+  croak "Metadata error: MID sequence contains non AGCT characters" unless $expt->{mid} =~ /^[AGCTagct]*$/;
+
+
+
+}
+
 sub prepare_working_directory ($) {
 
 
   my $expt_id = shift;
   my $expt_hash = $meta{$expt_id};
 
-  my $miscdir = $expt_hash->{exptdir} . "/misc";
+  my $seqdir = $expt_hash->{exptdir} . "/sequences";
 
-  unless (-d $miscdir) {
-    mkdir $miscdir or croak "Error: could not create misc directory for $expt_id";
+  unless (-d $seqdir) {
+    mkdir $seqdir or croak "Error: could not create sequenes directory for $expt_id";
   } 
-  $expt_hash->{breakfa} = "$miscdir/breaksite.fa";
-  $expt_hash->{primfa} = "$miscdir/primer.fa";
-  $expt_hash->{adaptfa} = "$miscdir/adapter.fa";
-  $expt_hash->{midfa} = "$miscdir/mid.fa";
-  $expt_hash->{cutfa} = "$miscdir/cutter.fa";
+  $expt_hash->{breakfa} = "$seqdir/breaksite.fa";
+  $expt_hash->{primfa} = "$seqdir/primer.fa";
+  $expt_hash->{adaptfa} = "$seqdir/adapter.fa";
+  $expt_hash->{midfa} = "$seqdir/mid.fa";
+  $expt_hash->{cutfa} = "$seqdir/cutter.fa";
 
-  my $brkfh = IO::File->new(">".$expt_hash->{breakfa}) or croak "Error: could not write to breaksite fasta file";
-  $brkfh->print(">Breaksite\n");
-  $brkfh->print(uc($expt_hash->{breaksite})."\n");
-  $brkfh->close;
+  if ($expt_hash->{breaksite} =~ /\S/) {
+    my $brkfh = IO::File->new(">".$expt_hash->{breakfa}) or croak "Error: could not write to breaksite fasta file";
+    $brkfh->print(">Breaksite\n");
+    $brkfh->print(uc($expt_hash->{breaksite})."\n");
+    $brkfh->close;
+  }
 
-  my $fprimfh = IO::File->new(">".$expt_hash->{primfa}) or croak "Error: could not write to forward primer fasta file";
-  $fprimfh->print(">Primer\n");
-  $fprimfh->print(uc($expt_hash->{primer})."\n");
-  $fprimfh->close;
+  my $primfh = IO::File->new(">".$expt_hash->{primfa}) or croak "Error: could not write to primer fasta file";
+  $primfh->print(">Primer\n");
+  $primfh->print(uc($expt_hash->{primer})."\n");
+  $primfh->close;
 
-  my $rprimfh = IO::File->new(">".$expt_hash->{adaptfa}) or croak "Error: could not write to reverse primer fasta file";
-  $rprimfh->print(">Adapter\n");
-  $rprimfh->print(uc($expt_hash->{adapter})."\n");
-  $rprimfh->close;
+  my $adptfh = IO::File->new(">".$expt_hash->{adaptfa}) or croak "Error: could not write to adapter fasta file";
+  $adptfh->print(">Adapter\n");
+  $adptfh->print(uc($expt_hash->{adapter})."\n");
+  $adptfh->close;
 
-  my $midfh = IO::File->new(">".$expt_hash->{midfa}) or croak "Error: could not write to mid fasta file";
-  $midfh->print(">MID\n");
-  $midfh->print(uc($expt_hash->{mid})."\n");
-  $midfh->close;
+  if ($expt_hash->{mid} =~ /\S/) {
+    my $midfh = IO::File->new(">".$expt_hash->{midfa}) or croak "Error: could not write to mid fasta file";
+    $midfh->print(">MID\n");
+    $midfh->print(uc($expt_hash->{mid})."\n");
+    $midfh->close;
+  }
 
-  my $cutfh = IO::File->new(">".$expt_hash->{cutfa}) or croak "Error: could not write to frequent cutter fasta file";
-  $cutfh->print(">Cutter\n");
-  $cutfh->print(uc($expt_hash->{cutter})."\n");
-  $cutfh->close;
+  if ($expt_hash->{cutter} =~ /\S/) {
+    my $cutfh = IO::File->new(">".$expt_hash->{cutfa}) or croak "Error: could not write to frequent cutter fasta file";
+    $cutfh->print(">Cutter\n");
+    $cutfh->print(uc($expt_hash->{cutter})."\n");
+    $cutfh->close;
+  }
 
 
 }

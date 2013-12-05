@@ -62,8 +62,14 @@ my $brk_chr;
 my $brk_start;
 my $brk_end;
 my $brk_strand;
-my $max_threads = 4;
+my $mid_fa;
+my $break_fa;
+my $prim_fa;
+my $adapt_fa;
+my $cut_fa;
+my $threads = 4;
 
+my $skip_alignment;
 my $overwrite_tlx;
 
 
@@ -125,13 +131,13 @@ $stats->{final} = 0;
 parse_command_line;
 
 
-# my $default_bowtie_adapter_opt = "--local -D 20 -R 3 -N 1 -L 6 -i C,4 --score-min C,30 -p $max_threads --no-unal --reorder -t";
-# my $default_bowtie_breaksite_opt = "--local -D 20 -R 3 -N 1 -L 12 -i C,6 --score-min C,40 --mp 10,2 --rfg 10,10 --rdg 10,10 -p $max_threads -k 50 --reorder -t";
-# my $default_bowtie_opt = "--local -D 20 -R 3 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $max_threads -k 50 --no-unal --reorder -t";
+# my $default_bowtie_adapter_opt = "--local -D 20 -R 3 -N 1 -L 6 -i C,4 --score-min C,30 -p $threads --no-unal --reorder -t";
+# my $default_bowtie_breaksite_opt = "--local -D 20 -R 3 -N 1 -L 12 -i C,6 --score-min C,40 --mp 10,2 --rfg 10,10 --rdg 10,10 -p $threads -k 50 --reorder -t";
+# my $default_bowtie_opt = "--local -D 20 -R 3 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $threads -k 50 --no-unal --reorder -t";
 
-my $default_bowtie_adapter_opt = "--local -D 20 -R 3 -N 1 -L 6 -i C,4 --score-min C,20 -p $max_threads --no-unal --reorder -t";
-my $default_bowtie_breaksite_opt = "--local -D 20 -R 3 -N 1 -L 12 -i C,2 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $max_threads -k 50 --reorder -t";
-my $default_bowtie_opt = "--local -D 20 -R 3 -N 0 -L 18 -i C,6 --score-min C,40 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $max_threads -k 50 --no-unal --reorder -t";
+my $default_bowtie_adapter_opt = "--local -D 20 -R 3 -N 1 -L 6 -i C,4 --score-min C,20 -p $threads --no-unal --reorder -t";
+my $default_bowtie_breaksite_opt = "--local -D 20 -R 3 -N 1 -L 12 -i C,2 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $threads -k 50 --reorder -t";
+my $default_bowtie_opt = "--local -D 20 -R 3 -N 0 -L 18 -i C,6 --score-min C,40 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $threads -k 50 --no-unal --reorder -t";
 
 
 my $bt2_break_opt = manage_program_options($default_bowtie_breaksite_opt,$user_bowtie_breaksite_opt);
@@ -147,12 +153,8 @@ my $expt_stub = "$workdir/$expt";
 
 
 my $assembly_fa = $ENV{'GENOME_DB'}."/$assembly/$assembly.fa";
-my $break_fa = "$workdir/misc/breaksite.fa";
-my $prim_fa = "$workdir/misc/primer.fa";
-my $adapt_fa = "$workdir/misc/adapter.fa";
-my $cut_fa = "$workdir/misc/cutter.fa";
-my $break_bt2idx = "$workdir/misc/breaksite";
-my $adapt_bt2idx = "$workdir/misc/adapter";
+my $break_bt2idx = join("",parseFilename($break_fa)[0..1]) if defined $break_fa;
+my $adapt_bt2idx = join("",parseFilename($adapt_fa)[0..1]);
 
 my $R1_brk_sam = "${expt_stub}_R1_brk.sam";
 my $R2_brk_sam = "${expt_stub}_R2_brk.sam";
@@ -181,18 +183,29 @@ my $statsfile = "${expt_stub}_stats.txt";
 
 my $dedup_output = "${expt_stub}_dedup.txt";
 
+my $brk_hash = {chr => $brk_chr,
+                start => $brk_start,
+                end => $brk_end,
+                strand => $brk_strand,
+                len => $breaklen};
 
-my $brk_io = Bio::SeqIO->new(-file => $break_fa, -format => 'fasta');
-my $breakseq = $brk_io->next_seq();
-my $breaklen = length($breakseq->seq);
+my ($breakseq,$breaklen);
+if (defined $break_fa) {
+  $brk_hash->{endogenous} = 0 unless defined $breakseq;
+  my $brk_io = Bio::SeqIO->new(-file => $break_fa, -format => 'fasta');
+  $breakseq = $brk_io->next_seq();
+  $breaklen = length($breakseq->seq);
+} else {
+  $brk_hash->{endogenous} = 1;
+}
 
 my $prim_io = Bio::SeqIO->new(-file => $prim_fa, -format => 'fasta');
 my $primseq = $prim_io->next_seq();
 my $primlen = length($primseq->seq);
-my $primer_start = index($breakseq->seq,$primseq->seq)+1;
+my $primer_start = $brk_hash->{endogenous} ? $brk_hash->{start} : index($breakseq->seq,$primseq->seq)+1;
+croak "Error: could not find primer within breaksite sequence" unless $primer_start > 0;
 my $priming_threshold = $primer_start + $primlen + $priming_bp;
 
-croak "Error: could not find primer within breaksite sequence" unless $primer_start > 0;
 
 my $adpt_io = Bio::SeqIO->new(-file => $adapt_fa, -format => 'fasta');
 my $adaptseq = $adpt_io->next_seq();
@@ -201,20 +214,27 @@ my $adaptlen = length($adaptseq->seq);
 my $cut_io = Bio::SeqIO->new(-file => $cut_fa, -format => 'fasta');
 my $cutseq = $cut_io->next_seq();
 
-my $brk_hash = {chr => $brk_chr,
-                start => $brk_start,
-                end => $brk_end,
-                strand => $brk_strand,
-                len => $breaklen};
 
 
 
-align_to_breaksite unless -r $R1_brk_bam && -r $R2_brk_bam;
+unless ($skip_alignment) {
 
-align_to_adapter unless -r $R1_adpt_bam && -r $R2_adpt_bam;
+  align_to_breaksite unless $brk_hash->{endogenous};
 
-align_to_genome unless -r $R1_bam && -r $R2_bam;
+  align_to_adapter unless -r $R1_adpt_bam && -r $R2_adpt_bam;
 
+  align_to_genome unless -r $R1_bam && -r $R2_bam;
+
+} else {
+
+  if ($brk_hash->{endogenous}) {
+    croak "Error: could not find breaksite alignment files when skipping align step" unless -r $R1_brk_bam && -r $R2_brk_bam;
+  }
+  croak "Error: could not find genome alignment files when skipping align step" unless -r $R1_bam && -r $R2_bam;
+  croak "Error: could not find adaoter alignment files when skipping align step" unless -r $R1_adpt_bam && -r $R2_adpt_bam;
+
+
+}
 
 # my $aln_queue = Thread::Queue->new();
 # my $ocs_queue = Thread::Queue->new();
@@ -222,7 +242,7 @@ align_to_genome unless -r $R1_bam && -r $R2_bam;
 # my $aln_reader_thr = threads->create('read_alignments');
 
 # my @ocs_finder_thrs = ();
-# foreach my $i (1..($max_threads-2)) {
+# foreach my $i (1..($threads-2)) {
 #   my $thr = threads->create('find_optimal_coverage_set');
 #   push(@ocs_finder_thrs,$thr);
 # }
@@ -1007,7 +1027,7 @@ sub score_edge ($;$) {
 sub deduplicate_junctions {
 
 
-  my $dedup_cmd = "$FindBin::Bin/../R/TranslocDedup.R $tlxfile $dedup_output cores=$max_threads";
+  my $dedup_cmd = "$FindBin::Bin/../R/TranslocDedup.R $tlxfile $dedup_output cores=$threads";
   System($dedup_cmd);
 
   my $tlxbak = "$tlxfile.bak";
@@ -1103,10 +1123,15 @@ sub parse_command_line {
                             "end=i" => \$brk_end,
                             "strand=s" => \$brk_strand,
                             "workdir=s" => \$workdir,
-                            "threads=i" => \$max_threads,
-                            "bt2opt=s" => \$user_bowtie_opt,
-                            "bt2brkopt=s" => \$user_bowtie_breaksite_opt,
-                            "usecurrtlx" => \$use_current_tlx,
+                            "threads=i" => \$threads,
+                            "mid=s" => \$mid_fa,
+                            "primer=s" => \$prim_fa,
+                            "breaksite=s" => \$break_fa,
+                            "adapter=s" => \$adapt_fa,
+                            "cutter=s" => \$cut_fa,
+                            # "bt2opt=s" => \$user_bowtie_opt,
+                            # "bt2brkopt=s" => \$user_bowtie_breaksite_opt,
+                            # "usecurrtlx" => \$use_current_tlx,
 				            				"help" => \$help
 				            			) ;
 
@@ -1144,7 +1169,7 @@ $arg{"--read1","Input sequence file"}
 $arg{"--read2","Input sequence file"}
 $arg{"--workdir","Directory for results files - note: default Bowtie output goes to working directory"}
 $arg{"--assembly","Genome assembly to align reads to"}
-$arg{"--threads","Number of threads to run bowtie on","$max_threads"}
+$arg{"--threads","Number of threads to run bowtie on","$threads"}
 $arg{"--help","This helpful help screen."}
 
 
