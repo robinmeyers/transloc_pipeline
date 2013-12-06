@@ -237,8 +237,9 @@ if (defined $cut_fa) {
 unless ($skip_alignment || $skip_process) {
 
   align_to_breaksite unless $brksite->{endogenous};
-  align_to_adapter unless -r $R1_adpt_bam && -r $R2_adpt_bam;
   align_to_genome unless -r $R1_bam && -r $R2_bam;
+  align_to_adapter unless -r $R1_adpt_bam && -r $R2_adpt_bam;
+
 
 } else {
   unless ($brksite->{endogenous}) {
