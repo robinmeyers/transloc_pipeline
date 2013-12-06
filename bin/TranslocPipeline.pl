@@ -1013,6 +1013,12 @@ sub post_process_junctions {
   System("TranslocPlot.R $tlxfile $pdf_plot binsize=2000000 strand=2 assembly=$assembly " .
           "brkchr=$brk_chr brksite=$brk_end brkstrand=" . ($brk_strand eq "+" ? "1" : "-1") );
 
+  (my $pdf_plot_breaksite = $pdf_plot) =~ s/\.pdf/_brksite.pdf/;
+
+  System("TranslocPlot.R $tlxfile $pdf_plot_breaksite strand=0 assembly=$assembly " .
+        "brkchr=$brk_chr brksite=$brk_end brkstrand=" . ($brk_strand eq "+" ? "1" : "-1") .
+        " chr=$brk_chr rmid=$brk_end rwindow=5000 binnum=100 plottype=linear" );
+
 }
 
 sub write_stats_file {
@@ -1072,7 +1078,8 @@ sub parse_command_line {
                             "breaksite=s" => \$break_fa,
                             "adapter=s" => \$adapt_fa,
                             "cutter=s" => \$cut_fa,
-                            "skipalign" => \$skip_alignment,
+                            "skip-align" => \$skip_alignment,
+                            "skip-process" => \$skip_process,
                             # "bt2opt=s" => \$user_bowtie_opt,
                             # "bt2brkopt=s" => \$user_bowtie_breaksite_opt,
                             # "usecurrtlx" => \$use_current_tlx,

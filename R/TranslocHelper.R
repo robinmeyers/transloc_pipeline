@@ -58,7 +58,7 @@ plotJunctions <- function (gr,binsize,strand=1,plottype="dot",plotshape="arrow",
       ypoints <- tmp
     }
     if (strand == 1) {
-      linecolor <- pal[4]
+      linecolor <- pal[5]
     } else {
       linecolor <- pal[2]
     }
