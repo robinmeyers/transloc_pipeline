@@ -50,7 +50,7 @@ my $use_current_tlx;
 
 my $bsub;
 my $user_bsub_opt = "";
-my $default_bsub_opt = "-n 4 -q short -W 12:00";
+my $default_bsub_opt = "-q short -W 12:00";
 my $user_bowtie_opt = "";
 my $user_bowtie_breaksite_opt = "";
 
@@ -186,7 +186,7 @@ sub process_experiment ($) {
 
   if (defined $bsub) {
     my $bsubopt = manage_program_options($default_bsub_opt,$user_bsub_opt);
-    $tl_cmd = join(" ","bsub",$bsubopt,"-J",$expt_hash->{library},"-o $log",$tl_cmd);
+    $tl_cmd = join(" ","bsub",$bsubopt,"-n",$expt_threads,"-J",$expt_hash->{library},"-o $log -N",$tl_cmd);
   } else {
     $tl_cmd .= " > $log 2>&1";
   }
