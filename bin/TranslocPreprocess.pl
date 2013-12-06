@@ -41,7 +41,8 @@ sub parse_command_line;
 sub read_in_meta_file;
 sub create_barcode_file;
 sub check_existance_of_files;
-sub update_stats_from_barcode;
+sub update_stats_from_multx;
+sub update_stats_from_trim;
 sub process_experiment ($);
 sub write_stats_file;
 sub clean_up;
@@ -81,6 +82,8 @@ my $bcfile;
 # Start of Program
 #
 
+my $t0 = [gettimeofday];
+
 parse_command_line;
 
 read_in_meta_file;
@@ -95,7 +98,8 @@ unless (defined $indir) {
 	check_existance_of_files;
 }
 
-update_stats_from_barcode;
+update_stats_from_multx;
+
 
 mkdir "$outdir/trim";
 mkdir "$outdir/join";
@@ -120,8 +124,8 @@ foreach my $expt (sort keys %meta) {
 						my $t0_expt = [gettimeofday];
 						print "\nStarting $expt\n";
 						process_experiment($expt);
-						my $t1 = tv_interval($t0_expt);
-						printf("\nFinished %s with %d reads in %.2f seconds.\n", $expt, $meta{$expt}->{totreads},$t1);
+						my $t1_expt = tv_interval($t0_expt);
+						printf("\nFinished %s with %d reads in %.2f seconds.\n", $expt, $meta{$expt}->{multx},$t1_expt);
 					});
 			push(@threads,$thr);
 			sleep(1);
@@ -139,9 +143,19 @@ while( scalar threads->list(threads::all) > 0) {
 	sleep(5);
 }
 
+unless (defined $indir) {}
+
+
+update_stats_from_trim;
+
+
 write_stats_file;
 
 clean_up unless $skipclean;
+
+my $t1 = tv_interval($t0);
+printf("\nFinished pre-preprocessing all experiments in %.2f seconds.\n", $t1);
+
 
 #
 # End of program
@@ -201,7 +215,7 @@ sub check_existance_of_files {
 	}
 }
 
-sub update_stats_from_barcode {
+sub update_stats_from_multx {
 	my $flag = 0;
 	unless (defined $indir) {
 		foreach (@bc_output) {
@@ -216,7 +230,7 @@ sub update_stats_from_barcode {
 			} elsif ($row[0] =~ /total/) {
 				$totalreads = $row[1];
 			} else {
-				$meta{$row[0]}->{totreads} = $row[1];
+				$meta{$row[0]}->{multx} = $row[1];
 			}
 		}
 	} else {
@@ -225,9 +239,22 @@ sub update_stats_from_barcode {
 			foreach (@fqstats) {
 				chomp;
 				if ( /reads\s+(\d+)/ ) {
-					$meta{$expt}->{totreads} = $1;
+					$meta{$expt}->{multx} = $1;
 					last;
 				}
+			}
+		}
+	}
+}
+
+sub update_stats_from_trim {
+	foreach my $expt (sort keys %meta) {
+		my @fqstats = Capture("fastq-stats $outdir/trim/${expt}_R1.fq.gz",1);
+		foreach (@fqstats) {
+			chomp;
+			if ( /reads\s+(\d+)/ ) {
+				$meta{$expt}->{trim} = $1;
+				last;
 			}
 		}
 	}
@@ -289,11 +316,12 @@ sub process_experiment ($) {
 sub write_stats_file {
 	print "\nWriting stats file\n";
 	my $statsfh = IO::File->new(">$outdir/preprocess_stats.txt");
-	my @header = qw(Expt Multx);
+	my @header = qw(Expt Multx Trim);
 	$statsfh->print(join("\t",@header)."\n");
 	foreach my $expt (sort keys %meta) {
 		my @row = ($expt,
-			$meta{$expt}->{totreads});
+			$meta{$expt}->{multx},
+			$meta{$expt}->{trim});
 		$statsfh->print(join("\t",@row)."\n");
 	}
 	unless (defined $indir) {
@@ -309,9 +337,9 @@ sub clean_up {
 	System("rm $outdir/multx/*");
 
 	unless ($join) {
-		System("mv $outdir/trim/* $outdir/",1);
+		System("mv $outdir/trim/* $outdir/" );
 	} else {
-		System("mv $outdir/join/* $outdir/",1);
+		System("mv $outdir/join/* $outdir/");
 		System("rm $outdir/trim/*")
 	}
 

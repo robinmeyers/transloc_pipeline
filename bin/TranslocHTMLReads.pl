@@ -90,7 +90,7 @@ $htmlfh->close;
 
 my $t1 = tv_interval($t0);
 
-printf("\nFinished all processes in %.2f seconds.\n", $t1);
+printf("\nFinished writing HTML reads in %.2f seconds.\n", $t1);
 
 
 
@@ -175,7 +175,7 @@ sub write_marked_read ($$) {
   my $rend = $tl->{Rend};
   my $strand = $tl->{Strand} == 1 ? "+" : "-" ;
 
-  my $marked_id = "<div class=\"seqname\">>$qname $rname:$rstart-$rend $strand</div>";
+  my $marked_id = "<div class=\"seqname\">>$qname $rname:$rstart-$rend:$strand</div>";
   $fh->print("$marked_id\n");
   $fh->print("$marked_read\n");
 
