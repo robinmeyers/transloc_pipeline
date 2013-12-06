@@ -173,6 +173,8 @@ sub read_in_meta_file {
 
 	while (my $expt = $csv->getline_hr($metafh)) {
 
+		next unless $expt->{library} =~ /\S/;
+
 		my $name = $expt->{library} . "_" . $expt->{sequencing};
 
 		$meta{$name} = $expt;
