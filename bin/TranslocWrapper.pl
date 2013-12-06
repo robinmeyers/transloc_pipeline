@@ -46,7 +46,8 @@ my $outdir;
 my $which;
 my $pipeline_threads = 2;
 my $expt_threads = 4;
-my $use_current_tlx;
+my $skip_align;
+my $skip_process;
 
 my $bsub;
 my $user_bsub_opt = "";
@@ -177,6 +178,9 @@ sub process_experiment ($) {
   $tl_cmd = join(" ", $tl_cmd, "--mid", $expt_hash->{midfa}) if -r $expt_hash->{midfa};
   $tl_cmd = join(" ", $tl_cmd, "--breaksite", $expt_hash->{breakfa}) if -r $expt_hash->{breakfa};
   $tl_cmd = join(" ", $tl_cmd, "--cutter", $expt_hash->{cutfa}) if -r $expt_hash->{cutfa};
+
+  $tl_cmd = join(" ", $tl_cmd, "--skip-align") if $skip_align;
+  $tl_cmd = join(" ", $tl_cmd, "--skip-process") if $skip_process;
 
 
 
@@ -334,7 +338,8 @@ sub parse_command_line {
                             "bsub" => \$bsub,
 														"othreads=i" => \$pipeline_threads,
                             "ithreads=i" => \$expt_threads,
-                            "usecurrtlx" => \$use_current_tlx,
+                            "skip-align" => \$skip_align,
+                            "skip-process" => \$skip_process,
 														"bowtie2opt=s" => \$user_bowtie_opt,
 														"help" => \$help
 
