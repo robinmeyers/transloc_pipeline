@@ -213,7 +213,10 @@ sub read_in_meta_file {
 	while (my $expt = $csv->getline_hr($metafh)) {
 
     $i++;
-    next unless $i ~~ @which && @which > 0;
+    
+    if (@which > 0) {
+      next unless $i ~~ @which;
+    }
 
     check_validity_of_metadata($expt);
 
