@@ -19,8 +19,6 @@ use Cwd qw(abs_path);
 use FindBin;
 use lib abs_path("$FindBin::Bin/../lib");
 
-print("@INC");
-
 require "PerlSub.pl";
 require "PipelineHelper.pl";
 
