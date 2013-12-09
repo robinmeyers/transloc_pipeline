@@ -290,15 +290,17 @@ if (length(chrlen) > 1) {
   
   
   if (names(chrlen)[1] == brkchr && brksite >= rstart && brksite <= rend) {
+    grid.lines(x=unit(brksite,"native"),y=c(unit(0.05,"npc"),unit(0.95,"npc")),gp=gpar(lty=3))
     grid.rect(x=unit(brksite,"native"),y=unit(0,"native"),width=unit(1,"mm"),height=unit(chrwidth,chrwidthunit),gp=gpar(fill="yellow",linejoin="mitre"))
-    
     if (brkstrand == 1 || brkstrand == -1) {
       arrowlen <- 5
       arrowlenunit <- "mm"
       arrowlennative <- convertWidth(unit(arrowlen,arrowlenunit),"native",valueOnly=T)
       
+
       xpoints <- unit(c(brksite-brkstrand*arrowlennative,brksite-brkstrand*arrowlennative/2,brksite-brkstrand*arrowlennative/2,brksite,brksite-brkstrand*arrowlennative/2,brksite-brkstrand*arrowlennative/2,brksite-brkstrand*arrowlennative),"native")
       ypoints <- unit(0,"native")+unit(c(chrwidth/4,chrwidth/4,chrwidth/2,0,-chrwidth/2,-chrwidth/4,-chrwidth/4),chrwidthunit)
+      
       grid.polygon(x=xpoints,y=ypoints,gp=gpar(fill="yellow",linejoin="mitre"))
     }
   }
