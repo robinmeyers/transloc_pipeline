@@ -215,7 +215,7 @@ sub read_in_meta_file {
 
   my $i = 0;
 	while (my $expt = $csv->getline_hr($metafh)) {
-
+    next unless $expt->{library} =~ /\S/;
     $i++;
     
     if (@which > 0) {
