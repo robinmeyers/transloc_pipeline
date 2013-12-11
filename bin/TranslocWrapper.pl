@@ -336,7 +336,7 @@ sub parse_command_line {
 
 	my $result = GetOptions ( "which=s" => \$which,
                             "bsub" => \$bsub,
-                            "bsub-opt" => \$user_bsub_opt,
+                            "bsub-opt=s" => \$user_bsub_opt,
 														"othreads=i" => \$pipeline_threads,
                             "ithreads=i" => \$expt_threads,
                             "skip-align" => \$skip_align,
