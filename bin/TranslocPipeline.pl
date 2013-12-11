@@ -961,7 +961,11 @@ sub score_edge ($;$) {
 sub deduplicate_junctions {
 
 
-  my $dedup_cmd = "$FindBin::Bin/../R/TranslocDedup.R $tlxfile $dedup_output cores=$threads";
+
+  my $dedup_cmd = "$FindBin::Bin/../R/TranslocDedup.R $tlxfile $dedup_output";
+
+  $dedup_cmd .= " cores=$threads" if $ENV{'HOSTNAME'} =~ /osx2373/;
+
   System($dedup_cmd);
 
   my $tlxbak = "$tlxfile.bak";

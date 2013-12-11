@@ -10,7 +10,7 @@ if (commandArgs()[1] != "RStudio") {
   OPTS <- c(
     "qdist","numeric",2," ",
     "rdist","numeric",10," ",
-    "cores","numeric",4,"Number of compute nodes to run on"
+    "cores","numeric",0,"Number of compute nodes to run on"
   )
   
   
@@ -64,6 +64,10 @@ findDuplicates <- function(n,tlxs,split_tlxs) {
   } else {
     return("")
   }
+}
+
+if (cores == 0) {
+  cores <- detectCores()
 }
 
 dups <- mclapply(1:nrow(tlxs),findDuplicates,tlxs,tlxs_by_chr_and_strand,mc.cores=cores)

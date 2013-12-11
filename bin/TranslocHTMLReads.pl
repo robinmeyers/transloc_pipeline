@@ -230,8 +230,8 @@ sub align_to_primers {
     (my $primer_water = $tlxfile) =~ s/\.tlx/_primer.water/;
     $water->run({ -asequence => $primer_obj,
                   -bsequence => \@qseqs,
-                  -gapopen   => '10.0',
-                  -gapextend => '0.5',
+                  -gapopen   => '5.0',
+                  -gapextend => '2',
                   -outfile   => $primer_water});
     my $alnio = Bio::AlignIO->new( -format => 'emboss',
                                    -file   => $primer_water);
@@ -304,8 +304,8 @@ sub align_to_primers {
     (my $adapter_water = $tlxfile) =~ s/\.tlx/_adpt.water/;
     $water->run({ -asequence => $adapter_seq,
                   -bsequence    => \@qseqs,
-                  -gapopen   => '10.0',
-                  -gapextend => '0.5',
+                  -gapopen   => '5.0',
+                  -gapextend => '2',
                   -outfile   => $adapter_water});
     my $alnio = Bio::AlignIO->new( -format => 'emboss',
                                    -file   => $adapter_water);

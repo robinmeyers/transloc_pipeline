@@ -190,7 +190,7 @@ sub process_experiment ($) {
 
   if (defined $bsub) {
     my $bsubopt = manage_program_options($default_bsub_opt,$user_bsub_opt);
-    $tl_cmd = join(" ","bsub",$bsubopt,"-n",$expt_threads,"-J",$expt_hash->{library},"-o $log -N",$tl_cmd);
+    $tl_cmd = join(" ","bsub",$bsubopt,"-J",$expt_hash->{library},"-o $log -N",$tl_cmd);
   } else {
     $tl_cmd .= " > $log 2>&1";
   }
