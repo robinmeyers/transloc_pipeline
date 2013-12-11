@@ -70,6 +70,7 @@ if (cores == 0) {
   cores <- detectCores()
 }
 
+cat("Deduplicating junctions on",cores,"cores\n")
 dups <- mclapply(1:nrow(tlxs),findDuplicates,tlxs,tlxs_by_chr_and_strand,mc.cores=cores)
 tlxs$Dups <- unlist(dups)
 write.table(tlxs[tlxs$Dups != "",c("Qname","Dups")],output,sep="\t",quote=F,na="",row.names=F,col.names=F)
