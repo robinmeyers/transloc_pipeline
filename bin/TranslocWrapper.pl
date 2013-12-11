@@ -51,7 +51,7 @@ my $skip_process;
 
 my $bsub;
 my $user_bsub_opt = "";
-my $default_bsub_opt = "-q short -W 12:00";
+my $default_bsub_opt = "-q long -W 72:00";
 my $user_bowtie_opt = "";
 my $user_bowtie_breaksite_opt = "";
 
@@ -336,6 +336,7 @@ sub parse_command_line {
 
 	my $result = GetOptions ( "which=s" => \$which,
                             "bsub" => \$bsub,
+                            "bsub-opt" => \$user_bsub_opt,
 														"othreads=i" => \$pipeline_threads,
                             "ithreads=i" => \$expt_threads,
                             "skip-align" => \$skip_align,
