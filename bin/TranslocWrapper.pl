@@ -51,7 +51,7 @@ my $skip_process;
 
 my $bsub;
 my $user_bsub_opt = "";
-my $default_bsub_opt = "-q long -W 72:00";
+my $default_bsub_opt = "-q long -W 72:00 -R \"rusage[mem=16000]\"";
 my $user_bowtie_opt = "";
 my $user_bowtie_breaksite_opt = "";
 
