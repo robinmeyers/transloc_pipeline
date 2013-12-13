@@ -48,6 +48,7 @@ my $pipeline_threads = 2;
 my $expt_threads = 4;
 my $skip_align;
 my $skip_process;
+my $print_only;
 
 my $bsub;
 my $user_bsub_opt = "";
@@ -84,58 +85,56 @@ if (defined $which) {
 
 read_in_meta_file;
 
-check_existance_of_files;
+unless (defined $print_only) {
 
-# prepare_reference_genomes (\%meta);
+  check_existance_of_files;
 
-
-
-if (defined $bsub) {
-  foreach my $expt_id (sort keys %meta) {
-    
-    process_experiment($expt_id);
-    sleep(1);
-    
-  }
-} else {
-
-  my @threads = ();
-
-  foreach my $expt_id (sort keys %meta) {
-
-      while (1) {
-
-      # joins any threads if possible
-          foreach my $thr (@threads) {
-              $thr->join() if $thr->is_joinable();
-          }
-
-          my @running = threads->list(threads::running);
-          
-          # if there are open threads, create a new one, push it onto list, and exit while loop
-          if (scalar @running < $pipeline_threads) {
-              my $thr = threads->create( sub {
-                          
-                          process_experiment($expt_id);
-                          
-                      });
-              push(@threads,$thr);
-              sleep(1);
-              last;
-          }
-          sleep(1);
-      } 
-  }
-
-  # waits for all threads to finish
-  while( scalar threads->list(threads::all) > 0) {
-      for my $thr (@threads) {
-          $thr->join() if $thr->is_joinable;
-      }
+  if (defined $bsub) {
+    foreach my $expt_id (sort keys %meta) {
+      
+      process_experiment($expt_id);
       sleep(1);
+      
+    }
+  } else {
+
+    my @threads = ();
+
+    foreach my $expt_id (sort keys %meta) {
+
+        while (1) {
+
+        # joins any threads if possible
+            foreach my $thr (@threads) {
+                $thr->join() if $thr->is_joinable();
+            }
+
+            my @running = threads->list(threads::running);
+            
+            # if there are open threads, create a new one, push it onto list, and exit while loop
+            if (scalar @running < $pipeline_threads) {
+                my $thr = threads->create( sub {
+                            
+                            process_experiment($expt_id);
+                            
+                        });
+                push(@threads,$thr);
+                sleep(1);
+                last;
+            }
+            sleep(1);
+        } 
+    }
+
+    # waits for all threads to finish
+    while( scalar threads->list(threads::all) > 0) {
+        for my $thr (@threads) {
+            $thr->join() if $thr->is_joinable;
+        }
+        sleep(1);
+    }
   }
 }
-
 my $t1 = tv_interval($t0);
 
 printf("\nFinished all processes in %.2f seconds.\n", $t1);
@@ -208,6 +207,9 @@ sub read_in_meta_file {
 
 	print "\nReading in meta file...\n";
 
+  print join("\t",qw(. Library Researcher Chr Start End Strand))."\n";
+
+
 	my $metafh = IO::File->new("<$meta_file");
 	my $csv = Text::CSV->new({sep_char => "\t"});
 	my $header = $csv->getline($metafh);
@@ -218,6 +220,14 @@ sub read_in_meta_file {
     next unless $expt->{library} =~ /\S/;
     $i++;
     
+    print join("\t",$i,$expt->{library},
+                      $expt->{researcher},
+                      $expt->{chr},
+                      $expt->{start},
+                      $expt->{end},
+                      $expt->{strand})."\n";
+
+
     if (@which > 0) {
       next unless $i ~~ @which;
     }
@@ -230,14 +240,6 @@ sub read_in_meta_file {
 		$meta{$expt_id}->{exptdir} = "$outdir/$expt_id";
 
 	}
-	print join("\t",qw(Experiment Researcher Chr Start End Strand))."\n";
-	foreach my $expt (sort keys %meta) {
-    print join("\t",$expt,$meta{$expt}->{researcher},
-                          $meta{$expt}->{chr},
-                          $meta{$expt}->{start},
-                          $meta{$expt}->{end},
-                          $meta{$expt}->{strand})."\n";
-  }
 }
 
 sub check_validity_of_metadata ($) {
@@ -342,6 +344,7 @@ sub parse_command_line {
                             "skip-align" => \$skip_align,
                             "skip-process" => \$skip_process,
 														"bowtie2opt=s" => \$user_bowtie_opt,
+                            "print-only" => \$print_only,
 														"help" => \$help
 
 				            			);

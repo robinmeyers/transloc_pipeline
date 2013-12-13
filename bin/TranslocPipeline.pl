@@ -4,6 +4,7 @@
 use strict;
 use warnings;
 use Getopt::Long;
+use Sys::Hostname;
 use Carp;
 use Switch;
 use IO::Handle;
@@ -76,6 +77,9 @@ my $no_clean;
 
 
 my $priming_bp = 12;
+my $mapq_ol_thresh = 0.8;
+my $mapq_score_thresh = 0.8;
+
 
 my $OL_mult = 2;
 my $Dif_mult = 1;
@@ -93,8 +97,7 @@ my $PE_pen_max = 40;
 my $PE_pen_mult = ($PE_pen_max-$PE_pen_min)/$max_frag_len;
 
 
-my $ol_thresh = 0.75;
-my $score_thresh = 0.9;
+
 
 my $user_bowtie_opt = "";
 my $user_bowtie_adapter_opt = "";
@@ -757,7 +760,7 @@ sub process_optimal_coverage_set ($$$) {
 
   # print "filter map quality\n";
   my $quality_maps = filter_mapping_quality($tlxls,$R1_alns,$R2_alns,
-                                      $ol_thresh,$score_thresh,$max_frag_len);
+                                      $mapq_ol_thresh,$mapq_score_thresh,$max_frag_len);
 
   $stats->{mapqual} += $quality_maps;
   $stats->{mapq_reads}++ if $quality_maps > 0;
@@ -840,7 +843,8 @@ sub score_edge ($;$) {
       return undef unless defined $node2->{R2};
       return undef if $node1->{R2}->{Rname} eq "Adapter";
       return undef if $node2->{R2} == $node1->{R2};
-      return undef unless $node2->{R2}->{Qend} >= $node1->{R2}->{Qend};
+      return undef unless $node2->{R2}->{Qstart} > $node1->{R2}->{Qstart};
+      return undef unless $node2->{R2}->{Qend} > $node1->{R2}->{Qend};
       $Rname1 = $node1->{R2}->{Rname};
       $Strand1 = $node1->{R2}->{Strand};
       $Rname2 = $node2->{R2}->{Rname};
@@ -856,7 +860,8 @@ sub score_edge ($;$) {
       return undef unless defined $node2->{R1};
       return undef if $node1->{R1}->{Rname} eq "Adapter";
       return undef if $node2->{R1} == $node1->{R1};
-      return undef unless $node2->{R1}->{Qend} >= $node1->{R1}->{Qend};
+      return undef unless $node2->{R1}->{Qstart} > $node1->{R1}->{Qstart};
+      return undef unless $node2->{R1}->{Qend} > $node1->{R1}->{Qend};
       $Rname1 = $node1->{R1}->{Rname};
       $Strand1 = $node1->{R1}->{Strand};
       $Rname2 = $node2->{R1}->{Rname};
@@ -964,7 +969,7 @@ sub deduplicate_junctions {
 
   my $dedup_cmd = "$FindBin::Bin/../R/TranslocDedup.R $tlxfile $dedup_output";
 
-  $dedup_cmd .= " cores=$threads" if $ENV{'HOSTNAME'} =~ /osx2373/;
+  $dedup_cmd .= " cores=$threads" if hostname =~ /osx2373/;
 
   System($dedup_cmd);
 
@@ -1084,6 +1089,9 @@ sub parse_command_line {
                             "cutter=s" => \$cut_fa,
                             "skip-align" => \$skip_alignment,
                             "skip-process" => \$skip_process,
+                            "mapq-ol=f" => \$mapq_ol_thresh,
+                            "mapq-score=f" => \$mapq_score_thresh,
+                            "priming-bp=i" => \$priming_bp,
                             # "bt2opt=s" => \$user_bowtie_opt,
                             # "bt2brkopt=s" => \$user_bowtie_breaksite_opt,
                             # "usecurrtlx" => \$use_current_tlx,
@@ -1099,10 +1107,11 @@ sub parse_command_line {
   croak "Error: cannot read read1 file" unless -r $read1;
   croak "Error: cannot read read2 file" if defined $read2 && ! -r $read2;
   croak "Error: working directory does not exist" unless (-d $workdir);
+
+  croak "Error: priming-bp must be a positive integer" unless $priming_bp > 0;
+  croak "Error: mapq-ol must be a fraction between 0 and 1" if $mapq_ol_thresh < 0 || $mapq_ol_thresh > 1;
+  croak "Error: mapq-score must be a fraction between 0 and 1" if $mapq_score_thresh < 0 || $mapq_score_thresh > 1;
   
-
-
-
 	exit unless $result;
 }
 

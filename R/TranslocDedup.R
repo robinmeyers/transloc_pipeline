@@ -53,20 +53,8 @@ tlxs$B_Offset <- with(tlxs,ifelse(B_Strand==1,B_Junction-B_Qend,B_Junction+B_Qen
 
 tlxs_by_chr_and_strand <- split(tlxs,list(tlxs$Rname,tlxs$Strand))
 
-findDuplicates <- function(n,tlxs,split_tlxs) {
-  tlx <- tlxs[n,]
-  tlxs_by_chr_and_strand <- split_tlxs[[paste(tlx$Rname,tlx$Strand,sep='.')]]
-  matches <- subset(tlxs_by_chr_and_strand, Qname>tlx$Qname &
-                      abs(Offset-tlx$Offset)<=qdist & abs(Junction-tlx$Junction)<=rdist &
-                      abs(B_Offset-tlx$B_Offset)<=qdist & abs(B_Junction-tlx$B_Junction)<=rdist)
-  if (nrow(matches) > 0) {
-    return(paste(matches$Qname,"(",matches$B_Junction-tlx$B_Junction,",",matches$Junction-tlx$Junction,")",sep="",collapse=","))
-  } else {
-    return("")
-  }
-}
 
-findDuplicates2 <- function(n,tlxs) {
+findDuplicates <- function(n,tlxs) {
   tlx <- tlxs[n,]
   matches <- subset(tlxs, Qname>tlx$Qname &
                       abs(Offset-tlx$Offset)<=qdist & abs(Junction-tlx$Junction)<=rdist &
@@ -86,7 +74,7 @@ cat("Deduplicating junctions on",cores,"cores\n")
 
 tlxs <- ldply(lapply(1:length(tlxs_by_chr_and_strand),function (n,tlxs) {
   if (nrow(tlxs[[n]]) > 0) {
-    dups <- mclapply(1:nrow(tlxs[[n]]),findDuplicates2,tlxs[[n]],mc.cores=cores)
+    dups <- mclapply(1:nrow(tlxs[[n]]),findDuplicates,tlxs[[n]],mc.cores=cores)
     tlxs[[n]]$Dups <- unlist(dups)
     return(tlxs[[n]])
   }
