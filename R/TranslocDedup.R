@@ -25,8 +25,8 @@ if (commandArgs()[1] != "RStudio") {
   
 } else {
   source("~/TranslocPipeline//R/Rsub.R")
-  tlxfile <- "~/Working/NewPipelineValidations/DedupTesting/YZ101_r.tlx"
-  output <- "~/Working/NewPipelineValidations/DedupTesting/YZ101_r_dedup.txt"
+  tlxfile <- "/Volumes//AltLab/Translocation/NewPipeline/Alt046/results/PW002_Alt046/PW002_Alt046.tlx"
+  output <- "~/Working/NewPipelineValidations/DedupTesting/PW002_dedup.txt"
   rdist <- 10
   qdist <- 2
   cores <- 4
@@ -66,11 +66,30 @@ findDuplicates <- function(n,tlxs,split_tlxs) {
   }
 }
 
+findDuplicates2 <- function(n,tlxs) {
+  tlx <- tlxs[n,]
+  matches <- subset(tlxs, Qname>tlx$Qname &
+                      abs(Offset-tlx$Offset)<=qdist & abs(Junction-tlx$Junction)<=rdist &
+                      abs(B_Offset-tlx$B_Offset)<=qdist & abs(B_Junction-tlx$B_Junction)<=rdist)
+  if (nrow(matches) > 0) {
+    return(paste(matches$Qname,"(",matches$B_Junction-tlx$B_Junction,",",matches$Junction-tlx$Junction,")",sep="",collapse=","))
+  } else {
+    return("")
+  }
+}
+
 if (cores == 0) {
   cores <- detectCores()
 }
 
 cat("Deduplicating junctions on",cores,"cores\n")
-dups <- mclapply(1:nrow(tlxs),findDuplicates,tlxs,tlxs_by_chr_and_strand,mc.cores=cores)
-tlxs$Dups <- unlist(dups)
+
+tlxs <- ldply(lapply(1:length(tlxs_by_chr_and_strand),function (n,tlxs) {
+  if (nrow(tlxs[[n]]) > 0) {
+    dups <- mclapply(1:nrow(tlxs[[n]]),findDuplicates2,tlxs[[n]],mc.cores=cores)
+    tlxs[[n]]$Dups <- unlist(dups)
+    return(tlxs[[n]])
+  }
+},tlxs_by_chr_and_strand))
+
 write.table(tlxs[tlxs$Dups != "",c("Qname","Dups")],output,sep="\t",quote=F,na="",row.names=F,col.names=F)
