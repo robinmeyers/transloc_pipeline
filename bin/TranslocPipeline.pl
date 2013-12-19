@@ -18,6 +18,8 @@ use Bio::DB::Sam;
 use List::Util qw(min max);
 use Interpolation 'arg:@->$' => \&argument;
 use Time::HiRes qw(gettimeofday tv_interval);
+use Sys::Info;
+use Sys::Info::Constants qw( :device_cpu );
 use Data::Dumper;
 use Cwd qw(abs_path);
 use FindBin;
@@ -48,6 +50,7 @@ sub find_optimal_coverage_set ($$);
 sub process_optimal_coverage_set ($$$);
 sub score_edge ($;$);
 sub deduplicate_junctions;
+sub sort_junctions;
 sub post_process_junctions;
 sub write_stats_file;
 sub clean_up;
@@ -69,10 +72,12 @@ my $break_fa;
 my $prim_fa;
 my $adapt_fa;
 my $cut_fa;
-my $threads = 4;
+my $bowtie_threads = 0;
+my $dedup_threads = 0;
 
 my $skip_alignment;
 my $skip_process;
+my $skip_dedup;
 my $no_clean;
 
 
@@ -135,14 +140,15 @@ $stats->{final} = 0;
 #
 parse_command_line;
 
+if ($bowtie_threads == 0) {
+  my $info = Sys::Info->new;
+  my $cpu  = $info->device( 'CPU'  );
+  $bowtie_threads = 2*$cpu->count;
+}
 
-# my $default_bowtie_adapter_opt = "--local -D 20 -R 3 -N 1 -L 6 -i C,4 --score-min C,30 -p $threads --no-unal --reorder -t";
-# my $default_bowtie_breaksite_opt = "--local -D 20 -R 3 -N 1 -L 12 -i C,6 --score-min C,40 --mp 10,2 --rfg 10,10 --rdg 10,10 -p $threads -k 50 --reorder -t";
-# my $default_bowtie_opt = "--local -D 20 -R 3 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $threads -k 50 --no-unal --reorder -t";
-
-my $default_bowtie_adapter_opt = "--local -D 20 -R 3 -N 1 -L 10 -i C,6 --score-min C,20 -p $threads --no-unal --reorder -t";
-my $default_bowtie_breaksite_opt = "--local -D 15 -R 2 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $threads -k 20 --no-unal --reorder -t";
-my $default_bowtie_opt = "--local -D 15 -R 2 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $threads -k 50 --reorder -t";
+my $default_bowtie_adapter_opt = "--local -D 20 -R 3 -N 1 -L 10 -i C,6 --score-min C,20 -p $bowtie_threads --no-unal --reorder -t";
+my $default_bowtie_breaksite_opt = "--local -D 15 -R 2 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $bowtie_threads -k 20 --no-unal --reorder -t";
+my $default_bowtie_opt = "--local -D 15 -R 2 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $bowtie_threads -k 50 --reorder -t";
 
 
 my $bt2_break_opt = manage_program_options($default_bowtie_breaksite_opt,$user_bowtie_breaksite_opt);
@@ -237,7 +243,7 @@ if (defined $cut_fa) {
 }
 
 
-unless ($skip_alignment || $skip_process) {
+unless ($skip_alignment || $skip_process || $skip_dedup) {
 
   align_to_breaksite unless $brksite->{endogenous};
   align_to_genome unless -r $R1_bam && -r $R2_bam;
@@ -253,7 +259,7 @@ unless ($skip_alignment || $skip_process) {
 }
 
 
-unless ($skip_process) {
+unless ($skip_process || $skip_dedup) {
   $tlxlfh = IO::File->new(">$tlxlfile");
   $tlxfh = IO::File->new(">$tlxfile");
   $filt_tlxfh = IO::File->new(">$filt_tlxfile");
@@ -271,13 +277,23 @@ unless ($skip_process) {
   $filt_tlxfh->close;
   $unjoin_tlxfh->close;
 
-  deduplicate_junctions;
-
-  write_stats_file;
-
 } else {
   croak "Error: could not find tlx file when skipping processing step" unless -r $tlxfile;
 }
+
+unless ($skip_dedup) {
+
+  deduplicate_junctions;
+
+} else {
+  croak "Error: could not find tlx file when skipping dedup step" unless -r $tlxfile;
+}
+
+sort_junctions;
+
+
+write_stats_file unless ($skip_process || $skip_dedup);
+
 
 post_process_junctions;
 
@@ -296,7 +312,7 @@ print("\nStats\n".join("\n","Total Reads: ".$stats->{totalreads},
                           "SequentialJuncs: ".$stats->{sequentialjuncs}." (".$stats->{sequential_reads}.")",
                           "Dedup: ".$stats->{dedup})."\n");
 
-clean_up unless $no_clean || $skip_alignment || $skip_process;
+clean_up unless $no_clean || $skip_alignment || $skip_process || $skip_dedup;
 
 
 #
@@ -849,6 +865,10 @@ sub score_edge ($;$) {
       $Strand1 = $node1->{R2}->{Strand};
       $Rname2 = $node2->{R2}->{Rname};
       $Strand2 = $node2->{R2}->{Strand};
+      if ($Rname1 eq "Breaksite" && $Rname2 eq "Breaksite" && $Strand1 == 1 && $Strand2 == 1) {
+        return undef unless $node2->{R2}->{Rstart} > $node1->{R2}->{Rstart};
+        return undef unless $node2->{R2}->{Rend} > $node1->{R2}->{Rend};
+      }
       $R2_Qgap = $node2->{R2}->{Qstart} - $node1->{R2}->{Qend} - 1;
       $R2_Rdist = find_genomic_distance($node1->{R2},$node2->{R2},$brksite);
       $Len1 += $node1->{R2}->{Qend} - $node1->{R2}->{Qstart} + 1;
@@ -866,6 +886,10 @@ sub score_edge ($;$) {
       $Strand1 = $node1->{R1}->{Strand};
       $Rname2 = $node2->{R1}->{Rname};
       $Strand2 = $node2->{R1}->{Strand};
+      if ($Rname1 eq "Breaksite" && $Rname2 eq "Breaksite" && $Strand1 == 1 && $Strand2 == 1) {
+        return undef unless $node2->{R1}->{Rstart} > $node1->{R1}->{Rstart};
+        return undef unless $node2->{R1}->{Rend} > $node1->{R1}->{Rend};
+      }
       $R1_Qgap = $node2->{R1}->{Qstart} - $node1->{R1}->{Qend} - 1;
       $R1_Rdist = find_genomic_distance($node1->{R1},$node2->{R1},$brksite);
       $Len1 += $node1->{R1}->{Qend} - $node1->{R1}->{Qstart} + 1;
@@ -967,9 +991,7 @@ sub deduplicate_junctions {
 
 
 
-  my $dedup_cmd = "$FindBin::Bin/../R/TranslocDedup.R $tlxfile $dedup_output";
-
-  $dedup_cmd .= " cores=$threads" if hostname =~ /osx2373/;
+  my $dedup_cmd = "$FindBin::Bin/../R/TranslocDedup.R $tlxfile $dedup_output cores=$dedup_threads";
 
   System($dedup_cmd);
 
@@ -1006,6 +1028,35 @@ sub deduplicate_junctions {
       $stats->{dedup}++;
 
     }
+  }
+
+  unlink $tlxbak;
+
+}
+
+sub sort_junctions {
+  my $tlxbak = "$tlxfile.bak";
+
+  rename $tlxfile, $tlxbak;
+
+  my @junctions;
+
+  my $bak_tlxfh = IO::File->new("<$tlxbak");
+  my $tlxfh = IO::File->new(">$tlxfile");
+
+  my $csv = Text::CSV->new({sep_char => "\t"});
+  my $header = $csv->getline($bak_tlxfh);
+  $csv->column_names(@$header);
+  $tlxfh->print(join("\t", @tlx_header)."\n");
+  
+  while (my $tlx = $csv->getline_hr($bak_tlxfh)) {
+    push(@junctions, $tlx);
+  }
+
+  @junctions = sort {$a->{Rname} cmp $b->{Rname} || $a->{Junction} <=> $b->{Junction}} @junctions;
+
+  foreach my $tlx (@junctions) {
+    write_entry($tlxfh,$tlx,\@tlx_header);
   }
 
   unlink $tlxbak;
@@ -1081,20 +1132,20 @@ sub parse_command_line {
                             "end=i" => \$brk_end,
                             "strand=s" => \$brk_strand,
                             "workdir=s" => \$workdir,
-                            "threads=i" => \$threads,
                             "mid=s" => \$mid_fa,
                             "primer=s" => \$prim_fa,
                             "breaksite=s" => \$break_fa,
                             "adapter=s" => \$adapt_fa,
                             "cutter=s" => \$cut_fa,
+                            "threads-bt=i" => \$bowtie_threads,
+                            "threads-dedup=i" => \$dedup_threads,
                             "skip-align" => \$skip_alignment,
                             "skip-process" => \$skip_process,
+                            "skip-dedup" => \$skip_dedup,
                             "mapq-ol=f" => \$mapq_ol_thresh,
                             "mapq-score=f" => \$mapq_score_thresh,
                             "priming-bp=i" => \$priming_bp,
-                            # "bt2opt=s" => \$user_bowtie_opt,
-                            # "bt2brkopt=s" => \$user_bowtie_breaksite_opt,
-                            # "usecurrtlx" => \$use_current_tlx,
+                            # "bowtie-opt=s" => \$user_bowtie_opt,
 				            				"help" => \$help
 				            			) ;
 
@@ -1119,25 +1170,48 @@ sub parse_command_line {
 sub usage()
 {
 print<<EOF;
-Title, by Robin Meyers, ddmonthyyyy
-
-This program .
+TranslocPipeline.pl, by Robin Meyers, 2013
 
 
-Usage: $0 arg1 arg2 arg3 ...
+Usage: $0
+        --read1 FILE --read2 FILE --workdir DIR --assembly (mm9|hg19)
+        --chr chrN --start INT --end INT --strand (+|-) --MID FILE
+        --primer FILE [--breaksite FILE] --adapter FILE --cutter FILE
         [--option VAL] [--flag] [--help]
 
-Arguments (defaults in parentheses):
-
+Arguments set automatically by TranslocWrapper.pl:
 $arg{"--read1","Input sequence file"}
 $arg{"--read2","Input sequence file"}
 $arg{"--workdir","Directory for results files - note: default Bowtie output goes to working directory"}
 $arg{"--assembly","Genome assembly to align reads to"}
-$arg{"--threads","Number of threads to run bowtie on","$threads"}
+$arg{"--chr"," "}
+$arg{"--start"," "}
+$arg{"--end"," "}
+$arg{"--strand"," "}
+$arg{"--mid"," "}
+$arg{"--primer"," "}
+$arg{"--breaksite"," "}
+$arg{"--adapter"," "}
+$arg{"--cutter"," "}
+
+
+Arguments set manually with --pipeline-opt in TranslocWrapper.pl (defaults in parentheses):
+$arg{"--threads-bt","Number of threads to run bowtie on",$bowtie_threads}
+$arg{"--threads-dedup","Number of threads to run dedup on",$dedup_threads}
+$arg{"--skip-align"," "}
+$arg{"--skip-process"," "}
+$arg{"--skip-dedup"," "}
+$arg{"--mapq-ol","",$mapq_ol_thresh}
+$arg{"--mapq-score","",$mapq_score_thresh}
+$arg{"--priming-bp","",$priming_bp}
+
+
 $arg{"--help","This helpful help screen."}
 
 
 EOF
+
+
 
 exit 1;
 }

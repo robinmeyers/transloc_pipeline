@@ -19,12 +19,42 @@ Guidelines for creating a metadata file are presented. The metadata file is impo
 
 \section{Introduction}
 \paragraph{}
+The metadata file was designed 
+
+\section{The Metadata File}
+\subsection{Format}
+\paragraph{} The metadata file is a tab-delimited plain text file that includes a header row, followed by a row for each library. Each row should be separated by the UNIX newline character. However, researchers will most frequently create/edit the metadata file using Microsoft Excel which, upon saving regular text files, writes the carriage-return character between rows in place of the newline character. \emph{Therefore, any processing must first replace these carriage-return characters, usually denoted} \texttt{\textbackslash{}r}\emph{, with the newline character,} \texttt{\textbackslash{}n}\emph{.}
+
+\subsection{Header}
+\paragraph{} The header row consists of the names of the columns each separated by a tab. There is no strict ordering of the columns and the column names are not case-sensitive. \emph {Future development of the pipeline, and downstream processing modules, must allow for flexibility with respect to these features.}
+
+\subsection{Columns}
+\begin{itemize}
+  \item \textbf{Library} - name of the library, typically the researcher's initials followed by a three digit, zero-padded number (\emph{e.g.} \texttt{AB001})
+  \item \textbf{Sequencing} - name of the sequencing run, typically ``Alt'' followed by a three digit, zero-padded number(\emph{e.g.} \texttt{Alt001})
+  \item \textbf{Researcher} - the researcher's name
+  \item \textbf{Assembly} - the genome build used, at time of writing must be either \emph{mm9} or \emph{hg19}
+  \item \textbf{Chr} - name of the breaksite chromosome
+  \item \textbf{Start} - start coordinate of the breaksite
+  \item \textbf{End} - end coordinate of the breaksite
+  \item \textbf{Strand} - strandedness of the breaksite, \emph{i.e.} the primer orientation
+  \item \textbf{Breaksite} - breaksite cassette sequence, if applicable
+  \item \textbf{MID} - multiplex identifier sequence
+  \item \textbf{Primer} - primer sequence
+  \item \textbf{Adapter} - adapter sequence
+  \item \textbf{Cutter} - frequent cutter sequence, if applicable
+  \item \textbf{Description} - a description of the library
+\end{itemize}
+
+\section{Annotating the Breaksite}
+\paragraph{} There are two major types of translocation libraries that the Alt Lab currently produces, characterized by either an endogenous breaksite or non-endogenous breaksite (\emph{i.e.} an I-SceI cassette). The pipeline was engineered to handle these two cases as similarly as possible, and is described fully in the pipeline documentation. The meaning of the columns of the metadata file is different for each library type.
+
+\subsection{Endogenous Breaksite Libraries}
+\paragraph{} The \texttt{Chr} is the name of the chromosome that contains the breaksite (\emph{e.g.} \texttt{chr15}). The \texttt{Strand} is the orientation in which your primer aligns to this chromosome, either ``\texttt{+}'' or ``\texttt{-}''. We will annotate the area between the first base pair of the primer to the cut site, and will follow the convention of keeping the end coordinate greater than the start coordinate regardless of orientation. For endogenous breaksite libraries, the cut site end does not need to be exact, however the primer end does. For libraries in the \texttt{+} orientation the \texttt{Start} column denotes the primer end and for \texttt{-} orientation libraries, it is the \texttt{End} column.
 
 
-\section{}
-
-\section{The Breaksite}
-
+\subsection{Non-endogenous Breaksite Libraries}
+\paragraph{}
 
 
 \end{document}

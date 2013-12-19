@@ -45,21 +45,16 @@ my $seqdir;
 my $outdir;
 my $which;
 my $pipeline_threads = 2;
-my $expt_threads = 4;
-my $skip_align;
-my $skip_process;
+my $pipeline_opt;
 my $print_only;
 
 my $bsub;
 my $user_bsub_opt = "";
-my $default_bsub_opt = "-q long -W 72:00 -R \"rusage[mem=16000]\"";
-my $user_bowtie_opt = "";
-my $user_bowtie_breaksite_opt = "";
+my $default_bsub_opt = "-q mcore -n 4 -W 72:00 -R \"rusage[mem=16000]\"";
+
 
 # Global variabless
 my %meta;
-my %stats;
-
 
 #
 # Start of Program
@@ -165,7 +160,7 @@ sub process_experiment ($) {
 
   $tl_cmd = join(" ", $tl_cmd, "--read2", $expt_hash->{R2}) if defined $expt_hash->{R2};
                 
-  $tl_cmd = join(" ", $tl_cmd, "--threads $expt_threads",
+  $tl_cmd = join(" ", $tl_cmd,
                     "--assembly",$expt_hash->{assembly},
                     "--chr",$expt_hash->{chr},
                     "--start",$expt_hash->{start},
@@ -178,12 +173,8 @@ sub process_experiment ($) {
   $tl_cmd = join(" ", $tl_cmd, "--breaksite", $expt_hash->{breakfa}) if -r $expt_hash->{breakfa};
   $tl_cmd = join(" ", $tl_cmd, "--cutter", $expt_hash->{cutfa}) if -r $expt_hash->{cutfa};
 
-  $tl_cmd = join(" ", $tl_cmd, "--skip-align") if $skip_align;
-  $tl_cmd = join(" ", $tl_cmd, "--skip-process") if $skip_process;
+  $tl_cmd = join(" ", $tl_cmd, $pipeline_opt) if defined $pipeline_opt;
 
-
-
-  # $tl_cmd .= " --tlx" if defined $use_current_tlx;
 
   my $log = $expt_hash->{exptdir} . "/$expt_id.log";
 
@@ -191,7 +182,7 @@ sub process_experiment ($) {
     my $bsubopt = manage_program_options($default_bsub_opt,$user_bsub_opt);
     $tl_cmd = join(" ","bsub",$bsubopt,"-J",$expt_hash->{library},"-o $log -N",$tl_cmd);
   } else {
-    $tl_cmd .= " > $log 2>&1";
+    $tl_cmd .= " >> $log 2>&1";
   }
 
 
@@ -232,7 +223,7 @@ sub read_in_meta_file {
       next unless $i ~~ @which;
     }
 
-    check_validity_of_metadata($expt);
+    check_validity_of_metadata($expt) unless $print_only;
 
 		my $expt_id = $expt->{library} . "_" . $expt->{sequencing};
     croak "Error: Experiment ID $expt_id is already taken" if exists $meta{$expt_id};
@@ -339,12 +330,9 @@ sub parse_command_line {
 	my $result = GetOptions ( "which=s" => \$which,
                             "bsub" => \$bsub,
                             "bsub-opt=s" => \$user_bsub_opt,
-														"othreads=i" => \$pipeline_threads,
-                            "ithreads=i" => \$expt_threads,
-                            "skip-align" => \$skip_align,
-                            "skip-process" => \$skip_process,
-														"bowtie2opt=s" => \$user_bowtie_opt,
-                            "print-only" => \$print_only,
+														"threads=i" => \$pipeline_threads,
+                            "pipeline-opt=s" => \$pipeline_opt,
+                            "print" => \$print_only,
 														"help" => \$help
 
 				            			);
@@ -374,12 +362,11 @@ sub parse_command_line {
 sub usage()
 {
 print<<EOF;
-Title, by Robin Meyers, ddmonthyyyy
-
-This program .
+TranslocWrapper, by Robin Meyers, 2013
 
 
-Usage: $0 arg1 arg2 arg3 ...
+Usage: $0
+        metafile seqdir outdir
         [--option VAL] [--flag] [--help]
 
 Arguments (defaults in parentheses):
@@ -387,12 +374,19 @@ Arguments (defaults in parentheses):
 $arg{"metafile","File containing meta data for one experiment per row - follow correct format"}
 $arg{"seqdir","Directory containing all input sequence files"}
 $arg{"outdir","Directory for results files"}
-$arg{"--threads","Number of threads to run bowtie on","$pipeline_threads"}
-$arg{"--bowtie2opt"," "}
+$arg{"--which","Only run specific jobs, numbered by order in metafile"}
+$arg{"--bsub","Submit as LSF jobs"}
+$arg{"--bsub-opt","Specify bsub options different from default",$default_bsub_opt}
+$arg{"--threads","Number of libraries to run at once",$pipeline_threads}
+$arg{"--pipeline-opt","Specify pipeline options - see below"}
+$arg{"--print","Do not execute jobs, only print experiments found in metafile"}
 $arg{"--help","This helpful help screen."}
 
+--------------------------------------------
 
 EOF
+
+system('TranslocPipeline.pl');
 
 exit 1;
 }

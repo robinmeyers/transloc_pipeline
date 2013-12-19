@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.1415926-2.5-1.40.14 (TeX Live 2013) (format=latex 2013.5.30)  4 DEC 2013 16:08
+This is pdfTeX, Version 3.1415926-2.5-1.40.14 (TeX Live 2013) (format=latex 2013.5.30)  17 DEC 2013 18:42
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -23,7 +23,7 @@ File: size10.clo 2007/10/19 v1.4h Standard LaTeX file (size option)
 \belowcaptionskip=\skip42
 \bibindent=\dimen102
 )
-No file metadata_file.aux.
+(./metadata_file.aux)
 \openout1 = `metadata_file.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 6.
@@ -44,16 +44,36 @@ LaTeX Font Info:    External font `cmex10' loaded for size
 (Font)              <8> on input line 14.
 LaTeX Font Info:    External font `cmex10' loaded for size
 (Font)              <6> on input line 14.
-[1
+LaTeX Font Info:    Try loading font information for OMS+cmtt on input line 26.
 
-] (./metadata_file.aux) ) 
+LaTeX Font Info:    No file OMScmtt.fd. on input line 26.
+
+
+LaTeX Font Warning: Font shape `OMS/cmtt/m/n' undefined
+(Font)              using `OMS/cmsy/m/n' instead
+(Font)              for symbol `textbackslash' on input line 26.
+
+LaTeX Font Info:    Try loading font information for OMS+cmr on input line 33.
+(/usr/local/texlive/2013/texmf-dist/tex/latex/base/omscmr.fd
+File: omscmr.fd 1999/05/25 v2.5h Standard LaTeX font definitions
+)
+LaTeX Font Info:    Font shape `OMS/cmr/m/n' in size <10> not available
+(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 33.
+ [1
+
+] [2] [3]
+(./metadata_file.aux)
+
+LaTeX Font Warning: Some font shapes were not available, defaults substituted.
+
+ ) 
 Here is how much of TeX's memory you used:
- 230 strings out of 493316
- 2507 string characters out of 6137930
- 53155 words of memory out of 5000000
- 3758 multiletter control sequences out of 15000+600000
- 8056 words of font info for 29 fonts, out of 8000000 for 9000
+ 262 strings out of 493316
+ 2989 string characters out of 6137930
+ 56155 words of memory out of 5000000
+ 3780 multiletter control sequences out of 15000+600000
+ 9185 words of font info for 33 fonts, out of 8000000 for 9000
  957 hyphenation exceptions out of 8191
- 23i,6n,17p,159b,233s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 23i,6n,19p,763b,233s stack positions out of 5000i,500n,10000p,200000b,80000s
 
-Output written on metadata_file.dvi (1 page, 868 bytes).
+Output written on metadata_file.dvi (3 pages, 5736 bytes).

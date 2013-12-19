@@ -60,7 +60,7 @@ findDuplicates <- function(n,tlxs) {
                       abs(Offset-tlx$Offset)<=qdist & abs(Junction-tlx$Junction)<=rdist &
                       abs(B_Offset-tlx$B_Offset)<=qdist & abs(B_Junction-tlx$B_Junction)<=rdist)
   if (nrow(matches) > 0) {
-    return(paste(matches$Qname,"(",matches$B_Junction-tlx$B_Junction,",",matches$Junction-tlx$Junction,")",sep="",collapse=","))
+    return(paste(paste(matches$Qname,"(",matches$B_Junction-tlx$B_Junction,",",matches$Junction-tlx$Junction,")",sep="")[1:3],collapse=","))
   } else {
     return("")
   }
@@ -71,10 +71,17 @@ if (cores == 0) {
 }
 
 cat("Deduplicating junctions on",cores,"cores\n")
-
+print(object.size(tlxs_by_chr_and_strand),units="Mb")
 tlxs <- ldply(lapply(1:length(tlxs_by_chr_and_strand),function (n,tlxs) {
   if (nrow(tlxs[[n]]) > 0) {
-    dups <- mclapply(1:nrow(tlxs[[n]]),findDuplicates,tlxs[[n]],mc.cores=cores)
+    
+    cat(nrow(tlxs[[n]])," - ")
+    print(object.size(tlxs[[n]]),units="Mb")
+    
+    dups <- mclapply(1:nrow(tlxs[[n]]),findDuplicates,tlxs[[n]][,c("Qname","Offset","Junction","B_Offset","B_Junction")],mc.cores=cores)
+    
+    print(object.size(dups),units="Mb")
+    
     tlxs[[n]]$Dups <- unlist(dups)
     return(tlxs[[n]])
   }
