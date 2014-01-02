@@ -209,7 +209,9 @@ sub filter_breaksite ($) {
 
 
 
-      if ($i = 1 && $tlxl->{tlx}->{Rname} eq "Breaksite") {
+      if (($i = 1 && $tlxl->{tlx}->{Rname} eq "Breaksite") ||
+          ($i = 1 && defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} >=0 && $tlxl->{R1_Rgap} < 10) ||
+          ($i = 1 && defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} >=0 && $tlxl->{R2_Rgap} < 10)) {
         $filter = "Breaksite";
         $tlxl->{tlx}->{Filter} = $filter;
         next;

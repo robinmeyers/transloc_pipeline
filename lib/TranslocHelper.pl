@@ -730,8 +730,8 @@ sub create_tlx_entries ($$) {
         next TLXL if $i == 0;
         $B_tlxl = $tlxls->[0];
         $tlxl = $tlxls->[1];
-        next TLXL if (defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} >=0 && $tlxl->{R1_Rgap} < 10) || 
-          (defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} >=0 && $tlxl->{R2_Rgap} < 10 );
+        # next TLXL if (defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} >=0 && $tlxl->{R1_Rgap} < 10) || 
+        #   (defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} >=0 && $tlxl->{R2_Rgap} < 10 );
         $tlxl->{tlx} = $tlx;
       }
       else {
@@ -739,8 +739,8 @@ sub create_tlx_entries ($$) {
         $B_tlxl = $tlxls->[$i-1];
         $tlxl = $tlxls->[$i];
         last TLXL if $tlxl->{Rname} eq "Adapter";
-        next TLXL if defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} >=0 && $tlxl->{R1_Rgap} < 10 ||
-          (defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} >=0 && $tlxl->{R2_Rgap} < 10 );
+        # next TLXL if defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} >=0 && $tlxl->{R1_Rgap} < 10 ||
+        #   (defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} >=0 && $tlxl->{R2_Rgap} < 10 );
         $tlxl->{tlx} = $tlx;
       }
     }
