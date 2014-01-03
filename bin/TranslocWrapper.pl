@@ -170,7 +170,8 @@ sub process_experiment ($) {
                     "--adapter",$expt_hash->{adaptfa});
 
   $tl_cmd = join(" ", $tl_cmd, "--mid", $expt_hash->{midfa}) if -r $expt_hash->{midfa};
-  $tl_cmd = join(" ", $tl_cmd, "--breaksite", $expt_hash->{breakfa}) if -r $expt_hash->{breakfa};
+  $tl_cmd = join(" ", $tl_cmd, "--breakseq", $expt_hash->{breakfa}) if -r $expt_hash->{breakfa};
+  $tl_cmd = join(" ", $tl_cmd, "--breaksite", $expt_hash->{breaksite}) if $expt_hash->{breaksite};
   $tl_cmd = join(" ", $tl_cmd, "--cutter", $expt_hash->{cutfa}) if -r $expt_hash->{cutfa};
 
   $tl_cmd = join(" ", $tl_cmd, $pipeline_opt) if defined $pipeline_opt;
@@ -244,7 +245,8 @@ sub check_validity_of_metadata ($) {
   croak "Metadata error: end must be greater than start" unless $expt->{end} > $expt->{start};
   croak "Metadata error: strand must be one of + or -" unless $expt->{strand} ~~ [qw(+ -)];
 
-  croak "Metadata error: breaksite sequence contains non AGCT characters" unless $expt->{breaksite} =~ /^[AGCTagct]*$/;
+  croak "Metadata error: breaksite sequence contains non AGCT characters" unless $expt->{breakseq} =~ /^[AGCTagct]*$/;
+  croak "Metadata error: breaksite must be defined if breakseq is" if $expt->{breakseq} && ! $expt->{breaksite};
   croak "Metadata error: primer sequence contains non AGCT characters" unless $expt->{primer} =~ /^[AGCTagct]*$/;
   croak "Metadata error: adapter sequence contains non AGCT characters" unless $expt->{adapter} =~ /^[AGCTagct]*$/;
   croak "Metadata error: cutter sequence contains non AGCT characters" unless $expt->{cutter} =~ /^[AGCTagct]*$/;
@@ -271,10 +273,10 @@ sub prepare_working_directory ($) {
   $expt_hash->{midfa} = "$seqdir/mid.fa";
   $expt_hash->{cutfa} = "$seqdir/cutter.fa";
 
-  if ($expt_hash->{breaksite} =~ /\S/) {
+  if ($expt_hash->{breakseq} =~ /\S/) {
     my $brkfh = IO::File->new(">".$expt_hash->{breakfa}) or croak "Error: could not write to breaksite fasta file";
     $brkfh->print(">Breaksite\n");
-    $brkfh->print(uc($expt_hash->{breaksite})."\n");
+    $brkfh->print(uc($expt_hash->{breakseq})."\n");
     $brkfh->close;
   }
 

@@ -69,6 +69,7 @@ my $brk_end;
 my $brk_strand;
 my $mid_fa;
 my $break_fa;
+my $breakcoord;
 my $prim_fa;
 my $adapt_fa;
 my $cut_fa;
@@ -81,7 +82,8 @@ my $skip_dedup;
 my $no_clean;
 
 
-my $priming_bp = 12;
+my $min_bases_after_primer = 10;
+my $max_bases_after_cutsite = 10;
 my $mapq_ol_thresh = 0.8;
 my $mapq_score_thresh = 0.8;
 
@@ -220,6 +222,7 @@ if (defined $break_fa) {
   $brksite->{aln_name} = "Breaksite";
   $brksite->{aln_strand} = 1;
   $brksite->{primer_start} = index($brksite->{seq}->seq,$brksite->{primer}->seq)+1;
+  $brksite->{breakcoord} = $breakcoord;
 } else {
   $brksite->{endogenous} = 1;
   $brksite->{aln_name} = $brksite->{chr};
@@ -227,9 +230,16 @@ if (defined $break_fa) {
   $brksite->{primer_start} = $brksite->{strand} eq "+" ? $brksite->{start} : $brksite->{end} - 1;
 }
 
+# Calculate threshold for uncut/unjoin filter
+$brksite->{joining_threshold} = $brksite->{endogenous} ?
+                                  ($brksite->{strand} eq "+" ?
+                                    $brksite->{end} + $max_bases_after_cutsite :
+                                    $brksite->{start} - $max_bases_after_cutsite ) :
+                                  $brksite->{breakcoord} + $max_bases_after_cutsite;
+
 # Calculate thresholds for mispriming filters
 croak "Error: could not find primer within breaksite sequence" unless $brksite->{primer_start} > 0;
-$brksite->{priming_threshold} = $brksite->{primer_start} + $brksite->{aln_strand} * ($brksite->{primer}->length - 1 + $priming_bp);
+$brksite->{priming_threshold} = $brksite->{primer_start} + $brksite->{aln_strand} * ($brksite->{primer}->length - 1 + $min_bases_after_primer);
 
 # Read in adapter sequence
 my $adpt_io = Bio::SeqIO->new(-file => $adapt_fa, -format => 'fasta');
@@ -769,7 +779,7 @@ sub process_optimal_coverage_set ($$$) {
                                adpt => $R1_adpt_samobj} )  ;
 
   # print "filter unjoined\n";
-  my $junctions = filter_unjoined($tlxls);
+  my $junctions = filter_unjoined($tlxls,$brksite);
 
   $stats->{junctions} += $junctions;
   $stats->{junc_reads}++ if $junctions > 0;
@@ -1134,7 +1144,8 @@ sub parse_command_line {
                             "workdir=s" => \$workdir,
                             "mid=s" => \$mid_fa,
                             "primer=s" => \$prim_fa,
-                            "breaksite=s" => \$break_fa,
+                            "breakseq=s" => \$break_fa,
+                            "breaksite=i" => \$breakcoord,
                             "adapter=s" => \$adapt_fa,
                             "cutter=s" => \$cut_fa,
                             "threads-bt=i" => \$bowtie_threads,
@@ -1144,7 +1155,7 @@ sub parse_command_line {
                             "skip-dedup" => \$skip_dedup,
                             "mapq-ol=f" => \$mapq_ol_thresh,
                             "mapq-score=f" => \$mapq_score_thresh,
-                            "priming-bp=i" => \$priming_bp,
+                            "priming-bp=i" => \$min_bases_after_primer,
                             # "bowtie-opt=s" => \$user_bowtie_opt,
 				            				"help" => \$help
 				            			) ;
@@ -1159,7 +1170,7 @@ sub parse_command_line {
   croak "Error: cannot read read2 file" if defined $read2 && ! -r $read2;
   croak "Error: working directory does not exist" unless (-d $workdir);
 
-  croak "Error: priming-bp must be a positive integer" unless $priming_bp > 0;
+  croak "Error: priming-bp must be a positive integer" unless $min_bases_after_primer > 0;
   croak "Error: mapq-ol must be a fraction between 0 and 1" if $mapq_ol_thresh < 0 || $mapq_ol_thresh > 1;
   croak "Error: mapq-score must be a fraction between 0 and 1" if $mapq_score_thresh < 0 || $mapq_score_thresh > 1;
   
@@ -1190,6 +1201,7 @@ $arg{"--end"," "}
 $arg{"--strand"," "}
 $arg{"--mid"," "}
 $arg{"--primer"," "}
+$arg{"--breakseq"," "}
 $arg{"--breaksite"," "}
 $arg{"--adapter"," "}
 $arg{"--cutter"," "}
@@ -1203,7 +1215,7 @@ $arg{"--skip-process"," "}
 $arg{"--skip-dedup"," "}
 $arg{"--mapq-ol","",$mapq_ol_thresh}
 $arg{"--mapq-score","",$mapq_score_thresh}
-$arg{"--priming-bp","",$priming_bp}
+$arg{"--priming-bp","",$min_bases_after_primer}
 
 
 $arg{"--help","This helpful help screen."}

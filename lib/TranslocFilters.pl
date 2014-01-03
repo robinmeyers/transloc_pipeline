@@ -3,8 +3,9 @@ use warnings;
 
 
 
-sub filter_unjoined ($) {
+sub filter_unjoined ($$) {
   my $tlxls = shift;
+  my $brksite = shift;
 
   my $filter;
 
@@ -15,13 +16,21 @@ sub filter_unjoined ($) {
   if (@$tlxls < 2) {
     $filter = "Unjoined";
   } else {
+
     foreach my $tlxl (@$tlxls[1..$#{$tlxls}]) {
       last if $tlxl->{Rname} eq "Adapter";
       next if defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} >= 0 && $tlxl->{R1_Rgap} < 3;
       next if defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} >= 0 && $tlxl->{R2_Rgap} < 3;
       $junctions++;
     }
+
     $filter = "Unjoined" unless $junctions;
+
+    if ($brksite->{aln_strand} == 1) {
+      $filter = "Unjoined" if $tlxls->[1]->{tlx}->{B_Rend} > $brksite->{joining_threshold};
+    } else {
+      $filter = "Unjoined" if $tlxls->[1]->{tlx}->{B_Rstart} < $brksite->{joining_threshold};
+    }
   }
 
   $junctions = 0;
