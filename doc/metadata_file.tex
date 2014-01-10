@@ -2,6 +2,12 @@
 
 \documentclass{article}
 %\usepackage{times}
+\usepackage{graphicx}
+\DeclareGraphicsExtensions{.pdf}
+\usepackage[labelfont=bf,labelsep=period]{caption}
+\usepackage[colorlinks=true, urlcolor=blue]{hyperref}
+
+
 
 \begin{document}
 
@@ -9,7 +15,7 @@
 \author{Robin M. Meyers\\
   Laboratory of Fredrick W. Alt,\\
   Boston Children's Hopsital, Harvard Medical School\\
-  \texttt{robin.meyers@childrens.harvard.edu}}
+  \href{mailto:robin.meyers@childrens.harvard.edu}{\texttt{robin.meyers@childrens.harvard.edu}}}
 \date{\today}
 \maketitle
 
@@ -19,7 +25,7 @@ Guidelines for creating a metadata file are presented. The metadata file is impo
 
 \section{Introduction}
 \paragraph{}
-The metadata file was designed 
+The metadata file was designed to deliver important details about the translocation library to the pipeline software so that it can be analyzed correctly. As little extraneous information is included as possible, while still accounting for the diversity of library types that the lab generates. Entries are created for each library and teh following guidelines should be followed as strictly possible to ensure consistency between libraries.
 
 \section{The Metadata File}
 \subsection{Format}
@@ -38,7 +44,8 @@ The metadata file was designed
   \item \textbf{Start} - start coordinate of the breaksite
   \item \textbf{End} - end coordinate of the breaksite
   \item \textbf{Strand} - strandedness of the breaksite, \emph{i.e.} the primer orientation
-  \item \textbf{Breaksite} - breaksite cassette sequence, if applicable
+  \item \textbf{Breakseq} - breaksite cassette sequence, if applicable
+  \item \textbf{Breaksite} - specific breaksite coordinate with respect to \texttt{Breakseq} 
   \item \textbf{MID} - multiplex identifier sequence
   \item \textbf{Primer} - primer sequence
   \item \textbf{Adapter} - adapter sequence
@@ -47,14 +54,28 @@ The metadata file was designed
 \end{itemize}
 
 \section{Annotating the Breaksite}
-\paragraph{} There are two major types of translocation libraries that the Alt Lab currently produces, characterized by either an endogenous breaksite or non-endogenous breaksite (\emph{i.e.} an I-SceI cassette). The pipeline was engineered to handle these two cases as similarly as possible, and is described fully in the pipeline documentation. The meaning of the columns of the metadata file is different for each library type.
+\paragraph{} There are two major types of translocation libraries that the Alt Lab currently produces, characterized by either an endogenous breaksite or non-endogenous breaksite (\emph{i.e.} an I-SceI cassette). The pipeline was engineered to handle these two cases as similarly as possible, and is described fully in the pipeline documentation. The meaning of some columns in the metadata file is different for each library type.
 
 \subsection{Endogenous Breaksite Libraries}
-\paragraph{} The \texttt{Chr} is the name of the chromosome that contains the breaksite (\emph{e.g.} \texttt{chr15}). The \texttt{Strand} is the orientation in which your primer aligns to this chromosome, either ``\texttt{+}'' or ``\texttt{-}''. We will annotate the area between the first base pair of the primer to the cut site, and will follow the convention of keeping the end coordinate greater than the start coordinate regardless of orientation. For endogenous breaksite libraries, the cut site end does not need to be exact, however the primer end does. For libraries in the \texttt{+} orientation the \texttt{Start} column denotes the primer end and for \texttt{-} orientation libraries, it is the \texttt{End} column.
+\paragraph{} For endogenous breaksite libraries, the breaksite is fully characterized by the priming site and cutting site. Thus, the the metadata file is used to annotate these two ends of the breaksite and the region in between, using only the columns \texttt{Chr}, \texttt{Start}, \texttt{End}, and \texttt{Strand}. The \texttt{Chr} is the name of the chromosome that contains the breaksite (\emph{e.g.} \texttt{chr15}). The \texttt{Strand} is the orientation in which the primer aligns to this chromosome, either ``\texttt{+}'' or ``\texttt{-}''. We will annotate the region between the priming end of the breaksite and the cutting end of the breaksite, and will follow the convention of requiring the end coordinate greater than the start coordinate regardless of orientation. Therefore, for libraries in the \texttt{+} orientation, the \texttt{Start} column denotes the primer end and the \texttt{End} coordinate denotes the cutting end, and vice versa for \texttt{-} orientation libraries. The specific coordinates used will be the first coordinate of the start of the region and the first coordinate after the end of the region. This means, for \texttt{+} orientation libraries, the \texttt{Start} will be the first coordinate of the primer and the \texttt{End} will be the first coordinate after the cut site. For \texttt{-} orientation libraries, the \texttt{Start} will be the first coordinate of the cutting site and the \texttt{End} will be the first coordinate after the priming site.
+\begin{figure}[ht]
+\centering
+  \includegraphics[width=\textwidth]{endogenous_breaksite}
+\caption{\textbf{Endogenous breaksite} strategies are shown in the \texttt{+} strand orientation \textbf{(Top)} and \texttt{-} orientation \textbf{(Bottom)}. \texttt{Start} and \texttt{End} coordinates are marked. Diagrams are oriented so that chromosomal coordinates increase from left to right.}
+\label{overflow}
+\end{figure}
+
+\subsection{Non-Endogenous Breaksite Libraries (Breaksite Cassette)}
+\paragraph{} The annotation is marginally more complicated for non-endogenous breaksite libraries than for endogenous breaksites because the pipeline needs a little extra information about where the breaksite cassette has been inserted into the genome as well as what that sequence is. The \texttt{Breakseq} column contains the sequence of the entire cassette written from priming end to cutting end. The \texttt{Chr}, \texttt{Start}, \texttt{End}, and \texttt{Strand} columns together fully annotate the cassette position and direction. The \texttt{Strand} is the orientation of the cassette, either \texttt{+} or \texttt{-}, and is determined by the orientation of the primer. \emph{Note: regardless of the orientation, the breaksite cassette sequence must be given from priming end to cutting end.} Again, we will follow the convention of requiring the end coordinate to be greater than the start coordinate. To determine the \texttt{Start} column, find the last basepair coordinate of endogenous locus before the start of the cassette and add 1 to this number. The \texttt{End} column denotes the first basepair coordinate of endogenous locus after the end of the cassette.
+\paragraph{} While in endogenous breaksite libraries the priming site is given explicitly, this is not so in non-endogenous breaksite libraries because the priming site can be determined using the primer sequence and the breaksite sequence. However, that still leaves one last piece of information to be accounted for in the non-endogenous breaksite libraries and that is the specific location of the cutting site. This coordinate is with respect to the sequence entered in \texttt{Breakseq} and is located in the \texttt{Breaksite} column.
+\begin{figure}[ht]
+\centering
+  \includegraphics[width=\textwidth]{nonendogenous_breaksite}
+\caption{\textbf{Non-endogenous breaksite} strategies are shown in the \texttt{+} strand orientation \textbf{(Top)} and \texttt{-} orientation \textbf{(Bottom)}. \texttt{Start} and \texttt{End} coordinates are marked. Diagrams are oriented so that chromosomal coordinates increase from left to right. The shaded area represents the non-endogenous cassette.}
+\label{overflow}
+\end{figure}
 
 
-\subsection{Non-endogenous Breaksite Libraries}
-\paragraph{}
 
 
 \end{document}
