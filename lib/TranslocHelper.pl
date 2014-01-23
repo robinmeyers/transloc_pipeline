@@ -501,7 +501,10 @@ sub create_tlx_entries ($$) {
       }
 
       # Retrieve referense sequence, reverse complement if necessary
+
       my $Rseq = $ref->seq($Rname,$Rstart,$Rend);
+      # print join("\t",$tlxl->{Qname},$Rname,$Rstart,$Rend,$tlxl->{Strand})."\n$Rseq\n";
+
       my @Rseq = $Strand == 1 ? split("",$Rseq) : split("",reverseComplement($Rseq));
 
       # Artifically adjust Rstarts and Rends so that we can move incrementally up on both Qpos and Rpos

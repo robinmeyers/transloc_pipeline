@@ -470,11 +470,11 @@ sub process_alignments {
   }
 
   if ($brksite->{endogenous}) {
-    my $primer_check = $R1_samobj->seq($brksite->{chr},$brksite->{start},$brksite->{start}+$brksite->{primer}->length-1);
+    my $primer_check = $R1_samobj->seq($brksite->{chr},$brksite->{start},$brksite->{end});
     $primer_check = reverseComplement($primer_check) if $brksite->{strand} eq "-";
     print $brksite->{primer}->seq ." $primer_check\n"; 
     croak "Error: primer sequence does not match reference genome"
-        unless $brksite->{primer}->seq eq $primer_check;
+        unless $brksite->{primer}->seq eq substr(uc($primer_check),0,$brksite->{primer}->length);
   }
 
   croak "Error: no R1 alignments" unless defined $next_R1_aln;
