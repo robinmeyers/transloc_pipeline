@@ -1081,13 +1081,13 @@ sub post_process_junctions {
   (my $pdf_plot = $tlxfile) =~ s/tlx$/pdf/;
 
   System("TranslocPlot.R $tlxfile $pdf_plot binsize=2000000 strand=2 assembly=$assembly " .
-          "brkchr=$brk_chr brksite=$brk_end brkstrand=" . ($brk_strand eq "+" ? "1" : "-1") );
+          "brkchr=$brk_chr brksite=" .($brk_strand eq "+" ? $brk_end : $brk_start) ." brkstrand=" . ($brk_strand eq "+" ? "1" : "-1") );
 
   (my $pdf_plot_breaksite = $pdf_plot) =~ s/\.pdf/_brksite.pdf/;
 
   System("TranslocPlot.R $tlxfile $pdf_plot_breaksite strand=0 assembly=$assembly " .
-        "brkchr=$brk_chr brksite=$brk_end brkstrand=" . ($brk_strand eq "+" ? "1" : "-1") .
-        " chr=$brk_chr rmid=$brk_end rwindow=5000 binnum=100 plottype=linear" );
+        "brkchr=$brk_chr brksite=" .($brk_strand eq "+" ? $brk_end : $brk_start) ." brkstrand=" . ($brk_strand eq "+" ? "1" : "-1") .
+        " chr=$brk_chr rmid=" .($brk_strand eq "+" ? $brk_end : $brk_start) ." rwindow=5000 binnum=100 plottype=linear" );
 
 }
 
