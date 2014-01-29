@@ -2,6 +2,8 @@
 
 \documentclass{article}
 %\usepackage{times}
+\usepackage[colorlinks=true, urlcolor=blue]{hyperref}
+
 
 \begin{document}
 
@@ -20,9 +22,24 @@
 
 \section{Introduction}
 
+\paragraph{} This document assumes paired-end read libraries. However, the analysis pipeline can handle single-end read libraries and treats them the same as a paired-end library without the reverse read.
+
+\section{Pre-processing}
+\subsection*{De-multiplex}
+\paragraph{} The program fastq-multx of the \href{}{ea-utils} sorts the entire Illumina MiSeq run into different libraries by a barcode defined as the first ten expected basepairs of R1. This information is gathered from the \texttt{MID} and \texttt{Primer} fields of the metadata file.
+
+
+\subsection*{Adapter Trimming}
+\paragraph{} The program \href{}{SeqPrep} trims all reads of the Illumina MiSeq adapters using default parameters.
+
 \section{Alignment}
 
+\paragraph{} All reads are aligned to the selected reference genome using \href{}{Bowtie2}. Paired-end reads are handled separately but aligned using the same parameters. All reads are also aligned to the adapter (typically AP2) used during library preparation, as it usually accounts for 38 bp on R2. In non-endogenous breaksite libraries, all reads are further aligned to the breaksite cassette sequence given in \texttt{Breakseq} column of the metadata file.
+
 \section{Optimal Query Coverage}
+
+\paragraph{} 
+
 
 \section{Filters}
 \subsection*{Unjoined Reads}
