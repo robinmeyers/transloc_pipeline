@@ -110,6 +110,7 @@ columnsToRead <- c("Qname","Rname","Junction","Strand","B_Rend","B_Qend","Qstart
 colClasses <- proColumnClasses(header,columnsToRead)
 
 tlx <- read.delim(tlxfile,header=T,colClasses=colClasses)
+
 tlxtot <- nrow(tlx)
 
 tlx <- tlx[tlx$Rname %in% names(chrlen),]
@@ -160,7 +161,7 @@ if (length(chrlen) > 1) {
 
   rotateVP <- 1
   
-  chrwidth <- 2
+  chrwidth <- 1
   chrwidthunit <- "mm"
   
   chrpos <- rep(0,length(chrlen))
@@ -226,11 +227,11 @@ if (length(chrlen) > 1) {
     negVP <- viewport(x=unit(chrpos[i],"native"), y=unit(0,"npc"), 
                       width=unit(max(gr[seqnames(gr) == names(chrlen)[i] & strand(gr) == "-"]$hitveclen),"native"),
                       height=unit(chrlen[i],"native"), just=c("right","bottom"),
-                      xscale=c(1,0),yscale=c(chrlen[i],1),clip="on")
+                      xscale=c(1,0),yscale=c(chrlen[i],1),clip="off")
     posVP <- viewport(x=unit(chrpos[i]+chrwidthnative,"native"), y=unit(0,"npc"), 
                       width=unit(max(gr[seqnames(gr) == names(chrlen)[i] & strand(gr) == "+"]$hitveclen),"native"),
                       height=unit(chrlen[i],"native"), just=c("left","bottom"),
-                      xscale=c(0,1),yscale=c(chrlen[i],1),clip="on")
+                      xscale=c(0,1),yscale=c(chrlen[i],1),clip="off")
     
     
     chrVPs[[i]] <- list(posVP,negVP)

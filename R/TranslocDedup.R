@@ -60,7 +60,7 @@ findDuplicates <- function(n,tlxs) {
                       abs(Offset-tlx$Offset)<=qdist & abs(Junction-tlx$Junction)<=rdist &
                       abs(B_Offset-tlx$B_Offset)<=qdist & abs(B_Junction-tlx$B_Junction)<=rdist)
   if (nrow(matches) > 0) {
-    return(paste(paste(matches$Qname,"(",matches$B_Junction-tlx$B_Junction,",",matches$Junction-tlx$Junction,")",sep="")[1:3],collapse=","))
+    return(paste(paste(matches$Qname,"(",matches$B_Junction-tlx$B_Junction,",",matches$Junction-tlx$Junction,")",sep="")[1:min(nrow(matches),3)],collapse=","))
   } else {
     return("")
   }

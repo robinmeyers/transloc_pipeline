@@ -43,8 +43,15 @@
 
 \section{Filters}
 \subsection*{Unjoined Reads}
+\paragraph{} The \emph{Unjoined Reads} filter removes reads satisfying any one of the following conditions which are indicative of a read that was either never cut, never rejoined, or truncated short of the junction. These conditions are:
+\begin{itemize}
+  \item There is only a single alignment in the OCS (the bait alignment).
+  \item The second alignment in the OCS is to the adapter used in library preparation.
+  \item The bait alignment extends more than \emph{n} bases past the targeted site.
+\end{itemize}
 
 \subsection*{Mapping Quality}
+\paragraph{}
 
 \subsection*{Mispriming}
 
