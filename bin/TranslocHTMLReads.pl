@@ -40,7 +40,8 @@ select( (select(STDOUT), $| = 1 )[0] );
 # Forward declarations
 sub parse_command_line;
 sub read_in_translocations;
-sub align_to_primers;
+sub align_to_primer ($);
+sub align_to_adapter ($);
 sub print_html_header ($);
 sub print_html_footer ($);
 sub write_marked_read ($$);
@@ -55,9 +56,8 @@ my $adapter = "";
 
 
 # Global variables
-my %tlx;
-my @qids;
-my @qseqs;
+my $htmlfh;
+my $tlxfh;
 
 #
 # Start of Program
@@ -67,23 +67,30 @@ parse_command_line;
 
 my $t0 = [gettimeofday];
 
-read_in_translocations;
-
-align_to_primers;
-
-
-my $htmlfh = IO::File->new(">$htmlfile") or croak "Error: cannot write to html file $htmlfile";
+$htmlfh = IO::File->new(">$htmlfile") or croak "Error: cannot write to html file $htmlfile";
 print_html_header($htmlfh);
 
-foreach my $qid (@qids) {
 
-  write_marked_read($htmlfh,$tlx{$qid});
+$tlxfh = IO::File->new("<$tlxfile");
+my $csv = Text::CSV->new({sep_char => "\t"});
+my $header = $csv->getline($tlxfh);
+$csv->column_names(@$header);
+
+
+while (my $tl = $csv->getline_hr($tlxfh)) {
+
+  align_to_primer($tl) if $primer =~ /\S/;
+  align_to_adapter($tl) if $adapter =~ /\S/;
+
+  write_marked_read($htmlfh, $tl);
 
 }
 
-
+$tlxfh->close;
 
 print_html_footer($htmlfh);
+
+
 $htmlfh->close;
 
 
@@ -182,153 +189,32 @@ sub write_marked_read ($$) {
 
 }
 
-sub read_in_translocations {
-  my $tlxfh = IO::File->new("<$tlxfile");
-  my $csv = Text::CSV->new({sep_char => "\t"});
-  my $header = $csv->getline($tlxfh);
-  $csv->column_names(@$header);
 
-  my $ct = 0;
+sub align_to_primer ($) {
 
-  while (my $tl = $csv->getline_hr($tlxfh)) {
+  my $tl = shift;
 
-    (my $qname = $tl->{Qname}) =~ s/\W/_/g;
-    my $qid = "q_".++$ct;
+  my $qstart = index($tl->{Seq}, $primer);
 
-    $tlx{$qid} = $tl;
-
-    push(@qids,$qid);
-
-    push(@qseqs,Bio::PrimarySeq->new( -id => $qid,
-                                     -seq => $tl->{Seq} ));
-
+  unless ($qstart == -1) {
+    $tl->{PrimQstart} = $qstart + 1;
+    $tl->{PrimQend} = $qstart + length($primer);
   }
-
-  $tlxfh->close;
 
 }
 
-sub align_to_primers {
+sub align_to_adapter ($) {
+  my $tl = shift;
 
-  my $f = Bio::Factory::EMBOSS -> new();
-  my $water = $f->program('water') or croak "Error: cannot set water program";
+  my $qstart = index($tl->{Seq}, $adapter);
 
-
-
-  unless ($primer eq "") {
-    my $primer_obj = Bio::PrimarySeq->new( -id => "primer", -seq => $primer);
-
-    # my $fac = Bio::Tools::Run::StandAloneBlastPlus->new( -subject => $for_seq);
-
-    # my $result = $fac->bl2seq( -method => 'blastn',
-    #                            -query => \@qseqs,
-    #                            -subject => $for_seq,
-    #                            -method_args => [ -word_size => 10, -max_target_seqs => 1 ] );
-
-    # while ( my $hit)
-
-    (my $primer_water = $tlxfile) =~ s/\.tlx/_primer.water/;
-    $water->run({ -asequence => $primer_obj,
-                  -bsequence => \@qseqs,
-                  -gapopen   => '5.0',
-                  -gapextend => '2',
-                  -outfile   => $primer_water});
-    my $alnio = Bio::AlignIO->new( -format => 'emboss',
-                                   -file   => $primer_water);
-    while (my $primer_aln = $alnio->next_aln) {
-
-      next unless $primer_aln->percentage_identity > 90 && $primer_aln->length >= length($primer) - 3;
-
-      my $qseq = $primer_aln->get_seq_by_pos(2);
-      my $qid = $qseq->id;
-
-      next if exists $tlx{$qid}->{PrimQstart};
-
-      $tlx{$qid}->{PrimQstart} = $qseq->start;
-      $tlx{$qid}->{PrimQend} = $qseq->end;
-    }
-
-
-    # (my $for_water = $tlxfile) =~ s/\.tlx/_for.water/;
-    # $water->run({ -asequence => $for_seq,
-    #               -bsequence    => \@qseqs,
-    #               -gapopen   => '10.0',
-    #               -gapextend => '0.5',
-    #               -outfile   => $for_water,
-    #               -aformat3 => 'fasta'});
-
-    
-
-    # my $for_aln = Bio::SeqIO->new( -format => 'fasta',
-    #                                -file   => $for_water);
-    # while ( my $seq = $for_aln->next_seq ) {
-    #   my $qname = $seq->id;
-    #   next if $qname =~ /primer/;
-    #   (my $subseq = $seq->seq) =~ s/-//g;
-      
-    #   next if $subseq ne $for_seq->seq && levenshtein($subseq,$for_seq->seq) < 3;
-
-    #   my $start = index($tlx{$qname}->{Seq},$subseq);
-    #   $tlx{$qname}->{ForQstart} = $start + 1;
-    #   $tlx{$qname}->{ForQend} = $start + length($subseq);
-    # }
-
-    unlink $primer_water;
-
+  unless ($qstart == -1) {
+    $tl->{AdptQstart} = $qstart + 1;
+    $tl->{AdptQend} = $qstart + length($adapter);
   }
-
-  unless ($adapter eq "") {
-    my $adapter_seq = Bio::PrimarySeq->new( -id => "adapter", -seq => $adapter);
-    # (my $rev_water = $tlxfile) =~ s/\.tlx/_rev.water/;
-    # $water->run({ -asequence => $rev_seq,
-    #               -bsequence    => \@qseqs,
-    #               -gapopen   => '10.0',
-    #               -gapextend => '0.5',
-    #               -outfile   => $rev_water,
-    #               -aformat3 => 'fasta'});
-    # my $rev_aln = Bio::SeqIO->new( -format => 'fasta',
-    #                                -file   => $rev_water);
-    # while ( my $seq = $rev_aln->next_seq ) {
-    #   my $qname = $seq->id;
-    #   next if $qname =~ /primer/;
-    #   (my $subseq = $seq->seq) =~ s/-//g;
-
-    #   next if $subseq ne $rev_seq->seq && levenshtein($subseq,$rev_seq->seq) < 3;
-      
-    #   my $start = index($tlx{$qname}->{Seq},$subseq);
-    #   $tlx{$qname}->{RevQstart} = $start + 1;
-    #   $tlx{$qname}->{RevQend} = $start + length($subseq);
-    # }
-
-
-    (my $adapter_water = $tlxfile) =~ s/\.tlx/_adpt.water/;
-    $water->run({ -asequence => $adapter_seq,
-                  -bsequence    => \@qseqs,
-                  -gapopen   => '5.0',
-                  -gapextend => '2',
-                  -outfile   => $adapter_water});
-    my $alnio = Bio::AlignIO->new( -format => 'emboss',
-                                   -file   => $adapter_water);
-    while (my $adapter_aln = $alnio->next_aln) {
-
-      next unless $adapter_aln->percentage_identity > 90 && $adapter_aln->length >= length($adapter) - 3;
-
-      my $qseq = $adapter_aln->get_seq_by_pos(2);
-      my $qid = $qseq->id;
-
-      next if exists $tlx{$qid}->{AdptQstart};
-
-      $tlx{$qid}->{AdptQstart} = $qseq->start;
-      $tlx{$qid}->{AdptQend} = $qseq->end;
-    }
-
-  unlink $adapter_water;
-
-  }
-
-
-
 }
+
+
 
 sub parse_command_line {
   my $help;
