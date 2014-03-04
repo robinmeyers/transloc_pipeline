@@ -15,8 +15,6 @@ use Cwd qw(abs_path);
 use FindBin;
 use lib abs_path("$FindBin::Bin/../lib");
 
-my $GENOME_DB = $ENV{'GENOME_DB'};
-defined $GENOME_DB or croak "Error: set environment variable GENOME_DB";
 
 require "TranslocHelper.pl";
 require "PerlSub.pl";
@@ -43,6 +41,8 @@ sub process_experiment ($);
 my $meta_file;
 my $seqdir;
 my $outdir;
+my $alternate_assembly;
+my $alternate_brkchr;
 my $which;
 my $pipeline_threads = 2;
 my $pipeline_opt;
@@ -161,8 +161,8 @@ sub process_experiment ($) {
   $tl_cmd = join(" ", $tl_cmd, "--read2", $expt_hash->{R2}) if defined $expt_hash->{R2};
                 
   $tl_cmd = join(" ", $tl_cmd,
-                    "--assembly",$expt_hash->{assembly},
-                    "--chr",$expt_hash->{chr},
+                    "--assembly", ($alternate_assembly or $expt_hash->{assembly}),
+                    "--chr", ($alternate_brkchr or $expt_hash->{chr}),
                     "--start",$expt_hash->{start},
                     "--end",$expt_hash->{end},
                     "--strand",$expt_hash->{strand},
@@ -237,7 +237,7 @@ sub read_in_meta_file {
 sub check_validity_of_metadata ($) {
   my $expt = shift;
 
-  croak "Metadata error: assembly must be one of mm9 or hg19" unless $expt->{assembly} ~~ [qw(mm9 hg19)];
+  croak "Metadata error: assembly must be an mm or hg build" unless $expt->{assembly} =~ /^(hg\d+|mm\d+)$/;
   my @chrlist = 1..22;
   push(@chrlist,qw(X Y));
   @chrlist = map {"chr" . $_} @chrlist;
@@ -330,6 +330,8 @@ sub parse_command_line {
 	usage() if (scalar @ARGV == 0);
 
 	my $result = GetOptions ( "which=s" => \$which,
+                            "assembly=s" => \$alternate_assembly,
+                            "brkchr=s" => \$alternate_brkchr,
                             "bsub" => \$bsub,
                             "bsub-opt=s" => \$user_bsub_opt,
 														"threads=i" => \$pipeline_threads,
@@ -355,6 +357,10 @@ sub parse_command_line {
   	mkdir $outdir or croak "Error: output directory $outdir does not exist and cannot be created";
   }
 
+  croak "Error: must specify alternative break chromosome if using alternative assembly"
+    if defined $alternate_assembly && ! defined $alternate_brkchr;
+  croak "Error: must specify alternative assembly if using alternative brkchr"
+    if defined $alternate_brkchr && ! defined $alternate_assembly;
 
 
 	exit unless $result;
@@ -377,6 +383,8 @@ $arg{"metafile","File containing meta data for one experiment per row - follow c
 $arg{"seqdir","Directory containing all input sequence files"}
 $arg{"outdir","Directory for results files"}
 $arg{"--which","Only run specific jobs, numbered by order in metafile"}
+$arg{"--assembly","Overwrite the assembly in metafile and use an alternative assembly"}
+$arg{"--brkchr","Overwrite the break chromosome in metafile and use an alternative chromosome name"}
 $arg{"--bsub","Submit as LSF jobs"}
 $arg{"--bsub-opt","Specify bsub options different from default",$default_bsub_opt}
 $arg{"--threads","Number of libraries to run at once",$pipeline_threads}

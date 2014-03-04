@@ -30,6 +30,16 @@ require "TranslocHelper.pl";
 require "TranslocFilters.pl";
 
 
+my $GENOME_DB = $ENV{'GENOME_DB'};
+defined $GENOME_DB or croak "Error: set environment variable GENOME_DB";
+
+my $BOWTIE2_INDEXES = $ENV{'BOWTIE2_INDEXES'};
+defined $BOWTIE2_INDEXES or croak "Error: set environment variable BOWTIE2_INDEXES";
+
+
+
+
+
 # Flush output after every write
 select( (select(STDOUT), $| = 1 )[0] );
 
@@ -165,7 +175,7 @@ my $expt = basename($workdir);
 my $expt_stub = "$workdir/$expt";
 
 
-my $assembly_fa = $ENV{'GENOME_DB'}."/$assembly/$assembly.fa";
+my $assembly_fa = "$GENOME_DB/$assembly/$assembly.fa";
 my $break_bt2idx;
 if (defined $break_fa) {
   my @brk_file_path = parseFilename($break_fa);
@@ -384,7 +394,7 @@ sub align_to_genome {
 
   print "\nRunning Bowtie2 alignment for $expt against $assembly genome \n";
 
-  my $R1_bt2_cmd = "bowtie2 $bt2_opt -x $assembly -U $read1 -S $R1_sam";
+  my $R1_bt2_cmd = "bowtie2 $bt2_opt -x $BOWTIE2_INDEXES/$assembly -U $read1 -S $R1_sam";
 
   System($R1_bt2_cmd);
 
@@ -392,7 +402,7 @@ sub align_to_genome {
   System("touch $R1_bam",1);
 
   if (defined $read2) {
-    my $R2_bt2_cmd = "bowtie2 $bt2_opt -x $assembly -U $read2 -S $R2_sam";
+    my $R2_bt2_cmd = "bowtie2 $bt2_opt -x $BOWTIE2_INDEXES/$assembly -U $read2 -S $R2_sam";
 
     System($R2_bt2_cmd);
 
@@ -1078,17 +1088,20 @@ sub post_process_junctions {
   (my $html_reads = $tlxfile) =~ s/tlx$/html/;
   System("TranslocHTMLReads.pl $tlxfile $html_reads --primer ".$brksite->{primer}->seq." --adapter ".$adaptseq->seq);  
 
-  (my $pdf_plot = $tlxfile) =~ s/tlx$/pdf/;
+  if ($assembly =~ /^(hg\d+|mm\d+)$/) {
 
-  System("TranslocPlot.R $tlxfile $pdf_plot binsize=2000000 strand=2 assembly=$assembly " .
-          "brkchr=$brk_chr brksite=" .($brk_strand eq "+" ? $brk_end : $brk_start) ." brkstrand=" . ($brk_strand eq "+" ? "1" : "-1") );
+    (my $pdf_plot = $tlxfile) =~ s/tlx$/pdf/;
 
-  (my $pdf_plot_breaksite = $pdf_plot) =~ s/\.pdf/_brksite.pdf/;
+    System("TranslocPlot.R $tlxfile $pdf_plot binsize=2000000 strand=2 assembly=$assembly " .
+            "brkchr=$brk_chr brksite=" .($brk_strand eq "+" ? $brk_end : $brk_start) ." brkstrand=" . ($brk_strand eq "+" ? "1" : "-1") );
 
-  System("TranslocPlot.R $tlxfile $pdf_plot_breaksite strand=0 assembly=$assembly " .
-        "brkchr=$brk_chr brksite=" .($brk_strand eq "+" ? $brk_end : $brk_start) ." brkstrand=" . ($brk_strand eq "+" ? "1" : "-1") .
-        " chr=$brk_chr rmid=" .($brk_strand eq "+" ? $brk_end : $brk_start) ." rwindow=5000 binnum=100 plottype=linear" );
 
+    (my $pdf_plot_breaksite = $pdf_plot) =~ s/\.pdf/_brksite.pdf/;
+
+    System("TranslocPlot.R $tlxfile $pdf_plot_breaksite strand=0 assembly=$assembly " .
+          "brkchr=$brk_chr brksite=" .($brk_strand eq "+" ? $brk_end : $brk_start) ." brkstrand=" . ($brk_strand eq "+" ? "1" : "-1") .
+          " chr=$brk_chr rmid=" .($brk_strand eq "+" ? $brk_end : $brk_start) ." rwindow=5000 binnum=100 plottype=linear" );
+  }
 }
 
 sub write_stats_file {
