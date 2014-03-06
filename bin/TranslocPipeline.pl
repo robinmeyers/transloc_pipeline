@@ -332,7 +332,7 @@ print("\nStats\n".join("\n","Total Reads: ".$stats->{totalreads},
                           "SequentialJuncs: ".$stats->{sequentialjuncs}." (".$stats->{sequential_reads}.")",
                           "Dedup: ".$stats->{dedup})."\n");
 
-clean_up unless $no_clean || $skip_alignment || $skip_process || $skip_dedup;
+clean_up unless $no_clean;
 
 
 #
@@ -1136,8 +1136,7 @@ sub clean_up {
 
   print "\nCleaning up\n";
 
-  System("rm ${expt_stub}*.sam");
-
+  unlink glob "${expt_stub}*.sam";
 
 }
 
