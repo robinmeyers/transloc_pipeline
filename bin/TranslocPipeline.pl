@@ -325,9 +325,9 @@ printf("\nFinished all processes in %.2f seconds.\n", $t1);
 print("\nStats\n".join("\n","Total Reads: ".$stats->{totalreads},
                           "Aligned: ".$stats->{aligned},
                           "Junctions: ".$stats->{junctions}." (".$stats->{junc_reads}.")",
-                          "MapQuality: ".$stats->{mapqual}." (".$stats->{mapq_reads}.")",
                           "Priming: ".$stats->{priming}." (".$stats->{prim_reads}.")",
                           "FrequentCutter: ".$stats->{freqcut}." (".$stats->{freq_reads}.")",
+                          "MapQuality: ".$stats->{mapqual}." (".$stats->{mapq_reads}.")",
                           "Breaksite: ".$stats->{breaksite}." (".$stats->{break_reads}.")",
                           "SequentialJuncs: ".$stats->{sequentialjuncs}." (".$stats->{sequential_reads}.")",
                           "Dedup: ".$stats->{dedup})."\n");
@@ -480,7 +480,7 @@ sub process_alignments {
   }
 
   if ($brksite->{endogenous}) {
-    my $primer_check = $R1_samobj->seq($brksite->{chr},$brksite->{start},$brksite->{end});
+    my $primer_check = $R1_samobj->seq($brksite->{chr},$brksite->{start},$brksite->{end}-1);
     $primer_check = reverseComplement($primer_check) if $brksite->{strand} eq "-";
     print $brksite->{primer}->seq ." $primer_check\n"; 
     croak "Error: primer sequence does not match reference genome"
@@ -794,13 +794,6 @@ sub process_optimal_coverage_set ($$$) {
   $stats->{junctions} += $junctions;
   $stats->{junc_reads}++ if $junctions > 0;
 
-  # print "filter map quality\n";
-  my $quality_maps = filter_mapping_quality($tlxls,$R1_alns,$R2_alns,
-                                      $mapq_ol_thresh,$mapq_score_thresh,$max_frag_len);
-
-  $stats->{mapqual} += $quality_maps;
-  $stats->{mapq_reads}++ if $quality_maps > 0;
-
   # print "filter mispriming\n";
   my $correct_priming = filter_mispriming($tlxls,$brksite);
 
@@ -813,12 +806,19 @@ sub process_optimal_coverage_set ($$$) {
   $stats->{freqcut} += $no_freq_cutter;
   $stats->{freq_reads}++ if $no_freq_cutter > 0;
 
+  # print "filter map quality\n";
+  my $quality_maps = filter_mapping_quality($tlxls,$R1_alns,$R2_alns,
+                                      $mapq_ol_thresh,$mapq_score_thresh,$max_frag_len);
+
+  $stats->{mapqual} += $quality_maps;
+  $stats->{mapq_reads}++ if $quality_maps > 0;
+
+
   # print "filter breaksite\n";
   my $outside_breaksite = filter_breaksite($tlxls);
 
   $stats->{breaksite} += $outside_breaksite;
   $stats->{break_reads}++ if $outside_breaksite > 0;
-
 
 
   # print "filter sequential juctions\n";
@@ -1111,9 +1111,9 @@ sub write_stats_file {
   $statsfh->print(join("\t","TotalReads",
                             "Aligned",
                             "Junctions",
-                            "MappingQuality",
                             "Priming",
                             "FrequentCutter",
+                            "MappingQuality",                            
                             "Breaksite",
                             "SequentialJuncs",
                             "DeDup")."\n");
@@ -1121,9 +1121,9 @@ sub write_stats_file {
   $statsfh->print(join("\t",$stats->{totalreads},
                             $stats->{aligned},
                             $stats->{junctions}." (".$stats->{junc_reads}.")",
-                            $stats->{mapqual}." (".$stats->{mapq_reads}.")",
                             $stats->{priming}." (".$stats->{prim_reads}.")",
                             $stats->{freqcut}." (".$stats->{freq_reads}.")",
+                            $stats->{mapqual}." (".$stats->{mapq_reads}.")",                            
                             $stats->{breaksite}." (".$stats->{break_reads}.")",
                             $stats->{sequentialjuncs}." (".$stats->{sequential_reads}.")",
                             $stats->{dedup})."\n");
