@@ -242,7 +242,7 @@ sub check_validity_of_metadata ($) {
   push(@chrlist,qw(X Y));
   @chrlist = map {"chr" . $_} @chrlist;
   croak "Metadata error: chr must be valid" unless $expt->{chr} ~~ @chrlist; 
-  croak "Metadata error: end must be greater than start" unless $expt->{end} > $expt->{start};
+  croak "Metadata error: end must not be less than start" if $expt->{end} < $expt->{start};
   croak "Metadata error: strand must be one of + or -" unless $expt->{strand} ~~ [qw(+ -)];
 
   croak "Metadata error: breaksite sequence contains non AGCT characters" unless $expt->{breakseq} =~ /^[AGCTagct]*$/;
