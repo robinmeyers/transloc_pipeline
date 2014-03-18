@@ -45,46 +45,56 @@ colClasses <- rep(NA,length(header))
 colClasses[match(headersToSkip,header)] <- "NULL"
 
 tlxs <- read.delim(tlxfile,header=T,colClasses=colClasses,as.is=T)
+
+
 tlxs <- tlxs[with(tlxs,order(Rname,Strand,Junction)),]
 
 tlxs$Offset <- with(tlxs,ifelse(Strand==1,Junction-Qstart,Junction+Qstart))
 tlxs$B_Junction <- with(tlxs,ifelse(B_Strand==1,B_Rend,B_Rstart))
 tlxs$B_Offset <- with(tlxs,ifelse(B_Strand==1,B_Junction-B_Qend,B_Junction+B_Qend))
 
-tlxs_by_chr_and_strand <- split(tlxs,list(tlxs$Rname,tlxs$Strand))
+if (nrow(tlxs) > 0) {
+
+  tlxs_by_chr_and_strand <- split(tlxs,list(tlxs$Rname,tlxs$Strand))
 
 
-findDuplicates <- function(n,tlxs) {
-  tlx <- tlxs[n,]
-  matches <- subset(tlxs, Qname>tlx$Qname &
-                      abs(Offset-tlx$Offset)<=qdist & abs(Junction-tlx$Junction)<=rdist &
-                      abs(B_Offset-tlx$B_Offset)<=qdist & abs(B_Junction-tlx$B_Junction)<=rdist)
-  if (nrow(matches) > 0) {
-    return(paste(paste(matches$Qname,"(",matches$B_Junction-tlx$B_Junction,",",matches$Junction-tlx$Junction,")",sep="")[1:min(nrow(matches),3)],collapse=","))
-  } else {
-    return("")
+  findDuplicates <- function(n,tlxs) {
+    tlx <- tlxs[n,]
+    matches <- subset(tlxs, Qname>tlx$Qname &
+                        abs(Offset-tlx$Offset)<=qdist & abs(Junction-tlx$Junction)<=rdist &
+                        abs(B_Offset-tlx$B_Offset)<=qdist & abs(B_Junction-tlx$B_Junction)<=rdist)
+    if (nrow(matches) > 0) {
+      return(paste(paste(matches$Qname,"(",matches$B_Junction-tlx$B_Junction,",",matches$Junction-tlx$Junction,")",sep="")[1:min(nrow(matches),3)],collapse=","))
+    } else {
+      return("")
+    }
   }
-}
 
-if (cores == 0) {
-  cores <- detectCores()
-}
-
-cat("Deduplicating junctions on",cores,"cores\n")
-print(object.size(tlxs_by_chr_and_strand),units="Mb")
-tlxs <- ldply(lapply(1:length(tlxs_by_chr_and_strand),function (n,tlxs) {
-  if (nrow(tlxs[[n]]) > 0) {
-    
-    cat(nrow(tlxs[[n]])," - ")
-    print(object.size(tlxs[[n]]),units="Mb")
-    
-    dups <- mclapply(1:nrow(tlxs[[n]]),findDuplicates,tlxs[[n]][,c("Qname","Offset","Junction","B_Offset","B_Junction")],mc.cores=cores)
-    
-    print(object.size(dups),units="Mb")
-    
-    tlxs[[n]]$Dups <- unlist(dups)
-    return(tlxs[[n]])
+  if (cores == 0) {
+    cores <- detectCores()
   }
-},tlxs_by_chr_and_strand))
+
+
+
+  cat("Deduplicating junctions on",cores,"cores\n")
+  print(object.size(tlxs_by_chr_and_strand),units="Mb")
+  tlxs <- ldply(lapply(1:length(tlxs_by_chr_and_strand),function (n,tlxs) {
+    if (nrow(tlxs[[n]]) > 0) {
+      
+      cat(nrow(tlxs[[n]])," - ")
+      print(object.size(tlxs[[n]]),units="Mb")
+      
+      dups <- mclapply(1:nrow(tlxs[[n]]),findDuplicates,tlxs[[n]][,c("Qname","Offset","Junction","B_Offset","B_Junction")],mc.cores=cores)
+      
+      print(object.size(dups),units="Mb")
+      
+      tlxs[[n]]$Dups <- unlist(dups)
+      return(tlxs[[n]])
+    }
+  },tlxs_by_chr_and_strand))
 
 write.table(tlxs[tlxs$Dups != "",c("Qname","Dups")],output,sep="\t",quote=F,na="",row.names=F,col.names=F)
+
+} else {
+  cat("Qname\tDups",file=output)
+}

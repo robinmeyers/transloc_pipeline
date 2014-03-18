@@ -113,6 +113,8 @@ tlx <- read.delim(tlxfile,header=T,colClasses=colClasses)
 
 tlxtot <- nrow(tlx)
 
+if (tlxtot < 1) quit()
+
 tlx <- tlx[tlx$Rname %in% names(chrlen),]
 if (strand == 1 || strand == -1) {
   tlx <- tlx[tlx$Strand == strand,]
