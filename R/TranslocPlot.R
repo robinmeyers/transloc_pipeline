@@ -48,13 +48,13 @@ if (commandArgs()[1] != "RStudio") {
   binfile <- "~/Working/TranslocTesting/TranslocPlot_bins.txt"
   binsize <- 2000000
   assembly <- "mm9"
-  featurefile <- ""
-  chr <- "chr15"
+  featurefile <- "~/Desktop/mm9-TCRlocifeaturefilea.txt"
+  chr <- "chr14"
   strand <- 0
   rstart <- 0
   rend <- 0
-  rmid <- 0
-  rwindow <- 0
+  rmid <- 54733143
+  rwindow <- 100
   binnum <- 100
   showM <- 0
   showY <- 0
@@ -71,7 +71,6 @@ if (chr == "") plottype <- "dot"
 if (strand == 2) plotshape <- "octogon"
 
 
-suppressPackageStartupMessages(library(Rsamtools))
 suppressPackageStartupMessages(library(Rsamtools))
 suppressPackageStartupMessages(library(GenomicRanges))
 suppressPackageStartupMessages(library(grid))
@@ -103,13 +102,12 @@ if (chr != "") {
 gr <- createGenomicRanges(chrlen,rstart=rstart,rend=rend,rmid=rmid,rwindow=rwindow,binsize=binsize,binnum=binnum)
 binsize <- end(gr)[length(gr)] - start(gr)[length(gr)] + 1
 
-header <- readHeader(tlxfile)
 
-columnsToRead <- c("Qname","Rname","Junction","Strand","B_Rend","B_Qend","Qstart")
 
-colClasses <- proColumnClasses(header,columnsToRead)
+columnsToRead <- c("Rname","Junction","Strand")
+tlx <- readTLX(tlxfile,columnsToRead)
 
-tlx <- read.delim(tlxfile,header=T,colClasses=colClasses)
+
 
 tlxtot <- nrow(tlx)
 
@@ -121,7 +119,8 @@ if (strand == 1 || strand == -1) {
 } else if (strand == 2) {
   tlx$Strand <- 1
 }
-tlxgr <- GRanges(seqnames=tlx$Rname,ranges=IRanges(start=tlx$Junction,end=tlx$Junction),strand=ifelse(tlx$Strand==1,"+","-"),seqlengths=chrlen)
+
+tlxgr <- tlxToGR(tlx,chrlen)
 
 gr$hits <- countOverlaps(gr,tlxgr)
 
@@ -270,13 +269,13 @@ if (length(chrlen) > 1) {
   
   grid.rect(y=unit(0,"native"),height=unit(chrwidth,chrwidthunit))  
     
-  if (rend - rstart < 2000000) {
+  if (rend - rstart < 2000000 || featurefile != "") {
     features <- subset(features,Chr == chr & End >= rstart & Start <= rend)
     features <- features[!duplicated(features$Name),]
     features <- features[with(features,order(Start)),]
     features$Start <- ifelse(features$Start < rstart, rstart, features$Start)
     features$End <- ifelse(features$End > rend, rend, features$End)
-    if (nrow(features) > 1) {
+    if (nrow(features) > 0) {
       grid.rect(x=unit(features$Start,"native"),y=unit(0,"native"),width=unit(features$End-features$Start,"native"),height=unit(chrwidth,chrwidthunit),just="left",gp=gpar(fill=getCytoColor()["gpos25"]))
       featureVP <- viewport(name="feature",y=unit(0,"npc"),height=unit(2,"lines"),just="top",xscale=c(rstart,rend),clip="off")
       pushViewport(featureVP)

@@ -1,3 +1,66 @@
+removeHotSpots <- function(tlxgr,hotspotfile) {
+  hotspots <- import(hotspotfile)
+  tlxgr <- tlxgr[tlxgr %outside% hotspots]
+  return(tlxgr)
+}
+
+tlxToBW <- function(tlxgr,mapfile,chrlen,binsize,strand=0) {
+  
+  mapbw <- BigWigFile(normalizePath(mapfile))
+  gr <- createGenomicRanges(chrlen,binsize=binsize,strand=strand)
+    
+
+  
+  gr$hits <- countOverlaps(gr,tlxgr)
+  
+  gr$mapability <- unlist(lapply(split(gr,seqnames(gr)),function(gr,bwf) {
+    print(paste("calculating mapability on",seqnames(gr)[1]))
+    unlist(mclapply(split(gr,1:length(gr)),calculateMapability,bwf,mc.cores=cores))
+  }, mapbw))
+  
+  gr <- gr[gr$mapability > 0]
+  
+  
+  gr$dens <- gr$hits/(gr$mapability*(end(gr)-start(gr)+1))
+  gr$adjHits <- gr$dens*binsize
+  gr$score <- gr$adjHits
+  
+  return(gr)
+}
+
+readTLX <- function(tlxfile,columnsToRead = c(),columnsToIgnore = c()) {
+  if (length(columnsToRead) > 0) {
+    header <- readHeader(tlxfile)
+    colClasses <- proColumnClasses(header,columnsToRead)
+    tlx <- read.delim(tlxfile,header=T,colClasses=colClasses,as.is=T)
+  } else if (length(columnsToIgnore) > 0 ) {
+    header <- readHeader(tlxfile)
+    colClasses <- antiColumnClasses(header,columnsToIgnore)
+    tlx <- read.delim(tlxfile,header=T,colClasses=colClasses,as.is=T)
+  } else {
+    tlx <- read.delim(tlxfile,header=T,as.is=T)
+  }
+
+  return(tlx)
+}
+
+tlxToGR <- function(tlx,chrlen,strand=0) {
+  tlx <- tlx[tlx$Rname %in% names(chrlen),]
+  
+  if (strand == 1 || strand == -1) {
+    tlx <- tlx[tlx$Strand == strand,]
+  }
+  gr <- GRanges(seqnames=tlx$Rname,ranges=IRanges(start=tlx$Junction,end=tlx$Junction),strand=ifelse(tlx$Strand==1,"+","-"),seqlengths=chrlen)
+  return(gr)
+}
+
+calculateMapability <- function(range,bwf) {
+  mapbw <- import(bwf,selection=range)
+  if (length(mapbw) < 1) return(0)
+  mapability <- sum((end(mapbw) - start(mapbw) + 1) * mapbw$score) / (tail(end(mapbw),n=1) - start(mapbw[1]))
+  return(mapability)
+}
+
 plotJunctions <- function (gr,binsize,strand=1,plottype="dot",plotshape="arrow",pal=NULL,rotateVP=0) {
 
   if (sum(gr$hits) < 1) return()
@@ -149,35 +212,37 @@ printHeader <- function(tlxfile,tlxdisp,tlxtot,assembly,chr,denom,pal,plottype,p
 #   grid.text(titletext,gp=gpar(cex=min(2,1/convertHeight(stringHeight(titletext),"npc",valueOnly=T),1/convertWidth(stringWidth(titletext),"npc",valueOnly=T))))
 }
 
-createGenomicRanges <- function (chrlen,rstart=0,rend=0,rmid=0,rwindow=0,binsize=0,binnum=0) {
+createGenomicRanges <- function (chrlen,rstart=0,rend=0,rmid=0,rwindow=0,binsize=0,binnum=0,strand=0) {
   if (length(chrlen) > 1) {
     rends <- unlist(lapply(chrlen,function(x){rev(seq(from=x,to=1,by=-binsize,))}))
     rstarts <- unlist(lapply(rends,function(rend){ max(1,rend-binsize+1) } ))
-    chrs <- rep(names(chrlen),c(ceiling((chrlen)/binsize)))
-    strands <- rep(c("+","-"),each=length(chrs))
+    chrs <- Rle(names(chrlen),c(ceiling((chrlen)/binsize)))
   } else if (rmid != 0 && rwindow != 0) {
     if (binnum != 0) binsize <- ceiling(2*rwindow/binnum)
     rstarts <- c(rev(seq(from=rmid-binsize,to=rmid-rwindow,by=-binsize)),seq(from=rmid,to=rmid+rwindow-binsize,by=binsize))
     rends <- rstarts + binsize - 1
-    chrs <- rep(names(chrlen),length(rstarts))
-    strands <- rep(c("+","-"),each=length(chrs))
+    chrs <- Rle(names(chrlen),length(rstarts))
   } else if (rstart != 0 && rend != 0 ) {
     if (binnum != 0) binsize <- ceiling((rend-rstart+1)/binnum)
     rstarts <- seq(from=rstart,to=rend-1,by=binsize)
     rends <- rstarts + binsize - 1
-    chrs <- rep(names(chrlen),length(rstarts))
-    strands <- rep(c("+","-"),each=length(chrs))
+    chrs <- Rle(names(chrlen),length(rstarts))
   } else {
     rstart <- 1
     rend <- chrlen
     if (binnum != 0) binsize <- ceiling((rend-rstart+1)/binnum)
     rends <- rev(seq(from=rend,to=rstart,by=-binsize))
     rstarts <- unlist(lapply(rends,function(rend){max(1,rend-binsize+1)}))
-    chrs <- rep(names(chrlen),length(rstarts))
-    strands <- rep(c("+","-"),each=length(chrs))
+    chrs <- Rle(names(chrlen),length(rstarts))
   }
-    
-  gr <- GRanges(seqnames=rep(chrs,2),ranges=IRanges(start=rep(rstarts,2),end=rep(rends,2)),strand=strands,seqlengths=chrlen)
+
+  if (strand == 0) {
+    strands <- Rle(c("+","-"),rep(length(chrs),2))
+    gr <- GRanges(seqnames=rep(chrs,2),ranges=IRanges(start=rep(rstarts,2),end=rep(rends,2)),strand=strands,seqlengths=chrlen)
+  } else {
+    strands <- Rle("*",length(chrs))
+    gr <- GRanges(seqnames=chrs,ranges=IRanges(start=rstarts,end=rends),strand=strands,seqlengths=chrlen)
+  }
   seqlevels(gr) <- names(chrlen)
   return(gr)
 } 
