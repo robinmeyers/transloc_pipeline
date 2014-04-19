@@ -334,7 +334,8 @@ sub clean_up {
 
 	print "\nCleaning up\n";
 
-	System("rm $outdir/multx/*");
+	# Do not delete demultiplexed files - need for data submission
+	# System("rm $outdir/multx/*");
 
 	unless ($join) {
 		System("mv $outdir/trim/* $outdir/" );
