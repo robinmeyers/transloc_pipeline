@@ -50,7 +50,7 @@ my $print_only;
 
 my $bsub;
 my $user_bsub_opt = "";
-my $default_bsub_opt = "-q mcore -n 4 -W 72:00 -R \"rusage[mem=16000]\"";
+my $default_bsub_opt = "-q mcore -n 4 -W 12:00";
 
 
 # Global variabless
