@@ -108,8 +108,8 @@ my $PE_pen_default = 20;
 
 my $min_bases_after_primer = 10;
 my $max_bases_after_cutsite = 10;
-my $mapq_ol_thresh = 0.9;
-my $mapq_score_thresh = 0.9;
+my $mapq_ol_thresh = 0.95;
+my $mapq_score_thresh = 0.95;
 
 my $dedup_offset_dist = 2;
 my $dedup_break_dist = 2;
@@ -172,6 +172,15 @@ my $default_bowtie_opt = "--local -D 20 -R 3 -N 1 -L 20 -i C,8 --ma 2 --mp 10,6 
 my $bt2_break_opt = manage_program_options($default_bowtie_breaksite_opt,$user_bowtie_breaksite_opt);
 my $bt2_adapt_opt = manage_program_options($default_bowtie_adapter_opt,$user_bowtie_adapter_opt);
 my $bt2_opt = manage_program_options($default_bowtie_opt,$user_bowtie_opt);
+
+
+croak "Error: cannot find match award in bowtie2 options" unless $bt2_opt =~ /-ma (\d+)/;
+my $match_award = $1;
+croak "Error: cannot find mismatch penalty in bowtie2 options" unless $bt2_opt =~ /-mp (\d+),\d+/
+my $mismatch_penalty = $1;
+
+carp "Warning: match award in bowtie2 does not equal OCS overlap penalty" unless $match_award eq $OL_mult;
+
 
 my $t0 = [gettimeofday];
 
@@ -819,7 +828,8 @@ sub process_optimal_coverage_set ($$$) {
 
   # print "filter map quality\n";
   my $quality_maps = filter_mapping_quality($tlxls,$R1_alns,$R2_alns,
-                                      $mapq_ol_thresh,$mapq_score_thresh,$max_frag_len);
+                                      $mapq_ol_thresh,$mapq_score_thresh,$max_frag_len,
+                                      $match_award,$mismatch_penalty);
 
   $stats->{mapqual} += $quality_maps;
   $stats->{mapq_reads}++ if $quality_maps > 0;
