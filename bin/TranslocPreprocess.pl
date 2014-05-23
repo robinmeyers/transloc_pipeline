@@ -196,7 +196,7 @@ sub create_barcode_file {
 	foreach my $expt (sort keys %meta) {
 		$meta{$expt}->{R1} = "$outdir/multx/${expt}_R1.fq.gz";
 		$meta{$expt}->{R2} = "$outdir/multx/${expt}_R2.fq.gz";
-		my $barcode = substr($meta{$expt}->{mid}.$meta{$expt}->{primer},0,$bc_len);
+		my $barcode = uc(substr($meta{$expt}->{mid}.$meta{$expt}->{primer},0,$bc_len));
 		$bcfh->print(join("\t",$expt,$barcode)."\n");
 		print "$expt $barcode\n";
 	}

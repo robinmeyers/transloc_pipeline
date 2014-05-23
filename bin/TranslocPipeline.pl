@@ -52,6 +52,7 @@ select( (select(STDOUT), $| = 1 )[0] );
 
 # Forward declarations
 sub parse_command_line;
+sub write_parameters_file;
 sub align_to_breaksite;
 sub align_to_adapter;
 sub align_to_genome;
@@ -66,6 +67,8 @@ sub write_stats_file;
 sub clean_up;
 
 
+my $commandline;
+my $local_time;
 
 # Global flags and arguments, 
 # Set by command line arguments
@@ -89,29 +92,28 @@ my $dedup_threads = 4;
 my $skip_alignment;
 my $skip_process;
 my $skip_dedup;
+my $no_dedup;
 my $no_clean;
 
 
+
+
+# OL_mult must be set the same as --ma in bowtie2 options
+my $OL_mult = 2;
+my $maximum_brk_start_dif = 20;
+my $Dif_mult = 2;
+my $Brk_pen_default = 40;
+my $max_frag_len = 1500;
+my $PE_pen_default = 20;
+
 my $min_bases_after_primer = 10;
 my $max_bases_after_cutsite = 10;
-my $mapq_ol_thresh = 0.8;
-my $mapq_score_thresh = 0.8;
+my $mapq_ol_thresh = 0.9;
+my $mapq_score_thresh = 0.9;
 
+my $dedup_offset_dist = 2;
+my $dedup_break_dist = 2;
 
-my $OL_mult = 2;
-my $Dif_mult = 1;
-my $Brk_pen_min = 40;
-my $Brk_pen_power = 4;
-my $Brk_pen_max = 40;
-my $Brk_dist_max = 100000000;
-my $Brk_pen_mult = ($Brk_pen_max-$Brk_pen_min)/(log10($Brk_dist_max)**$Brk_pen_power);
-
-# print "$Brk_pen_mult\n";
-
-my $max_frag_len = 1500;
-my $PE_pen_min = 10;
-my $PE_pen_max = 40;
-my $PE_pen_mult = ($PE_pen_max-$PE_pen_min)/$max_frag_len;
 
 
 
@@ -152,16 +154,20 @@ $stats->{final} = 0;
 #
 parse_command_line;
 
+
 if ($bowtie_threads == 0) {
   my $info = Sys::Info->new;
   my $cpu  = $info->device( 'CPU'  );
   $bowtie_threads = 2*$cpu->count;
 }
 
-my $default_bowtie_adapter_opt = "--local -D 20 -R 3 -N 1 -L 10 -i C,6 --score-min C,20 -p $bowtie_threads --no-unal --reorder -t";
-my $default_bowtie_breaksite_opt = "--local -D 15 -R 2 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $bowtie_threads -k 20 --no-unal --reorder -t";
-my $default_bowtie_opt = "--local -D 15 -R 2 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $bowtie_threads -k 50 --reorder -t";
+# my $default_bowtie_adapter_opt = "--local -D 20 -R 3 -N 1 -L 10 -i C,6 --score-min C,20 -p $bowtie_threads --no-unal --reorder -t";
+# my $default_bowtie_breaksite_opt = "--local -D 15 -R 2 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $bowtie_threads -k 20 --no-unal --reorder -t";
+# my $default_bowtie_opt = "--local -D 15 -R 2 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $bowtie_threads -k 50 --reorder -t";
 
+my $default_bowtie_adapter_opt = "--local -D 20 -R 3 -N 1 -L 10 -i C,6 --ma 2 --mp 6,2 --np 1 --rdg 5,3 --rfg 5,3 --score-min C,20 --no-unal -p $bowtie_threads --reorder -t";
+my $default_bowtie_breaksite_opt = "--local -D 20 -R 3 -N 1 -L 20 -i C,8 --ma 2 --mp 10,6 --np 2 --rdg 6,4 --rfg 6,4 --score-min C,50 -k 5 --no-unal -p $bowtie_threads  --reorder -t";
+my $default_bowtie_opt = "--local -D 20 -R 3 -N 1 -L 20 -i C,8 --ma 2 --mp 10,6 --np 2 --rdg 6,4 --rfg 6,4 --score-min C,50 -k 20 -p $bowtie_threads --reorder -t";
 
 my $bt2_break_opt = manage_program_options($default_bowtie_breaksite_opt,$user_bowtie_breaksite_opt);
 my $bt2_adapt_opt = manage_program_options($default_bowtie_adapter_opt,$user_bowtie_adapter_opt);
@@ -208,7 +214,7 @@ my $unjoin_tlxfile = "${expt_stub}_unjoined.tlx";
 my ($tlxlfh,$tlxfh,$filt_tlxfh,$unjoin_tlxfh);
 
 my $statsfile = "${expt_stub}_stats.txt";
-
+my $paramsfile = "${expt_stub}_params.txt";
 my $dedup_output = "${expt_stub}_dedup.txt";
 
 
@@ -263,6 +269,10 @@ if (defined $cut_fa) {
 }
 
 
+write_parameters_file;
+
+
+
 unless ($skip_alignment || $skip_process || $skip_dedup) {
 
   align_to_breaksite unless $brksite->{endogenous};
@@ -301,11 +311,12 @@ unless ($skip_process || $skip_dedup) {
   croak "Error: could not find tlx file when skipping processing step" unless -r $tlxfile;
 }
 
-unless ($skip_dedup) {
+unless ($skip_dedup || $no_dedup) {
 
   deduplicate_junctions;
 
 } else {
+  $stats->{dedup} = $stats->{sequentialjuncs};
   croak "Error: could not find tlx file when skipping dedup step" unless -r $tlxfile;
 }
 
@@ -355,7 +366,7 @@ sub align_to_breaksite {
 
   System($R1_brk_bt2_cmd);
 
-  System("samtools view -bS -o $R1_brk_bam $R1_brk_sam") unless sam_file_is_empty($R1_brk_sam);
+  System("samtools view -bSh -o $R1_brk_bam $R1_brk_sam") unless sam_file_is_empty($R1_brk_sam);
   System("touch $R1_brk_bam",1);
 
   if (defined $read2) {
@@ -363,7 +374,7 @@ sub align_to_breaksite {
 
     System($R2_brk_bt2_cmd);
 
-    System("samtools view -bS -o $R2_brk_bam $R2_brk_sam") unless sam_file_is_empty($R2_brk_sam);
+    System("samtools view -bSh -o $R2_brk_bam $R2_brk_sam") unless sam_file_is_empty($R2_brk_sam);
     System("touch $R2_brk_bam",1);
   }
 }
@@ -377,7 +388,7 @@ sub align_to_adapter {
 
   System($R1_adpt_bt2_cmd);
 
-  System("samtools view -bS -o $R1_adpt_bam $R1_adpt_sam") unless sam_file_is_empty($R1_adpt_sam);
+  System("samtools view -bSh -o $R1_adpt_bam $R1_adpt_sam") unless sam_file_is_empty($R1_adpt_sam);
   System("touch $R1_adpt_bam",1);
 
   if (defined $read2) {
@@ -385,7 +396,7 @@ sub align_to_adapter {
 
     System($R2_adpt_bt2_cmd);
 
-    System("samtools view -bS -o $R2_adpt_bam $R2_adpt_sam") unless sam_file_is_empty($R2_adpt_sam);
+    System("samtools view -bSh -o $R2_adpt_bam $R2_adpt_sam") unless sam_file_is_empty($R2_adpt_sam);
     System("touch $R2_adpt_bam",1);
   }
 }
@@ -398,7 +409,7 @@ sub align_to_genome {
 
   System($R1_bt2_cmd);
 
-  System("samtools view -bS -o $R1_bam $R1_sam") unless sam_file_is_empty($R1_sam);
+  System("samtools view -bSh -o $R1_bam $R1_sam") unless sam_file_is_empty($R1_sam);
   System("touch $R1_bam",1);
 
   if (defined $read2) {
@@ -406,7 +417,7 @@ sub align_to_genome {
 
     System($R2_bt2_cmd);
 
-    System("samtools view -bS -o $R2_bam $R2_sam") unless sam_file_is_empty($R2_sam);
+    System("samtools view -bSh -o $R2_bam $R2_sam") unless sam_file_is_empty($R2_sam);
     System("touch $R2_bam",1);
   }
   
@@ -885,10 +896,10 @@ sub score_edge ($;$) {
       $Strand1 = $node1->{R2}->{Strand};
       $Rname2 = $node2->{R2}->{Rname};
       $Strand2 = $node2->{R2}->{Strand};
-      if ($Rname1 eq "Breaksite" && $Rname2 eq "Breaksite" && $Strand1 == 1 && $Strand2 == 1) {
-        return undef unless $node2->{R2}->{Rstart} > $node1->{R2}->{Rstart};
-        return undef unless $node2->{R2}->{Rend} > $node1->{R2}->{Rend};
-      }
+      # if ($Rname1 eq "Breaksite" && $Rname2 eq "Breaksite" && $Strand1 == 1 && $Strand2 == 1) {
+      #   return undef unless $node2->{R2}->{Rstart} > $node1->{R2}->{Rstart};
+      #   return undef unless $node2->{R2}->{Rend} > $node1->{R2}->{Rend};
+      # }
       $R2_Qgap = $node2->{R2}->{Qstart} - $node1->{R2}->{Qend} - 1;
       $R2_Rdist = find_genomic_distance($node1->{R2},$node2->{R2},$brksite);
       $Len1 += $node1->{R2}->{Qend} - $node1->{R2}->{Qstart} + 1;
@@ -906,10 +917,10 @@ sub score_edge ($;$) {
       $Strand1 = $node1->{R1}->{Strand};
       $Rname2 = $node2->{R1}->{Rname};
       $Strand2 = $node2->{R1}->{Strand};
-      if ($Rname1 eq "Breaksite" && $Rname2 eq "Breaksite" && $Strand1 == 1 && $Strand2 == 1) {
-        return undef unless $node2->{R1}->{Rstart} > $node1->{R1}->{Rstart};
-        return undef unless $node2->{R1}->{Rend} > $node1->{R1}->{Rend};
-      }
+      # if ($Rname1 eq "Breaksite" && $Rname2 eq "Breaksite" && $Strand1 == 1 && $Strand2 == 1) {
+      #   return undef unless $node2->{R1}->{Rstart} > $node1->{R1}->{Rstart};
+      #   return undef unless $node2->{R1}->{Rend} > $node1->{R1}->{Rend};
+      # }
       $R1_Qgap = $node2->{R1}->{Qstart} - $node1->{R1}->{Qend} - 1;
       $R1_Rdist = find_genomic_distance($node1->{R1},$node2->{R1},$brksite);
       $Len1 += $node1->{R1}->{Qend} - $node1->{R1}->{Qstart} + 1;
@@ -937,14 +948,14 @@ sub score_edge ($;$) {
 
     } elsif (defined $R1_Rdist) {
 
-      $Brk_pen = $R1_Rdist > 1 || $R1_Rdist < 0 ? $Brk_pen_min + $Brk_pen_mult * log10(abs($R1_Rdist))**$Brk_pen_power : 0;
+      $Brk_pen = $R1_Rdist > 1 || $R1_Rdist < 0 ? $Brk_pen_default : 0;
 
     } elsif (defined $R2_Rdist) {
-      $Brk_pen = $R2_Rdist > 1 || $R2_Rdist < 0 ? $Brk_pen_min + $Brk_pen_mult * log10(abs($R2_Rdist))**$Brk_pen_power : 0;
+      $Brk_pen = $R2_Rdist > 1 || $R2_Rdist < 0 ? $Brk_pen_default : 0;
 
     } else {
 
-      $Brk_pen = $Brk_pen_max;
+      $Brk_pen = $Brk_pen_default;
 
     }
 
@@ -960,7 +971,7 @@ sub score_edge ($;$) {
     }
 
     # $PEgap_pen = defined $PEgap && $PEgap > 1 ? $Brk_pen_min + $Brk_pen_mult * log10($PEgap)**$Brk_pen_power : 0;
-    $PEgap_pen = defined $PEgap && $PEgap > 1 ? $PE_pen_min + $PE_pen_mult * $PEgap : 0;
+    $PEgap_pen = defined $PEgap && $PEgap > 1 ? $PE_pen_default : 0;
     # print $node1->{R1}->{Qname}." - $PEgap - $PEgap_pen\n" if defined $PEgap;
 
     $score = $node1->{score} + $R1_AS + $R2_AS - $PEgap_pen - $Brk_pen - $OL_correction;
@@ -981,7 +992,6 @@ sub score_edge ($;$) {
                           abs($node1->{R1}->{Rstart} - $brksite->{primer_start}) :
                           abs($node1->{R1}->{Rend} - $brksite->{primer_start}) ;
 
-    my $maximum_brk_start_dif = 15;
     return undef unless $brk_start_dif < $maximum_brk_start_dif;
 
 
@@ -996,7 +1006,7 @@ sub score_edge ($;$) {
     }
 
     # $PEgap_pen = defined $PEgap && $PEgap > 1 ? $Brk_pen_min + $Brk_pen_mult * log10($PEgap)**$Brk_pen_power : 0;
-    $PEgap_pen = defined $PEgap && $PEgap > 1 ? $PE_pen_min + $PE_pen_mult * $PEgap : 0;
+    $PEgap_pen = defined $PEgap && $PEgap > 1 ? $PE_pen_default : 0;
     # print $node1->{R1}->{Qname}." - $PEgap - $PEgap_pen\n" if defined $PEgap;
 
     $score = $R1_AS + $R2_AS - $PEgap_pen - $Dif_mult * $brk_start_dif;
@@ -1011,7 +1021,12 @@ sub deduplicate_junctions {
 
 
 
-  my $dedup_cmd = "$FindBin::Bin/../R/TranslocDedup.R $tlxfile $dedup_output cores=$dedup_threads";
+  my $dedup_cmd = join(" ","$FindBin::Bin/../R/TranslocDedup.R",
+                          $tlxfile,
+                          $dedup_output,
+                          "cores=$dedup_threads",
+                          "offset_dist=$dedup_offset_dist",
+                          "break_dist=$dedup_break_dist") ;
 
   System($dedup_cmd);
 
@@ -1104,6 +1119,36 @@ sub post_process_junctions {
   }
 }
 
+sub write_parameters_file {
+  my $paramsfh = IO::File->new(">$paramsfile");
+
+  $paramsfh->print("$local_time\t$commandline\n\n");
+
+  $paramsfh->print(join("\n", map {join("\t",@$_)}
+    (["Alignment Options"],
+    ["Genome Bowtie2 Options", $bt2_opt],
+    ["Breaksite Bowtie2 Options", $bt2_break_opt],
+    ["Adapter Bowtie2 Options", $bt2_adapt_opt],
+    [],
+    ["Optimal Query Coverage Options"],
+    ["Break Penalty",$Brk_pen_default],
+    ["PE Gap Penalty",$PE_pen_default],
+    ["Overlap Penalty",$OL_mult],
+    ["Max Bait Offset",$maximum_brk_start_dif],
+    ["Bait Offset Penalty",$Dif_mult],
+    [],
+    ["Filtering Options"],
+    ["Max Bp After Cutsite", $max_bases_after_cutsite],
+    ["Min Bp After Primer", $min_bases_after_primer],
+    ["MapQuality Overlap Threshold", $mapq_ol_thresh],
+    ["MapQuality Score Threshold", $mapq_score_thresh],
+    [],
+    ["Dedup Options"],
+    ["Max Prey Offset Distance",$dedup_offset_dist],
+    ["Max Bait Junction Distance",$dedup_break_dist])));
+
+}
+
 sub write_stats_file {
 
   my $statsfh = IO::File->new(">$statsfile");
@@ -1145,6 +1190,8 @@ sub parse_command_line {
 
 	usage() if (scalar @ARGV == 0);
 
+  $commandline = join(" ",@ARGV);
+  $local_time = localtime;
 
 	my $result = GetOptions ( "read1=s" => \$read1,
                             "read2=s" => \$read2,
@@ -1165,6 +1212,7 @@ sub parse_command_line {
                             "skip-align" => \$skip_alignment,
                             "skip-process" => \$skip_process,
                             "skip-dedup" => \$skip_dedup,
+                            "no-dedup" => \$no_dedup,
                             "mapq-ol=f" => \$mapq_ol_thresh,
                             "mapq-score=f" => \$mapq_score_thresh,
                             "priming-bp=i" => \$min_bases_after_primer,
@@ -1225,6 +1273,7 @@ $arg{"--threads-dedup","Number of threads to run dedup on",$dedup_threads}
 $arg{"--skip-align"," "}
 $arg{"--skip-process"," "}
 $arg{"--skip-dedup"," "}
+$arg{"--no-dedup"," "}
 $arg{"--mapq-ol","",$mapq_ol_thresh}
 $arg{"--mapq-score","",$mapq_score_thresh}
 $arg{"--priming-bp","",$min_bases_after_primer}

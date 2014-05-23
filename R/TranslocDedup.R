@@ -8,8 +8,8 @@ if (commandArgs()[1] != "RStudio") {
   )
   
   OPTS <- c(
-    "qdist","numeric",2," ",
-    "rdist","numeric",10," ",
+    "offset_dist","numeric",2," ",
+    "break_dist","numeric",2," ",
     "cores","numeric",0,"Number of compute nodes to run on"
   )
   
@@ -51,7 +51,7 @@ tlxs <- tlxs[with(tlxs,order(Rname,Strand,Junction)),]
 
 tlxs$Offset <- with(tlxs,ifelse(Strand==1,Junction-Qstart,Junction+Qstart))
 tlxs$B_Junction <- with(tlxs,ifelse(B_Strand==1,B_Rend,B_Rstart))
-tlxs$B_Offset <- with(tlxs,ifelse(B_Strand==1,B_Junction-B_Qend,B_Junction+B_Qend))
+# tlxs$B_Offset <- with(tlxs,ifelse(B_Strand==1,B_Junction-B_Qend,B_Junction+B_Qend))
 
 if (nrow(tlxs) > 0) {
 
@@ -60,9 +60,12 @@ if (nrow(tlxs) > 0) {
 
   findDuplicates <- function(n,tlxs) {
     tlx <- tlxs[n,]
-    matches <- subset(tlxs, Qname>tlx$Qname &
-                        abs(Offset-tlx$Offset)<=qdist & abs(Junction-tlx$Junction)<=rdist &
-                        abs(B_Offset-tlx$B_Offset)<=qdist & abs(B_Junction-tlx$B_Junction)<=rdist)
+    matches <- subset(tlxs, 
+                        Qname>tlx$Qname &
+                        abs(Offset-tlx$Offset)<=offset_dist & 
+                        # abs(Junction-tlx$Junction)<=junc_dist &
+                        abs(B_Junction-tlx$B_Junction)<=break_dist & 
+                        abs(B_Qend-tlx$B_Qend)<=break_dist)
     if (nrow(matches) > 0) {
       return(paste(paste(matches$Qname,"(",matches$B_Junction-tlx$B_Junction,",",matches$Junction-tlx$Junction,")",sep="")[1:min(nrow(matches),3)],collapse=","))
     } else {
@@ -84,7 +87,7 @@ if (nrow(tlxs) > 0) {
       cat(nrow(tlxs[[n]])," - ")
       print(object.size(tlxs[[n]]),units="Mb")
       
-      dups <- mclapply(1:nrow(tlxs[[n]]),findDuplicates,tlxs[[n]][,c("Qname","Offset","Junction","B_Offset","B_Junction")],mc.cores=cores)
+      dups <- mclapply(1:nrow(tlxs[[n]]),findDuplicates,tlxs[[n]][,c("Qname","Offset","Junction","B_Junction","B_Qend")],mc.cores=cores)
       
       print(object.size(dups),units="Mb")
       

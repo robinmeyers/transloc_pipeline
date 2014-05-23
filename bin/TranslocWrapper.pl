@@ -199,7 +199,7 @@ sub read_in_meta_file {
 
 	print "\nReading in meta file...\n";
 
-  print join("\t",qw(. Library Researcher Chr Start End Strand))."\n";
+  print join("\t",qw(. Library Researcher Genome Chr Start End Strand))."\n";
 
 
 	my $metafh = IO::File->new("<$meta_file");
@@ -214,6 +214,7 @@ sub read_in_meta_file {
     
     print join("\t",$i,$expt->{library},
                       $expt->{researcher},
+                      $expt->{assembly},
                       $expt->{chr},
                       $expt->{start},
                       $expt->{end},
@@ -237,7 +238,7 @@ sub read_in_meta_file {
 sub check_validity_of_metadata ($) {
   my $expt = shift;
 
-  croak "Metadata error: assembly must be an mm or hg build" unless $expt->{assembly} =~ /^(hg\d+|mm\d+)$/;
+  # croak "Metadata error: assembly must be an mm or hg build" unless $expt->{assembly} =~ /^(hg\d+|mm\d+)$/;
   my @chrlist = 1..22;
   push(@chrlist,qw(X Y));
   @chrlist = map {"chr" . $_} @chrlist;
