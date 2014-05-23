@@ -176,7 +176,7 @@ my $bt2_opt = manage_program_options($default_bowtie_opt,$user_bowtie_opt);
 
 croak "Error: cannot find match award in bowtie2 options" unless $bt2_opt =~ /-ma (\d+)/;
 my $match_award = $1;
-croak "Error: cannot find mismatch penalty in bowtie2 options" unless $bt2_opt =~ /-mp (\d+),\d+/
+croak "Error: cannot find mismatch penalty in bowtie2 options" unless $bt2_opt =~ /-mp (\d+),\d+/;
 my $mismatch_penalty = $1;
 
 carp "Warning: match award in bowtie2 does not equal OCS overlap penalty" unless $match_award eq $OL_mult;
