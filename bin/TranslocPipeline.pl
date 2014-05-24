@@ -108,8 +108,9 @@ my $PE_pen_default = 20;
 
 my $min_bases_after_primer = 10;
 my $max_bases_after_cutsite = 10;
-my $mapq_ol_thresh = 0.95;
-my $mapq_score_thresh = 0.95;
+my $mapq_ol_thresh = 0.90;
+my $mapq_mismatch_thresh_int = 1.5;
+my $mapq_mismatch_thresh_coef = 0.01;
 
 my $dedup_offset_dist = 2;
 my $dedup_break_dist = 2;
@@ -828,8 +829,8 @@ sub process_optimal_coverage_set ($$$) {
 
   # print "filter map quality\n";
   my $quality_maps = filter_mapping_quality($tlxls,$R1_alns,$R2_alns,
-                                      $mapq_ol_thresh,$mapq_score_thresh,$max_frag_len,
-                                      $match_award,$mismatch_penalty);
+                                      $mapq_ol_thresh,$mapq_mismatch_thresh_int,$mapq_mismatch_thresh_coef,
+                                      $max_frag_len,$match_award,$mismatch_penalty);
 
   $stats->{mapqual} += $quality_maps;
   $stats->{mapq_reads}++ if $quality_maps > 0;
@@ -1151,7 +1152,8 @@ sub write_parameters_file {
     ["Max Bp After Cutsite", $max_bases_after_cutsite],
     ["Min Bp After Primer", $min_bases_after_primer],
     ["MapQuality Overlap Threshold", $mapq_ol_thresh],
-    ["MapQuality Score Threshold", $mapq_score_thresh],
+    ["MapQuality Mismatch Threshold Intercept", $mapq_mismatch_thresh_int],
+    ["MapQuality Mismatch Threshold Coefficient", $mapq_mismatch_thresh_coef],
     [],
     ["Dedup Options"],
     ["Max Prey Offset Distance",$dedup_offset_dist],
@@ -1224,7 +1226,8 @@ sub parse_command_line {
                             "skip-dedup" => \$skip_dedup,
                             "no-dedup" => \$no_dedup,
                             "mapq-ol=f" => \$mapq_ol_thresh,
-                            "mapq-score=f" => \$mapq_score_thresh,
+                            "mapq-mm-int=f" => \$mapq_mismatch_thresh_int,
+                            "mapq-mm-coef=f" => \$mapq_mismatch_thresh_coef,
                             "priming-bp=i" => \$min_bases_after_primer,
                             # "bowtie-opt=s" => \$user_bowtie_opt,
 				            				"help" => \$help
@@ -1242,7 +1245,7 @@ sub parse_command_line {
 
   croak "Error: priming-bp must be a positive integer" unless $min_bases_after_primer > 0;
   croak "Error: mapq-ol must be a fraction between 0 and 1" if $mapq_ol_thresh < 0 || $mapq_ol_thresh > 1;
-  croak "Error: mapq-score must be a fraction between 0 and 1" if $mapq_score_thresh < 0 || $mapq_score_thresh > 1;
+  # croak "Error: mapq-score must be a fraction between 0 and 1" if $mapq_score_thresh < 0 || $mapq_score_thresh > 1;
   
 	exit unless $result;
 }
@@ -1285,7 +1288,6 @@ $arg{"--skip-process"," "}
 $arg{"--skip-dedup"," "}
 $arg{"--no-dedup"," "}
 $arg{"--mapq-ol","",$mapq_ol_thresh}
-$arg{"--mapq-score","",$mapq_score_thresh}
 $arg{"--priming-bp","",$min_bases_after_primer}
 
 

@@ -50,18 +50,17 @@ sub filter_unjoined ($$) {
 }
 
 
-sub filter_mapping_quality ($$$$$$$$){
+sub filter_mapping_quality ($$$$$$$$$){
 
   my $tlxls_ref = shift;
   my $R1_alns_ref = shift;
   my $R2_alns_ref = shift;
   my $ol_thresh = shift;
-  my $score_thresh = shift;
+  my $mismatch_thresh_int = shift;
+  my $mismatch_thresh_coef = shift;
   my $max_frag_length = shift;
   my $match_award = shift;
   my $mismatch_penalty = shift;
-
-  my $score_difference_thresh = ($match_award + $mismatch_penalty) * (1 - $score_thresh);
 
   my @tlxls = @$tlxls_ref;
   my @R1_alns = @$R1_alns_ref;
@@ -84,37 +83,40 @@ sub filter_mapping_quality ($$$$$$$$){
     my @R1_OL;
     my @R2_OL;
     if (defined $tlxl->{R1_ID}) {
-      my $tlxl_R1_score = $tlxl->{R1_AS};
       my $tlxl_R1_length = $tlxl->{R1_Qend} - $tlxl->{R1_Qstart} + 1;
-      my $tlxl_R1_score_per_bp = ($tlxl_R1_score / $tlxl_R1_length) + $mismatch_penalty;
+      my $tlxl_R1_score = $tlxl->{R1_AS} + $mismatch_penalty * $tlxl_R1_length;
+      my $score_difference_thresh = ($match_award + $mismatch_penalty) * 
+                                    ($mismatch_thresh_int + $mismatch_thresh_coef * $tlxl_R1_length);
+      print(join("\t",$tlxl_R1_length,$tlxl_R1_score,$score_difference_thresh)."\n");
       foreach my $R1_aln (@R1_alns) {
         next unless defined $R1_aln->{ID} && $R1_aln->{ID} ne $tlxl->{R1_ID};
         next if $tlxl->{Rname} eq "Breaksite" && $R1_aln->{Rname} eq "Breaksite";
         my $overlap = min($tlxl->{R1_Qend},$R1_aln->{Qend}) - max($tlxl->{R1_Qstart},$R1_aln->{Qstart}) + 1;
-        my $score = $R1_aln->{AS};
         my $length = $R1_aln->{Qend} - $R1_aln->{Qstart} + 1;
-        my $score_per_bp = ($score / $length) + $mismatch_penalty
+        my $score = $R1_aln->{AS} + $mismatch_penalty * $length;
 
         if ($overlap > $ol_thresh * ($tlxl->{R1_Qend} - $tlxl->{R1_Qstart} + 1) 
-              && $score_per_bp > $tlxl_R1_score_per_bp - $score_difference_thresh) {
+              && $score > $tlxl_R1_score - $score_difference_thresh) {
           push (@R1_OL,$R1_aln);
         }
       }
     }
 
     if (defined $tlxl->{R2_ID}) {
-      my $tlxl_R2_score = $tlxl->{R2_AS};
       my $tlxl_R2_length = $tlxl->{R2_Qend} - $tlxl->{R2_Qstart} + 1;
-      my $tlxl_R2_score_per_bp = ($tlxl_R2_score / $tlxl_R2_length) + $mismatch_penalty;
+      my $tlxl_R2_score = $tlxl->{R2_AS} + $mismatch_penalty * $tlxl_R2_length;
+      my $score_difference_thresh = ($match_award + $mismatch_penalty) * 
+                                    ($mismatch_thresh_int + $mismatch_thresh_coef * $tlxl_R2_length);
       foreach my $R2_aln (@R2_alns) {
         next unless defined $R2_aln->{ID} && $R2_aln->{ID} ne $tlxl->{R2_ID};
         next if $tlxl->{Rname} eq "Breaksite" && $R2_aln->{Rname} eq "Breaksite";
         my $overlap = min($tlxl->{R2_Qend},$R2_aln->{Qend}) - max($tlxl->{R2_Qstart},$R2_aln->{Qstart}) + 1;
-        my $score = $R2_aln->{AS};
         my $length = $R2_aln->{Qend} - $R2_aln->{Qstart} + 1;
-        my $score_per_bp = ($score / $length) + $mismatch_penalty
+        my $score = $R2_aln->{AS} + $mismatch_penalty * $length;
+
+
         if ($overlap > $ol_thresh * ($tlxl->{R2_Qend} - $tlxl->{R2_Qstart} + 1) 
-              && $score_per_bp > $tlxl_R2_score_per_bp - $score_difference_thresh) {
+              && $score > $tlxl_R2_score - $score_difference_thresh) {
           push (@R2_OL,$R2_aln);
         }
       }
