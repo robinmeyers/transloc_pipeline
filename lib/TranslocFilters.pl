@@ -87,7 +87,7 @@ sub filter_mapping_quality ($$$$$$$$$){
       my $tlxl_R1_score = $tlxl->{R1_AS} + $mismatch_penalty * $tlxl_R1_length;
       my $score_difference_thresh = ($match_award + $mismatch_penalty) * 
                                     ($mismatch_thresh_int + $mismatch_thresh_coef * $tlxl_R1_length);
-      print(join("\t",$tlxl_R1_length,$tlxl_R1_score,$score_difference_thresh)."\n");
+      # print(join("\t",$tlxl_R1_length,$tlxl_R1_score,$score_difference_thresh)."\n");
       foreach my $R1_aln (@R1_alns) {
         next unless defined $R1_aln->{ID} && $R1_aln->{ID} ne $tlxl->{R1_ID};
         next if $tlxl->{Rname} eq "Breaksite" && $R1_aln->{Rname} eq "Breaksite";
