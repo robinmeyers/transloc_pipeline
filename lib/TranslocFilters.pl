@@ -95,8 +95,8 @@ sub filter_mapping_quality ($$$$$$$$$){
         my $length = $R1_aln->{Qend} - $R1_aln->{Qstart} + 1;
         my $score = $R1_aln->{AS} + $mismatch_penalty * $length;
 
-        if ($overlap > $ol_thresh * ($tlxl->{R1_Qend} - $tlxl->{R1_Qstart} + 1) 
-              && $score > $tlxl_R1_score - $score_difference_thresh) {
+        if ($overlap >= $ol_thresh * ($tlxl->{R1_Qend} - $tlxl->{R1_Qstart} + 1) 
+              && $score >= $tlxl_R1_score - $score_difference_thresh) {
           push (@R1_OL,$R1_aln);
         }
       }
@@ -115,8 +115,8 @@ sub filter_mapping_quality ($$$$$$$$$){
         my $score = $R2_aln->{AS} + $mismatch_penalty * $length;
 
 
-        if ($overlap > $ol_thresh * ($tlxl->{R2_Qend} - $tlxl->{R2_Qstart} + 1) 
-              && $score > $tlxl_R2_score - $score_difference_thresh) {
+        if ($overlap >= $ol_thresh * ($tlxl->{R2_Qend} - $tlxl->{R2_Qstart} + 1) 
+              && $score >= $tlxl_R2_score - $score_difference_thresh) {
           push (@R2_OL,$R2_aln);
         }
       }
