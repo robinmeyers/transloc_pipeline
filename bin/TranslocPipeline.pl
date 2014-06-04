@@ -166,9 +166,9 @@ if ($bowtie_threads == 0) {
 # my $default_bowtie_breaksite_opt = "--local -D 15 -R 2 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $bowtie_threads -k 20 --no-unal --reorder -t";
 # my $default_bowtie_opt = "--local -D 15 -R 2 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $bowtie_threads -k 50 --reorder -t";
 
-my $default_bowtie_adapter_opt = "--local -D 20 -R 3 -N 1 -L 10 -i C,6 --ma 2 --mp 6,2 --np 1 --rdg 5,3 --rfg 5,3 --score-min C,20 --no-unal -p $bowtie_threads --reorder -t";
-my $default_bowtie_breaksite_opt = "--local -D 20 -R 3 -N 1 -L 20 -i C,8 --ma 2 --mp 10,6 --np 2 --rdg 6,4 --rfg 6,4 --score-min C,50 -k 5 --no-unal -p $bowtie_threads  --reorder -t";
-my $default_bowtie_opt = "--local -D 20 -R 3 -N 1 -L 20 -i C,8 --ma 2 --mp 10,6 --np 2 --rdg 6,4 --rfg 6,4 --score-min C,50 -k 20 -p $bowtie_threads --reorder -t";
+my $default_bowtie_adapter_opt = "--local -L 10 --ma 2 --mp 6,2 --np 1 --rdg 5,3 --rfg 5,3 --score-min C,20 --no-unal -p $bowtie_threads --reorder -t";
+my $default_bowtie_breaksite_opt = "--very-sensitive-local --ma 2 --mp 10,6 --np 2 --rdg 6,4 --rfg 6,4 --score-min C,50 -k 5 --no-unal -p $bowtie_threads  --reorder -t";
+my $default_bowtie_opt = "--very-sensitive-local --ma 2 --mp 10,6 --np 2 --rdg 6,4 --rfg 6,4 --score-min C,50 -k 20 -p $bowtie_threads --reorder -t";
 
 my $bt2_break_opt = manage_program_options($default_bowtie_breaksite_opt,$user_bowtie_breaksite_opt);
 my $bt2_adapt_opt = manage_program_options($default_bowtie_adapter_opt,$user_bowtie_adapter_opt);
@@ -221,7 +221,9 @@ my $tlxlfile = "${expt_stub}.tlxl";
 my $tlxfile = "${expt_stub}.tlx";
 my $filt_tlxfile = "${expt_stub}_filtered.tlx";
 my $unjoin_tlxfile = "${expt_stub}_unjoined.tlx";
-my ($tlxlfh,$tlxfh,$filt_tlxfh,$unjoin_tlxfh);
+my $mapqfile = "${expt_stub}_mapq.txt";
+
+my ($tlxlfh,$tlxfh,$filt_tlxfh,$unjoin_tlxfh,$mapqfh);
 
 my $statsfile = "${expt_stub}_stats.txt";
 my $paramsfile = "${expt_stub}_params.txt";
@@ -304,11 +306,13 @@ unless ($skip_process || $skip_dedup) {
   $tlxfh = IO::File->new(">$tlxfile");
   $filt_tlxfh = IO::File->new(">$filt_tlxfile");
   $unjoin_tlxfh = IO::File->new(">$unjoin_tlxfile");
+  $mapqfh = IO::File->new(">$mapqfile");
 
   $tlxlfh->print(join("\t", @tlxl_header)."\n");
   $tlxfh->print(join("\t", @tlx_header)."\n");
   $filt_tlxfh->print(join("\t", @tlx_filter_header)."\n");
   $unjoin_tlxfh->print(join("\t", @tlx_filter_header)."\n");
+  $mapqfh->print(join("\t", qw(Qname R1_Rname R1_Rstart R1_Rend R1_Strand R1_Qstart R1_Qend R1_AS R1_CIGAR R2_Rname R2_Rstart R2_Rend R2_Strand R2_Qstart R2_Qend R2_AS R2_CIGAR) )."\n");
 
   process_alignments;
 
@@ -830,7 +834,7 @@ sub process_optimal_coverage_set ($$$) {
   # print "filter map quality\n";
   my $quality_maps = filter_mapping_quality($tlxls,$R1_alns,$R2_alns,
                                       $mapq_ol_thresh,$mapq_mismatch_thresh_int,$mapq_mismatch_thresh_coef,
-                                      $max_frag_len,$match_award,$mismatch_penalty);
+                                      $max_frag_len,$match_award,$mismatch_penalty,$mapqfh);
 
   $stats->{mapqual} += $quality_maps;
   $stats->{mapq_reads}++ if $quality_maps > 0;
@@ -1229,6 +1233,8 @@ sub parse_command_line {
                             "mapq-mm-int=f" => \$mapq_mismatch_thresh_int,
                             "mapq-mm-coef=f" => \$mapq_mismatch_thresh_coef,
                             "priming-bp=i" => \$min_bases_after_primer,
+                            "dedup-offset-bp" => \$dedup_offset_dist,
+                            "dedup-bait-bp" => \$dedup_break_dist,
                             # "bowtie-opt=s" => \$user_bowtie_opt,
 				            				"help" => \$help
 				            			) ;

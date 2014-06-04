@@ -50,7 +50,7 @@ sub filter_unjoined ($$) {
 }
 
 
-sub filter_mapping_quality ($$$$$$$$$){
+sub filter_mapping_quality ($$$$$$$$$$){
 
   my $tlxls_ref = shift;
   my $R1_alns_ref = shift;
@@ -61,6 +61,7 @@ sub filter_mapping_quality ($$$$$$$$$){
   my $max_frag_length = shift;
   my $match_award = shift;
   my $mismatch_penalty = shift;
+  my $mapqfh = shift;
 
   my @tlxls = @$tlxls_ref;
   my @R1_alns = @$R1_alns_ref;
@@ -84,7 +85,7 @@ sub filter_mapping_quality ($$$$$$$$$){
     my @R2_OL;
     if (defined $tlxl->{R1_ID}) {
       my $tlxl_R1_length = $tlxl->{R1_Qend} - $tlxl->{R1_Qstart} + 1;
-      my $tlxl_R1_score = $tlxl->{R1_AS} + $mismatch_penalty * $tlxl_R1_length;
+      my $tlxl_R1_score = $tlxl->{R1_AS};
       my $score_difference_thresh = ($match_award + $mismatch_penalty) * 
                                     ($mismatch_thresh_int + $mismatch_thresh_coef * $tlxl_R1_length);
       # print(join("\t",$tlxl_R1_length,$tlxl_R1_score,$score_difference_thresh)."\n");
@@ -93,7 +94,7 @@ sub filter_mapping_quality ($$$$$$$$$){
         next if $tlxl->{Rname} eq "Breaksite" && $R1_aln->{Rname} eq "Breaksite";
         my $overlap = min($tlxl->{R1_Qend},$R1_aln->{Qend}) - max($tlxl->{R1_Qstart},$R1_aln->{Qstart}) + 1;
         my $length = $R1_aln->{Qend} - $R1_aln->{Qstart} + 1;
-        my $score = $R1_aln->{AS} + $mismatch_penalty * $length;
+        my $score = $R1_aln->{AS};
 
         if ($overlap >= $ol_thresh * ($tlxl->{R1_Qend} - $tlxl->{R1_Qstart} + 1) 
               && $score >= $tlxl_R1_score - $score_difference_thresh) {
@@ -104,7 +105,7 @@ sub filter_mapping_quality ($$$$$$$$$){
 
     if (defined $tlxl->{R2_ID}) {
       my $tlxl_R2_length = $tlxl->{R2_Qend} - $tlxl->{R2_Qstart} + 1;
-      my $tlxl_R2_score = $tlxl->{R2_AS} + $mismatch_penalty * $tlxl_R2_length;
+      my $tlxl_R2_score = $tlxl->{R2_AS};
       my $score_difference_thresh = ($match_award + $mismatch_penalty) * 
                                     ($mismatch_thresh_int + $mismatch_thresh_coef * $tlxl_R2_length);
       foreach my $R2_aln (@R2_alns) {
@@ -112,7 +113,7 @@ sub filter_mapping_quality ($$$$$$$$$){
         next if $tlxl->{Rname} eq "Breaksite" && $R2_aln->{Rname} eq "Breaksite";
         my $overlap = min($tlxl->{R2_Qend},$R2_aln->{Qend}) - max($tlxl->{R2_Qstart},$R2_aln->{Qstart}) + 1;
         my $length = $R2_aln->{Qend} - $R2_aln->{Qstart} + 1;
-        my $score = $R2_aln->{AS} + $mismatch_penalty * $length;
+        my $score = $R2_aln->{AS};
 
 
         if ($overlap >= $ol_thresh * ($tlxl->{R2_Qend} - $tlxl->{R2_Qstart} + 1) 
@@ -122,11 +123,45 @@ sub filter_mapping_quality ($$$$$$$$$){
       }
     }
 
-    if (defined $tlxl->{R1_Rname} && $tlxl->{R2_Rname}) {
+    if (defined $tlxl->{R1_ID} && $tlxl->{R2_ID}) {
       ALN_PAIR: foreach my $R1_aln (@R1_OL) {
         foreach my $R2_aln (@R2_OL) {
           if (pair_is_proper($R1_aln,$R2_aln,$max_frag_length)) {
             $filter = "MappingQuality";
+            $mapqfh->print(join("\t",$tlxl->{Qname},
+                                     $tlxl->{Rname},
+                                     $tlxl->{R1_Rstart},
+                                     $tlxl->{R1_Rend},
+                                     $tlxl->{Strand},
+                                     $tlxl->{R1_Qstart},
+                                     $tlxl->{R1_Qend},
+                                     $tlxl->{R1_AS},
+                                     $tlxl->{R1_Cigar},
+                                     $tlxl->{Rname},
+                                     $tlxl->{R2_Rstart},
+                                     $tlxl->{R2_Rend},
+                                     $tlxl->{Strand},
+                                     $tlxl->{R2_Qstart},
+                                     $tlxl->{R2_Qend},
+                                     $tlxl->{R2_AS},
+                                     $tlxl->{R2_Cigar})."\n");
+            $mapqfh->print(join("\t",$R1_aln->{Qname},
+                                     $R1_aln->{Rname},
+                                     $R1_aln->{Rstart},
+                                     $R1_aln->{Rend},
+                                     $R1_aln->{Strand},
+                                     $R1_aln->{Qstart},
+                                     $R1_aln->{Qend},
+                                     $R1_aln->{AS},
+                                     $R1_aln->{Cigar},
+                                     $R2_aln->{Rname},
+                                     $R2_aln->{Rstart},
+                                     $R2_aln->{Rend},
+                                     $R2_aln->{Strand},
+                                     $R2_aln->{Qstart},
+                                     $R2_aln->{Qend},
+                                     $R2_aln->{AS},
+                                     $R2_aln->{Cigar})."\n");
             last ALN_PAIR;
           }
         }
@@ -134,6 +169,65 @@ sub filter_mapping_quality ($$$$$$$$$){
     } else {
       if (scalar @R1_OL > 0 || scalar @R2_OL > 0) {
         $filter = "MappingQuality";
+        if (scalar @R1_OL > 0) {
+          $mapqfh->print(join("\t",$tlxl->{Qname},
+                                       $tlxl->{Rname},
+                                       $tlxl->{R1_Rstart},
+                                       $tlxl->{R1_Rend},
+                                       $tlxl->{Strand},
+                                       $tlxl->{R1_Qstart},
+                                       $tlxl->{R1_Qend},
+                                       $tlxl->{R1_AS},
+                                       $tlxl->{R1_Cigar})."\n");
+          foreach my $aln (@R1_OL) {
+            $mapqfh->print(join("\t", $aln->{Qname},
+                                      $aln->{Rname},
+                                      $aln->{Rstart},
+                                      $aln->{Rend},
+                                      $aln->{Strand},
+                                      $aln->{Qstart},
+                                      $aln->{Qend},
+                                      $aln->{AS},
+                                      $aln->{Cigar})."\n");
+          }
+        } else {
+          $mapqfh->print(join("\t",$tlxl->{Qname},
+                                       "",
+                                       "",
+                                       "",
+                                       "",
+                                       "",
+                                       "",
+                                       "",
+                                       "",
+                                       $tlxl->{Rname},
+                                       $tlxl->{R2_Rstart},
+                                       $tlxl->{R2_Rend},
+                                       $tlxl->{Strand},
+                                       $tlxl->{R2_Qstart},
+                                       $tlxl->{R2_Qend},
+                                       $tlxl->{R2_AS},
+                                       $tlxl->{R2_Cigar})."\n");
+          foreach my $aln (@R2_OL) {
+            $mapqfh->print(join("\t", $aln->{Qname},
+                                      "",
+                                      "",
+                                      "",
+                                      "",
+                                      "",
+                                      "",
+                                      "",
+                                      "",
+                                      $aln->{Rname},
+                                      $aln->{Rstart},
+                                      $aln->{Rend},
+                                      $aln->{Strand},
+                                      $aln->{Qstart},
+                                      $aln->{Qend},
+                                      $aln->{AS},
+                                      $aln->{Cigar})."\n");
+          }
+        }
       }
     }
 
