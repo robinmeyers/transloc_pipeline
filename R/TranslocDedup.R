@@ -8,8 +8,8 @@ if (commandArgs()[1] != "RStudio") {
   )
   
   OPTS <- c(
-    "offset_dist","numeric",2," ",
-    "break_dist","numeric",2," ",
+    "offset_dist","numeric",1," ",
+    "break_dist","numeric",1," ",
     "cores","numeric",0,"Number of compute nodes to run on"
   )
   
@@ -27,8 +27,7 @@ if (commandArgs()[1] != "RStudio") {
   source("~/TranslocPipeline//R/Rsub.R")
   tlxfile <- "/Volumes//AltLab/Translocation/NewPipeline/Alt046/results/PW002_Alt046/PW002_Alt046.tlx"
   output <- "~/Working/NewPipelineValidations/DedupTesting/PW002_dedup.txt"
-  rdist <- 10
-  qdist <- 2
+
   cores <- 4
 }
 

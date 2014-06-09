@@ -112,8 +112,8 @@ my $mapq_ol_thresh = 0.90;
 my $mapq_mismatch_thresh_int = 1.5;
 my $mapq_mismatch_thresh_coef = 0.01;
 
-my $dedup_offset_dist = 2;
-my $dedup_break_dist = 2;
+my $dedup_offset_dist = 1;
+my $dedup_break_dist = 1;
 
 
 
@@ -1233,8 +1233,8 @@ sub parse_command_line {
                             "mapq-mm-int=f" => \$mapq_mismatch_thresh_int,
                             "mapq-mm-coef=f" => \$mapq_mismatch_thresh_coef,
                             "priming-bp=i" => \$min_bases_after_primer,
-                            "dedup-offset-bp" => \$dedup_offset_dist,
-                            "dedup-bait-bp" => \$dedup_break_dist,
+                            "dedup-offset-bp=i" => \$dedup_offset_dist,
+                            "dedup-bait-bp=i" => \$dedup_break_dist,
                             # "bowtie-opt=s" => \$user_bowtie_opt,
 				            				"help" => \$help
 				            			) ;
