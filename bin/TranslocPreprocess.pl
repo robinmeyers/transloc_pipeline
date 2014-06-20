@@ -378,6 +378,8 @@ sub parse_command_line {
 				"bc-len=i" => \$bc_len,
 				"bc-mismatch=i" => \$bc_mismatch,
 				"bc-min-dist=i" => \$bc_min_dist,
+				"for-adapter=s" => \$forward_adapter,
+				"rev-adapter=s" => \$reverse_adapter,
 				"trim-max-dif=i" => \$adapt_max_dif,
 				"no-trim" => \$no_trim,
 				"join" => \$join,
@@ -433,12 +435,15 @@ $arg{"--indir","Input directory - if specified assumes reads are already de-mult
 $arg{"--threads","Number of threads to run program on - experiments processed simultaneously",$max_threads}
 $arg{"--bc-len","Number of bases to use from primer file for de-multiplexing",$bc_len}
 $arg{"--bc-mismatch","Number of mismatches allowed in de-multiplexing",$bc_mismatch}
-$arg{"--adapter","Fasta file of adapter sequences"}
+$arg{"--bc-min-dist","Minimum distance between best and next best in demultiplexing",$bc_min_dist}
+$arg{"--no-trim","Skip adapter trimming step"}
+$arg{"--for-adapter","Forward adapter sequence",$forward_adapter}
+$arg{"--rev-adapter","Reverse adapter sequence",$reverse_adapter}
 $arg{"--trim-max-dif","Maximum percent difference for match with adapter",$adapt_max_dif}
+$arg{"--trim-min-length","Minimum length of quality trimmed reads",$minlen}
 $arg{"--join","Stitch reads together using fastq-join"}
 $arg{"--join-max-dif","Maximum percent difference between reads for quality-trimmed stitching",$join_max_dif}
 $arg{"--join-min-ol","Minimum basepair overlap between two reads for quality-trimmed stitching",$join_min_ol}
-$arg{"--trim-min-length","Minimum length of quality trimmed reads",$minlen}
 $arg{"--help","This helpful help screen."}
 
 
