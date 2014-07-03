@@ -417,21 +417,21 @@ sub parse_command_line {
 sub usage()
 {
 print<<EOF;
-Title, by Robin Meyers, ddmonthyyyy
+TranslocPreprocess, Robin Meyers, 2013
 
-This program .
-
+This program de-multiplexes either single-end or paired-end fastq files.
+It will trim adapter sequences by default and can join (stitch) paired-end
+reads if given the option.
 
 Usage: $0 <meta_file> <outdir> (--read1 FIL --read2 FIL | --indir DIR) [--opts N] [--help]
 
 Arguments (defaults in parentheses):
 
-
-$arg{"meta_file","List of files with primer sequences"}
+$arg{"meta_file","See TranslocPipeline metadata file documentation"}
 $arg{"outdir","Output directory"}
 $arg{"--read1","Illumina read 1 file for de-multiplexing"}
 $arg{"--read2","Illumina read 2 file for de-multiplexing"}
-$arg{"--indir","Input directory - if specified assumes reads are already de-multiplexed"}
+$arg{"--indir","Input directory - if specified, assumes reads are already de-multiplexed"}
 $arg{"--threads","Number of threads to run program on - experiments processed simultaneously",$max_threads}
 $arg{"--bc-len","Number of bases to use from primer file for de-multiplexing",$bc_len}
 $arg{"--bc-mismatch","Number of mismatches allowed in de-multiplexing",$bc_mismatch}

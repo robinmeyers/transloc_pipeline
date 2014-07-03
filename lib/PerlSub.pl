@@ -77,7 +77,7 @@ sub argument {
 	my $description = shift;
 	my $default = shift;
 
-	return sprintf("  \%\-16s - %s\n",
+	return sprintf("  \%\-16s - %s",
 		(defined $default ? sprintf("%s (%s)",$var,$default) : sprintf("%s",$var)),
 		$description);
 }

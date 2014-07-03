@@ -30,9 +30,10 @@ if (commandArgs()[1] != "RStudio") {
 
   cores <- 4
 }
+suppressPackageStartupMessages(library(plyr, quietly=TRUE))
+suppressPackageStartupMessages(library(parallel, quietly=TRUE))
 
-library(plyr)
-library(parallel)
+
 
 con  <- file(tlxfile, open = "r")
 header <- unlist(strsplit(readLines(con, n = 1),"\t"))
