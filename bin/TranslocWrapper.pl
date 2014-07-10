@@ -41,8 +41,6 @@ sub process_experiment ($);
 my $meta_file;
 my $seqdir;
 my $outdir;
-my $alternate_assembly;
-my $alternate_brkchr;
 my $which;
 my $pipeline_threads = 2;
 my $pipeline_opt;
@@ -161,8 +159,8 @@ sub process_experiment ($) {
   $tl_cmd = join(" ", $tl_cmd, "--read2", $expt_hash->{R2}) if defined $expt_hash->{R2};
                 
   $tl_cmd = join(" ", $tl_cmd,
-                    "--assembly", ($alternate_assembly or $expt_hash->{assembly}),
-                    "--chr", ($alternate_brkchr or $expt_hash->{chr}),
+                    "--assembly", $expt_hash->{assembly},
+                    "--chr", $expt_hash->{chr},
                     "--start",$expt_hash->{start},
                     "--end",$expt_hash->{end},
                     "--strand",$expt_hash->{strand},
@@ -331,8 +329,6 @@ sub parse_command_line {
 	usage() if (scalar @ARGV == 0);
 
 	my $result = GetOptions ( "which=s" => \$which,
-                            "assembly=s" => \$alternate_assembly,
-                            "brkchr=s" => \$alternate_brkchr,
                             "bsub" => \$bsub,
                             "bsub-opt=s" => \$user_bsub_opt,
 														"threads=i" => \$pipeline_threads,
@@ -358,10 +354,6 @@ sub parse_command_line {
   	mkdir $outdir or croak "Error: output directory $outdir does not exist and cannot be created";
   }
 
-  croak "Error: must specify alternative break chromosome if using alternative assembly"
-    if defined $alternate_assembly && ! defined $alternate_brkchr;
-  croak "Error: must specify alternative assembly if using alternative brkchr"
-    if defined $alternate_brkchr && ! defined $alternate_assembly;
 
 
 	exit unless $result;
@@ -384,8 +376,6 @@ $arg{"metafile","File containing meta data for one experiment per row - follow c
 $arg{"seqdir","Directory containing all input sequence files"}
 $arg{"outdir","Directory for results files"}
 $arg{"--which","Only run specific jobs, numbered by order in metafile"}
-$arg{"--assembly","Overwrite the assembly in metafile and use an alternative assembly"}
-$arg{"--brkchr","Overwrite the break chromosome in metafile and use an alternative chromosome name"}
 $arg{"--bsub","Submit as LSF jobs"}
 $arg{"--bsub-opt","Specify bsub options different from default",$default_bsub_opt}
 $arg{"--threads","Number of libraries to run at once",$pipeline_threads}

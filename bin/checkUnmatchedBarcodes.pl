@@ -35,9 +35,9 @@ sub sort_and_print_result;
 # Global flags and arguments, 
 # Set by command line arguments
 my $fastq;
-my $barcodes_to_print = 50;
+my $barcodes_to_print = 25;
 my $barcode_length = 10;
-my $reads = 0;
+my $reads = 10000;
 
 # Global variables 
 my $barcodes = {};

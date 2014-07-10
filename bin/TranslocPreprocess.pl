@@ -423,7 +423,7 @@ This program de-multiplexes either single-end or paired-end fastq files.
 It will trim adapter sequences by default and can join (stitch) paired-end
 reads if given the option.
 
-Usage: $0 <meta_file> <outdir> (--read1 FIL --read2 FIL | --indir DIR) [--opts N] [--help]
+Usage: $0 <meta_file> <outdir> (--read1 FIL [--read2 FIL] | --indir DIR) [--opts N] [--help]
 
 Arguments (defaults in parentheses):
 

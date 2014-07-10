@@ -1272,30 +1272,33 @@ Usage: $0
 Arguments set automatically by TranslocWrapper.pl:
 $arg{"--read1","Input sequence file"}
 $arg{"--read2","Input sequence file"}
-$arg{"--workdir","Directory for results files - note: default Bowtie output goes to working directory"}
+$arg{"--workdir","Directory for results files"}
 $arg{"--assembly","Genome assembly to align reads to"}
-$arg{"--chr"," "}
-$arg{"--start"," "}
-$arg{"--end"," "}
-$arg{"--strand"," "}
-$arg{"--mid"," "}
-$arg{"--primer"," "}
-$arg{"--breakseq"," "}
-$arg{"--breaksite"," "}
-$arg{"--adapter"," "}
-$arg{"--cutter"," "}
+$arg{"--chr","Breaksite chromosome"}
+$arg{"--start","Breaksite start"}
+$arg{"--end","Breaksite end"}
+$arg{"--strand","Breaksite orientation"}
+$arg{"--mid","MID sequence"}
+$arg{"--primer","Primer sequence"}
+$arg{"--breakseq","Breaksite cassette sequence (non-endogenous only)"}
+$arg{"--breaksite","Cutting coordinate on cassette (non-endogenous only)"}
+$arg{"--adapter","Adapter sequence"}
+$arg{"--cutter","Frequent cutter site sequence"}
 
 
 Arguments set manually with --pipeline-opt in TranslocWrapper.pl (defaults in parentheses):
 $arg{"--threads-bt","Number of threads to run bowtie on",$bowtie_threads}
 $arg{"--threads-dedup","Number of threads to run dedup on",$dedup_threads}
-$arg{"--skip-align"," "}
-$arg{"--skip-process"," "}
-$arg{"--skip-dedup"," "}
-$arg{"--no-dedup"," "}
-$arg{"--mapq-ol","",$mapq_ol_thresh}
-$arg{"--priming-bp","",$min_bases_after_primer}
-
+$arg{"--skip-align","Begin pipeline after alignment step - working directory must already have alignment files "}
+$arg{"--skip-process","Begin pipeline after OCS and filtering steps - working directory must already have tlx files"}
+$arg{"--skip-dedup","Begin pipeline after dedup step (post-processing only) "}
+$arg{"--no-dedup","Do not run dedup filter"}
+$arg{"--priming-bp","Minimum number of bases in bait alignment after the primer",$min_bases_after_primer}
+$arg{"--mapq-ol","Minimum overlapping fraction for mapq filter",$mapq_ol_thresh}
+$arg{"--mapq-mm-int","Mapq score threshold intercept",$mapq_mismatch_thresh_int}
+$arg{"--mapq-mm-coef","Mapq score threshold coefficient (multiplied by alignment length)",$mapq_mismatch_thresh_coef}
+$arg{"--dedup-offset-bp","Minimum offset distance between prey alignments in dedup filter",$dedup_offset_dist}
+$arg{"--dedup-bait-bp","Minimum distance between bait alignments in dedup filter",$dedup_break_dist}
 
 $arg{"--help","This helpful help screen."}
 
