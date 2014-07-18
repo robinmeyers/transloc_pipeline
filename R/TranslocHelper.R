@@ -1,3 +1,106 @@
+
+split.by.chr <- function(gr) {
+  split(gr,seqnames(gr))
+}
+
+myCountOverlaps <- function(bins,tlx.cumsum) {
+  return(as.numeric(tlx.cumsum[end(bins)] - tlx.cumsum[pmax(start(bins)-1,1)]))
+}
+
+calculate.local.significance <- function(bins,tlx.cumsum,bin.width,bg.width,cores=4) {
+  
+  if (length(bins) < 1) return(bins)
+  
+#   print(as.character(seqnames(bins)[1]))
+  
+#   tlx.tree <- GIntervalTree(tlx.gr)
+  
+  bins$hits <- myCountOverlaps(bins,tlx.cumsum)
+#   bins$hits <- countOverlaps(bins,tlx.tree)
+
+  bg.bins <- suppressWarnings(resize(bins,width=bg.width,fix="center"))
+  bg.bins$hits <- myCountOverlaps(bg.bins,tlx.cumsum)
+  bins$bg.local <- bg.bins$hits
+  
+  bins$p.local <- mapply(function(k,N,w) {
+   
+      return( 2* sum(dbinom(k:N,N,w)) + (k/w - N - 1) * dbinom(k,N,w))
+    
+  },bins$hits,
+  bg.bins$hits,
+  pmax(width(bins),bin.width)/width(bg.bins),
+#   mc.cores=cores,
+  SIMPLIFY=T)
+  
+  bins$p.local[bins$p.local < 0 | bins$p.local > 1] <- 1
+  
+  
+  #   bg.bins$prob <- width(bg.bins)/(width(bg.bins)+bg.bins$hits)
+  #   bins$p <- pnbinom(bins$hits-1,size=width(bins),prob=bg.bins$prob,lower.tail=F)
+  return(bins)
+}
+
+
+calculate.chr.significance <- function(bins,tlx.cumsum,bin.width,cores=4) {
+
+  if (length(bins) < 1) return(bins)
+  
+  bins$hits <- myCountOverlaps(bins,tlx.cumsum)
+  
+  
+  chr.hits <- as.numeric(tlx.cumsum[length(tlx.cumsum)])
+  bins$bg.chr <- chr.hits
+  
+  
+  w.mode <- as.numeric(names(which.max(table(width(bins)))))/seqlengths(bins)[as.character(seqnames(bins)[1])]
+  
+  binom.calc.table <- dbinom(1:chr.hits,chr.hits,w.mode)
+  binom.calc.cumsum <- rev(cumsum(rev(binom.calc.table)))
+  scan.stat.table <- 2*binom.calc.cumsum + (1:chr.hits/w.mode - chr.hits - 1) * binom.calc.table
+  
+#   w.mode <- as.numeric(names(which.max(table(width(bins1)))))/seqlengths(bins1)[as.character(seqnames(bins1)[1])]
+#   binom.calc.table <- rep(NA,nrow = max(bins$hits),ncol = max(chr.hit.table))
+  
+
+
+  bins$p.chr <- mapply(function(k,N,w) {
+    if (w == w.mode) {
+      return( scan.stat.table[k] )
+    } else {
+      return( 2* sum(dbinom(k:N,N,w)) + (k/w - N - 1) * dbinom(k,N,w))
+    }
+  },bins$hits,
+  chr.hits,
+  pmax(width(bins),bin.width)/seqlengths(bins)[as.character(seqnames(bins))],
+#   mc.cores=cores,
+  SIMPLIFY=T)
+  
+  bins$p.chr[bins$p.chr < 0 | bins$p.chr > 1] <- 1
+  
+  #   bg.bins$prob <- width(bg.bins)/(width(bg.bins)+bg.bins$hits)
+  #   bins$p <- pnbinom(bins$hits-1,size=width(bins),prob=bg.bins$prob,lower.tail=F)
+  return(bins)
+}
+
+
+trimPeaks <- function(peaks,tlx.gr) {
+  
+  
+  if (length(peaks) < 1) return(peaks)
+  
+  tlx.tree <- GIntervalTree(tlx.gr)
+  
+
+  
+  start(peaks) <- start(tlx.tree[findOverlaps(peaks,tlx.tree,select="first")])
+  end(peaks) <- end(tlx.tree[findOverlaps(peaks,tlx.tree,select="last")])
+  
+  
+
+  return(peaks)
+}
+
+
 removeHotSpots <- function(tlxgr,hotspotfile) {
   hotspots <- import(hotspotfile)
   tlxgr <- tlxgr[tlxgr %outside% hotspots]
@@ -303,3 +406,4 @@ formatBP <- function(x,pts=1) {
     paste(bp,"bp")
   }))
 }
+
