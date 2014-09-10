@@ -12,6 +12,7 @@ use IO::Handle;
 use IO::File;
 use Bio::SeqIO;
 use Bio::DB::Fasta;
+use Bio::DB::Sam;
 use Text::CSV;
 use Interpolation 'arg:@->$' => \&argument;
 use Time::HiRes qw(gettimeofday tv_interval);
@@ -151,6 +152,7 @@ sub modify_genome {
       print "writing to output file...\n";
       $outfh->write_seq($seq);
       $outfh->close if $multi_file;
+      my $fai = Bio::DB::Sam::Fai->load("$output/$chr.fa") if $multi_file;
 
     }
 
@@ -176,7 +178,9 @@ sub modify_genome {
 
   $outfh->close unless $multi_file;
 
-  print "Building .fai index\n";
+  my $fai = Bio::DB::Sam::Fai->load("$output/$output_tag.fa") unless $multi_file;
+
+  print "Building directory.index\n";
   my $tmpdb = Bio::DB::Fasta->new($output);
 
 }
