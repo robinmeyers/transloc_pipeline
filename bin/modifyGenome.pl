@@ -176,6 +176,8 @@ sub modify_genome {
 
   $outfh->close unless $multi_file;
 
+  print "Building .fai index\n";
+  my $tmpdb = Bio::DB::Fasta->new($output);
 
 }
 
