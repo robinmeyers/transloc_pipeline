@@ -7,6 +7,7 @@ use Getopt::Long;
 use Carp;
 use IO::File;
 use Text::CSV;
+use Bio::DB::Fasta;
 use threads;
 use Interpolation 'arg:@->$' => \&argument;
 use Time::HiRes qw(gettimeofday tv_interval);
@@ -19,11 +20,19 @@ use lib abs_path("$FindBin::Bin/../lib");
 require "TranslocHelper.pl";
 require "PerlSub.pl";
 
+
+my $GENOME_DB = $ENV{'GENOME_DB'};
+defined $GENOME_DB or croak "Error: set environment variable GENOME_DB";
+
+
+
 # Flush output after every write
 select( (select(STDOUT), $| = 1 )[0] );
 
 ##
-## This program
+## This program reads in a metadata file and for each library
+## starts a separate perl thread to execute the full
+## TranslocPipeline script.
 ## 
 ## run with "--help" for usage information
 ##
@@ -62,13 +71,17 @@ parse_command_line;
 
 my $t0 = [gettimeofday];
 
+# Parse through 'which' variable to determine which libraries to run
+# @which array will contain index of each library to run
 my @which = ();
 if (defined $which) {
   my @tmpwhich = split(",",$which);
   foreach (@tmpwhich) {
     if (/(\d+)-(\d+)/) {
+      # add range of indices
       push(@which,$1..$2);
     } elsif (/(\d+)/) {
+      # add single index
       push(@which,$1);
     } else {
       croak "Error: invalid 'which' statement";
@@ -219,16 +232,21 @@ sub read_in_meta_file {
                       $expt->{strand})."\n";
 
 
-    if (@which > 0) {
-      next unless $i ~~ @which;
+    unless ($print_only) {
+      if (@which > 0) {
+
+        # Only proceed with checking metadata and 
+        # adding to metahash if library is in @which array
+        next unless $i ~~ @which;
+      }
+
+      check_validity_of_metadata($expt);
+
+  		my $expt_id = $expt->{library} . "_" . $expt->{sequencing};
+      croak "Error: Experiment ID $expt_id is already taken" if exists $meta{$expt_id};
+  		$meta{$expt_id} = $expt;
+  		$meta{$expt_id}->{exptdir} = "$outdir/$expt_id";
     }
-
-    check_validity_of_metadata($expt) unless $print_only;
-
-		my $expt_id = $expt->{library} . "_" . $expt->{sequencing};
-    croak "Error: Experiment ID $expt_id is already taken" if exists $meta{$expt_id};
-		$meta{$expt_id} = $expt;
-		$meta{$expt_id}->{exptdir} = "$outdir/$expt_id";
 
 	}
 }
@@ -236,18 +254,36 @@ sub read_in_meta_file {
 sub check_validity_of_metadata ($) {
   my $expt = shift;
 
-  # croak "Metadata error: assembly must be an mm or hg build" unless $expt->{assembly} =~ /^(hg\d+|mm\d+)$/;
-  my @chrlist = 1..22;
-  push(@chrlist,qw(X Y));
-  @chrlist = map {"chr" . $_} @chrlist;
+  my $assembly = $expt->{assembly};
+
+  my $assembly_fa = "$GENOME_DB/$assembly/$assembly.fa";
+
+  croak "Metadata error: could not find genome assembly $assembly_fa" unless -r $assembly_fa;
+
+  my $assembly_obj = Bio::DB::Fasta->new($assembly_fa);
+  my @chrlist = $assembly_obj->get_all_ids;
+
   croak "Metadata error: chr must be valid" unless $expt->{chr} ~~ @chrlist; 
   croak "Metadata error: end must not be less than start" if $expt->{end} < $expt->{start};
   croak "Metadata error: strand must be one of + or -" unless $expt->{strand} ~~ [qw(+ -)];
 
-  croak "Metadata error: breaksite sequence contains non AGCT characters" unless $expt->{breakseq} =~ /^[AGCTagct]*$/;
-  croak "Metadata error: breaksite must be defined if breakseq is" if $expt->{breakseq} && ! $expt->{breaksite};
-  croak "Metadata error: primer sequence contains non AGCT characters" unless $expt->{primer} =~ /^[AGCTagct]*$/;
-  croak "Metadata error: adapter sequence contains non AGCT characters" unless $expt->{adapter} =~ /^[AGCTagct]*$/;
+  if ($expt->{breakseq} ne "") {
+    croak "Metadata error: breaksite sequence contains non AGCT characters" unless $expt->{breakseq} =~ /^[AGCTagct]+$/;
+    croak "Metadata error: breaksite must be defined if breakseq is" unless $expt->{breaksite};
+    croak "Metadata error: breaksite cannot be greater than the length of breakseq" if $expt->{breaksite} > length($expt->{breakseq});
+    croak "Metadata error: primer sequence not found in breakseq"
+      unless index($expt->{breakseq},$expt->{primer}) > -1;
+  } else {
+    my $genome_seq = $expt->{strand} eq "+" ?
+                      $assembly_obj->seq($expt->{chr},$expt->{start},$expt->{start}+length($expt->{primer})-1) :
+                      reverseComplement($assembly_obj->seq($expt->{chr},$expt->{end}-length($expt->{primer}),$expt->{end}-1));
+    croak "Metadata error: primer sequence does not match reference genome" 
+      unless $expt->{primer} eq uc($genome_seq);
+  }
+
+  
+  croak "Metadata error: primer sequence contains non AGCT characters" unless $expt->{primer} =~ /^[AGCTagct]+$/;
+  croak "Metadata error: adapter sequence contains non AGCT characters" unless $expt->{adapter} =~ /^[AGCTagct]+$/;
   croak "Metadata error: cutter sequence contains non AGCT characters" unless $expt->{cutter} =~ /^[AGCTagct]*$/;
   croak "Metadata error: MID sequence contains non AGCT characters" unless $expt->{mid} =~ /^[AGCTagct]*$/;
 
@@ -340,18 +376,36 @@ sub parse_command_line {
 	
 	usage() if ($help);
 
-	croak "Error: not enough input arguments" if (scalar @ARGV < 3);
 
-	$meta_file = shift(@ARGV);
-	$seqdir = shift(@ARGV);
-	$outdir = shift(@ARGV);
 
   #Check options
 
+
+  if ($print_only) {
+    if (scalar @ARGV < 1) {
+      carp "Error: print option requires metadata argument";
+      usage();
+    }
+  } else {
+     if (scalar @ARGV < 3) {
+      carp "Error: not enough input arguments";
+      usage();
+    }
+  }
+
+  $meta_file = shift(@ARGV);
+
   croak "Error: cannot find $meta_file" unless (-r $meta_file);
-  croak "Error: input directory $seqdir does not exist" unless (-d $seqdir);
-  unless (-d $outdir) {
-  	mkdir $outdir or croak "Error: output directory $outdir does not exist and cannot be created";
+
+  unless ($print_only) {
+
+    $seqdir = shift(@ARGV);
+    $outdir = shift(@ARGV);
+
+    croak "Error: input directory $seqdir does not exist" unless (-d $seqdir);
+    unless (-d $outdir) {
+    	mkdir $outdir or croak "Error: output directory $outdir does not exist and cannot be created";
+    }
   }
 
 
@@ -365,10 +419,10 @@ sub usage()
 print<<EOF;
 TranslocWrapper, by Robin Meyers, 2013
 
-
-Usage: $0
-        metafile seqdir outdir
+Usage: $0 metafile seqdir outdir
         [--option VAL] [--flag] [--help]
+
+Print: $0 metafile --print
 
 Arguments (defaults in parentheses):
 
@@ -380,7 +434,7 @@ $arg{"--bsub","Submit as LSF jobs"}
 $arg{"--bsub-opt","Specify bsub options different from default",$default_bsub_opt}
 $arg{"--threads","Number of libraries to run at once",$pipeline_threads}
 $arg{"--pipeline-opt","Specify pipeline options - see below"}
-$arg{"--print","Do not execute jobs, only print experiments found in metafile"}
+$arg{"--print","Do not execute jobs, only print libraries found in metafile"}
 $arg{"--help","This helpful help screen."}
 
 --------------------------------------------
