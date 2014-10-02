@@ -96,6 +96,9 @@ unless (defined $print_only) {
   check_existance_of_files;
 
   if (defined $bsub) {
+    # No need to start threads in bsub option
+    # Just submit each job with short sleep between
+
     foreach my $expt_id (sort keys %meta) {
       
       process_experiment($expt_id);
@@ -150,6 +153,7 @@ printf("\nFinished all processes in %.2f seconds.\n", $t1);
 # End of program
 #
 
+# Main subroutine to start job
 sub process_experiment ($) {
 
 	my $expt_id = shift;
@@ -163,8 +167,6 @@ sub process_experiment ($) {
   }
 
 	prepare_working_directory($expt_id);
-
-  # my $assembly = $expt_hash->{mask} =~ /\S/ ? $expt_hash->{mask_assembly} : $expt_hash->{assembly};
 
   my $tl_cmd = join(" ","TranslocPipeline.pl --workdir",$expt_hash->{exptdir},
                     "--read1",$expt_hash->{R1});
@@ -186,7 +188,6 @@ sub process_experiment ($) {
   $tl_cmd = join(" ", $tl_cmd, "--cutter", $expt_hash->{cutfa}) if -r $expt_hash->{cutfa};
 
   $tl_cmd = join(" ", $tl_cmd, $pipeline_opt) if defined $pipeline_opt;
-
 
   my $log = $expt_hash->{exptdir} . "/$expt_id.log";
 
@@ -254,8 +255,15 @@ sub read_in_meta_file {
 sub check_validity_of_metadata ($) {
   my $expt = shift;
 
-  my $assembly = $expt->{assembly};
+  # Convert all sequence fields to uppercase only
+  $expt->{breakseq} = uc($expt->{breakseq});
+  $expt->{mid} = uc($expt->{mid});
+  $expt->{primer} = uc($expt->{primer});
+  $expt->{adapter} = uc($expt->{adapter});
+  $expt->{cutter} = uc($expt->{cutter});
 
+
+  my $assembly = $expt->{assembly};
   my $assembly_fa = "$GENOME_DB/$assembly/$assembly.fa";
 
   croak "Metadata error: could not find genome assembly $assembly_fa" unless -r $assembly_fa;
@@ -282,12 +290,10 @@ sub check_validity_of_metadata ($) {
   }
 
   
-  croak "Metadata error: primer sequence contains non AGCT characters" unless $expt->{primer} =~ /^[AGCTagct]+$/;
-  croak "Metadata error: adapter sequence contains non AGCT characters" unless $expt->{adapter} =~ /^[AGCTagct]+$/;
-  croak "Metadata error: cutter sequence contains non AGCT characters" unless $expt->{cutter} =~ /^[AGCTagct]*$/;
-  croak "Metadata error: MID sequence contains non AGCT characters" unless $expt->{mid} =~ /^[AGCTagct]*$/;
-
-
+  croak "Metadata error: primer sequence contains non AGCT characters" unless $expt->{primer} =~ /^[AGCT]+$/;
+  croak "Metadata error: adapter sequence contains non AGCT characters" unless $expt->{adapter} =~ /^[AGCT]+$/;
+  croak "Metadata error: cutter sequence contains non AGCT characters" unless $expt->{cutter} =~ /^[AGCT]*$/;
+  croak "Metadata error: MID sequence contains non AGCT characters" unless $expt->{mid} =~ /^[AGCT]*$/;
 
 }
 
@@ -311,31 +317,31 @@ sub prepare_working_directory ($) {
   if ($expt_hash->{breakseq} =~ /\S/) {
     my $brkfh = IO::File->new(">".$expt_hash->{breakfa}) or croak "Error: could not write to breaksite fasta file";
     $brkfh->print(">Breaksite\n");
-    $brkfh->print(uc($expt_hash->{breakseq})."\n");
+    $brkfh->print($expt_hash->{breakseq}."\n");
     $brkfh->close;
   }
 
   my $primfh = IO::File->new(">".$expt_hash->{primfa}) or croak "Error: could not write to primer fasta file";
   $primfh->print(">Primer\n");
-  $primfh->print(uc($expt_hash->{primer})."\n");
+  $primfh->print($expt_hash->{primer}."\n");
   $primfh->close;
 
   my $adptfh = IO::File->new(">".$expt_hash->{adaptfa}) or croak "Error: could not write to adapter fasta file";
   $adptfh->print(">Adapter\n");
-  $adptfh->print(uc($expt_hash->{adapter})."\n");
+  $adptfh->print($expt_hash->{adapter}."\n");
   $adptfh->close;
 
   if ($expt_hash->{mid} =~ /\S/) {
     my $midfh = IO::File->new(">".$expt_hash->{midfa}) or croak "Error: could not write to mid fasta file";
     $midfh->print(">MID\n");
-    $midfh->print(uc($expt_hash->{mid})."\n");
+    $midfh->print($expt_hash->{mid}."\n");
     $midfh->close;
   }
 
   if ($expt_hash->{cutter} =~ /\S/) {
     my $cutfh = IO::File->new(">".$expt_hash->{cutfa}) or croak "Error: could not write to frequent cutter fasta file";
     $cutfh->print(">Cutter\n");
-    $cutfh->print(uc($expt_hash->{cutter})."\n");
+    $cutfh->print($expt_hash->{cutter}."\n");
     $cutfh->close;
   }
 
@@ -428,7 +434,7 @@ Arguments (defaults in parentheses):
 
 $arg{"metafile","File containing meta data for one experiment per row - follow correct format"}
 $arg{"seqdir","Directory containing all input sequence files"}
-$arg{"outdir","Directory for results files"}
+$arg{"outdir","Directory for results output"}
 $arg{"--which","Only run specific jobs, numbered by order in metafile"}
 $arg{"--bsub","Submit as LSF jobs"}
 $arg{"--bsub-opt","Specify bsub options different from default",$default_bsub_opt}
@@ -441,7 +447,7 @@ $arg{"--help","This helpful help screen."}
 
 EOF
 
-system('TranslocPipeline.pl');
+system('TranslocPipeline.pl --help');
 
 exit 1;
 }

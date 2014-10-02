@@ -1,6 +1,5 @@
 #!/usr/bin/env perl
 
-
 use strict;
 use warnings;
 use Getopt::Long;
@@ -29,22 +28,24 @@ require "PerlSub.pl";
 require "TranslocHelper.pl";
 require "TranslocFilters.pl";
 
-
+# The pipeline searches for a genome build in a fasta file
+# It expects this fasta file to live in the GENOME_DB
+# e.g. GENOME_DB/mm9/mm9.fa
 my $GENOME_DB = $ENV{'GENOME_DB'};
 defined $GENOME_DB or croak "Error: set environment variable GENOME_DB";
 
+# Bowtie2 searches for a reference index using this environment variable
+# e.g. BOWTIE2_INDEXES/mm9.1.bt2
 my $BOWTIE2_INDEXES = $ENV{'BOWTIE2_INDEXES'};
 defined $BOWTIE2_INDEXES or croak "Error: set environment variable BOWTIE2_INDEXES";
-
-
-
-
 
 # Flush output after every write
 select( (select(STDOUT), $| = 1 )[0] );
 
 ##
-## This program
+## This program runs the main Translocation Pipeline
+## It mainly consisists of alignments, junction detection,
+## filtering, and various post-processing scripts
 ## 
 ## run with "--help" for usage information
 ##
@@ -95,35 +96,36 @@ my $skip_dedup;
 my $no_dedup;
 my $no_clean;
 
-
-
-
 # OL_mult must be set the same as --ma in bowtie2 options
+# This is because we will subtract this number * overlapped bases
+# between two alignments so that the bases don't count twice
+# towards an optimal query coverage score
 my $OL_mult = 2;
-my $maximum_brk_start_dif = 20;
+# Bait alignment must be within this many bp
+my $maximum_brk_start_dif = 20; 
 my $Dif_mult = 2;
 my $Brk_pen_default = 40;
+# Max gap for concordant alignment (between R1 and R2)
+# Need to check if it's the gap or the entire aln fragment
 my $max_frag_len = 1500;
 my $PE_pen_default = 20;
 
+# Mispriming filter parameters
 my $min_bases_after_primer = 10;
 my $max_bases_after_cutsite = 10;
+
+# Mapping quality filter parameters
 my $mapq_ol_thresh = 0.90;
 my $mapq_mismatch_thresh_int = 1.5;
 my $mapq_mismatch_thresh_coef = 0.01;
 
+# Dedup filter parameters
 my $dedup_offset_dist = 1;
 my $dedup_break_dist = 1;
-
-
-
-
 
 my $user_bowtie_opt = "";
 my $user_bowtie_adapter_opt = "";
 my $user_bowtie_breaksite_opt = "";
-
-my $use_current_tlx;
 
 # Global variables
 my @tlxl_header = tlxl_header();
@@ -131,6 +133,15 @@ my @tlx_header = tlx_header();
 my @tlx_filter_header = tlx_filter_header();
 
 
+
+#
+# Start of Program
+#
+
+my $t0 = [gettimeofday];
+
+# Stats hash, gets filled +1 for each junction
+# _reads stats get filled +1 for each read (multiple junctions per read)
 my $stats = {};
 $stats->{totalreads} = 0;
 $stats->{aligned} = 0;
@@ -150,26 +161,24 @@ $stats->{dedup} = 0;
 $stats->{final} = 0;
 
 
-#
-# Start of Program
-#
 parse_command_line;
 
+# This was an interesting thought, but I wouldn't recommend using it
+# if ($bowtie_threads == 0) {
+#   my $info = Sys::Info->new;
+#   my $cpu  = $info->device( 'CPU'  );
+#   $bowtie_threads = 2*$cpu->count;
+# }
 
-if ($bowtie_threads == 0) {
-  my $info = Sys::Info->new;
-  my $cpu  = $info->device( 'CPU'  );
-  $bowtie_threads = 2*$cpu->count;
-}
-
-# my $default_bowtie_adapter_opt = "--local -D 20 -R 3 -N 1 -L 10 -i C,6 --score-min C,20 -p $bowtie_threads --no-unal --reorder -t";
-# my $default_bowtie_breaksite_opt = "--local -D 15 -R 2 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $bowtie_threads -k 20 --no-unal --reorder -t";
-# my $default_bowtie_opt = "--local -D 15 -R 2 -N 0 -L 20 -i C,8 --score-min C,50 --mp 10,2 --rfg 10,2 --rdg 10,2 -p $bowtie_threads -k 50 --reorder -t";
 
 my $default_bowtie_adapter_opt = "--local -L 10 --ma 2 --mp 6,2 --np 1 --rdg 5,3 --rfg 5,3 --score-min C,20 --no-unal -p $bowtie_threads --reorder -t";
 my $default_bowtie_breaksite_opt = "--very-sensitive-local --ma 2 --mp 10,6 --np 2 --rdg 6,4 --rfg 6,4 --score-min C,50 -k 5 --no-unal -p $bowtie_threads  --reorder -t";
 my $default_bowtie_opt = "--very-sensitive-local --ma 2 --mp 10,6 --np 2 --rdg 6,4 --rfg 6,4 --score-min C,50 -k 20 -p $bowtie_threads --reorder -t";
 
+
+# This may be too complicated -
+# in the future perhaps just change it
+# such that the user inputs full bowtie2 option string
 my $bt2_break_opt = manage_program_options($default_bowtie_breaksite_opt,$user_bowtie_breaksite_opt);
 my $bt2_adapt_opt = manage_program_options($default_bowtie_adapter_opt,$user_bowtie_adapter_opt);
 my $bt2_opt = manage_program_options($default_bowtie_opt,$user_bowtie_opt);
@@ -180,12 +189,9 @@ my $match_award = $1;
 croak "Error: cannot find mismatch penalty in bowtie2 options" unless $bt2_opt =~ /-mp (\d+),\d+/;
 my $mismatch_penalty = $1;
 
+# I warned you
 carp "Warning: match award in bowtie2 does not equal OCS overlap penalty" unless $match_award eq $OL_mult;
 
-
-my $t0 = [gettimeofday];
-
-#check_working_dir;
 
 my $expt = basename($workdir);
 my $expt_stub = "$workdir/$expt";
