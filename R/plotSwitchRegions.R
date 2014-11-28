@@ -10,7 +10,8 @@ if (commandArgs()[1] != "RStudio") {
   
   OPTS <- c(
     "facetscales","character","free","allow free or free_x",
-    "numbins","numeric",100,""
+    "numbins","numeric",100,"",
+    "flanks","numeric",0,""
     
   )
   
@@ -29,6 +30,7 @@ if (commandArgs()[1] != "RStudio") {
   tlxfile <- "~/Working/NewPipelineValidations/Junchao/IsceI-Switch_joins/JD003_dedup1.tlx"
   output <- sub(".tlx","_switch.pdf",tlxfile)
   numbins <- 100
+  flanks <- 5000
   facetscales <- "free"
   source("~/TranslocPipeline//R/Rsub.R")
 
@@ -130,7 +132,7 @@ totals <- data.frame()
 
 for (srname in rev(switch_regions$Name[switch_regions$Name %in% switch_agg$Name[1:4]])) {
   sr <- switch_regions[switch_regions$Name == srname,]
-  subbins <- make_bins(sr$Start,sr$End,numbins/2)
+  subbins <- make_bins(sr$Start-flanks,sr$End+flanks,numbins/2)
   subbins$Name <- srname
   subbins$TLX <- unlist(lapply(1:nrow(subbins),function(i,bins,data) {
     return(nrow(subset(data,Rname == chr & Strand == bins$Strand[i] &
@@ -148,9 +150,11 @@ for (srname in rev(switch_regions$Name[switch_regions$Name %in% switch_agg$Name[
 
 master$Name <- factor(master$Name,ordered=T,levels=switch_regions$Name)
 
-p_sub <- ggplot(master,aes(x=Mid,ymin=0,ymax=TLX,fill=Strand)) +
+p_sub <- ggplot() +
   facet_wrap(~ Name, ncol=2, scales=facetscales) +
-  geom_ribbon(color="black",alpha=0.5,size=0.2,show_guide = FALSE) +
+  geom_ribbon(aes(x=Mid,ymin=0,ymax=TLX,fill=Strand),data=master,color="black",alpha=0.5,size=0.2,show_guide = FALSE) +
+  geom_rect(aes(xmin=Start,xmax=End,ymin=-Inf,ymax=Inf),data=switch_regions[switch_regions$Name %in% totals$Name,],fill="black",alpha=0.15) +
+    
   scale_x_reverse() +
   scale_y_reverse() +
   ylab("") +

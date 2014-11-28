@@ -15,6 +15,7 @@ use File::Copy;
 use Bio::SeqIO;
 use Bio::DB::Sam;
 use List::Util qw(min max);
+use List::MoreUtils qw(pairwise);
 use Interpolation 'arg:@->$' => \&argument;
 use Time::HiRes qw(gettimeofday tv_interval);
 use Sys::Info;
@@ -96,32 +97,56 @@ my $skip_dedup;
 my $no_dedup;
 my $no_clean;
 
+my $params = {};
+
 # OL_mult must be set the same as --ma in bowtie2 options
 # This is because we will subtract this number * overlapped bases
 # between two alignments so that the bases don't count twice
 # towards an optimal query coverage score
 my $OL_mult = 2;
+$params->{overlap_mult} = 2;
+
 # Bait alignment must be within this many bp
 my $maximum_brk_start_dif = 20; 
+$params->{max_brk_start_dif} = 20;
 my $Dif_mult = 2;
+$params->{dif_mult} = 2;
 my $Brk_pen_default = 40;
+$params->{brk_pen} = 40;
 # Max gap for concordant alignment (between R1 and R2)
 # Need to check if it's the gap or the entire aln fragment
 my $max_frag_len = 1500;
+$params->{max_frag_len} = 1500;
 my $PE_pen_default = 20;
+$params->{pe_pen} = 20;
 
-# Mispriming filter parameters
-my $min_bases_after_primer = 10;
+# uncut filter params
 my $max_bases_after_cutsite = 10;
+$params->{max_bp_after_cutsite} = 10;
 
-# Mapping quality filter parameters
+# misprimed filter params
+my $min_bases_after_primer = 10;
+$params->{min_bp_after_primer} = 10;
+
+# freqcut filter params
+
+# largegap filter params
+$params->{max_largegap} = 30;
+
+# mapqual filter params
 my $mapq_ol_thresh = 0.90;
+$params->{mapq_ol_thresh} = 0.9;
 my $mapq_mismatch_thresh_int = 1.5;
+$params->{mapq_mismatch_int} = 1.5;
 my $mapq_mismatch_thresh_coef = 0.01;
+$params->{mapq_mismatch_coef} = 0.01;
 
-# Dedup filter parameters
+# duplicate filter parameters
 my $dedup_offset_dist = 1;
+$params->{dedup_offset_dist} = 1;
 my $dedup_break_dist = 1;
+$params->{dedup_break_dist} = 1;
+
 
 my $user_bowtie_opt = "";
 my $user_bowtie_adapter_opt = "";
@@ -140,27 +165,29 @@ my @tlx_filter_header = tlx_filter_header();
 
 my $t0 = [gettimeofday];
 
-# Stats hash, gets filled +1 for each junction
-# _reads stats get filled +1 for each read (multiple junctions per read)
+
+my @dispatch_names = qw(unaligned baitonly uncut misprimed freqcut largegap mapqual breaksite sequential);
+
+# This is a dispatch table
+my %filter_dispatch;
+@filter_dispatch{@dispatch_names} = map {eval '\&filter_'.$_ } @dispatch_names;
+
+# Stats hash ref
+# contains a key for each filter plus "total", "dedup" and "final"
+# Each of these contains another hash with reads and junctions as the keys
+# Access a stat like so: $stats->{filter}->{reads}
 my $stats = {};
-$stats->{totalreads} = 0;
-$stats->{aligned} = 0;
-$stats->{junctions} = 0;
-$stats->{junc_reads} = 0;
-$stats->{mapqual} = 0;
-$stats->{mapq_reads} = 0;
-$stats->{priming} = 0;
-$stats->{prim_reads} = 0;
-$stats->{freqcut} = 0;
-$stats->{freq_reads} = 0;
-$stats->{breaksite} = 0;
-$stats->{break_reads} = 0;
-$stats->{sequentialjuncs} = 0;
-$stats->{sequential_reads} = 0;
-$stats->{dedup} = 0;
-$stats->{final} = 0;
 
+my @filters = (@dispatch_names,"repeatseq","dedup");
+my @stats_filters = ("total",@filters,"final");
 
+my %stats_init = (junctions => 0, reads => 0);
+
+foreach my $f (@stats_filters) {
+  $stats->{$f} = {%stats_init}
+}
+
+print Dumper($stats);
 parse_command_line;
 
 # This was an interesting thought, but I wouldn't recommend using it
@@ -265,7 +292,7 @@ if (defined $break_fa) {
 }
 
 # Calculate threshold for uncut/unjoin filter
-$brksite->{joining_threshold} = $brksite->{endogenous} ?
+$brksite->{uncut_threshold} = $brksite->{endogenous} ?
                                   ($brksite->{strand} eq "+" ?
                                     $brksite->{end} + $max_bases_after_cutsite :
                                     $brksite->{start} - $max_bases_after_cutsite ) :
@@ -273,7 +300,10 @@ $brksite->{joining_threshold} = $brksite->{endogenous} ?
 
 # Calculate thresholds for mispriming filters
 croak "Error: could not find primer within breaksite sequence" unless $brksite->{primer_start} > 0;
-$brksite->{priming_threshold} = $brksite->{primer_start} + $brksite->{aln_strand} * ($brksite->{primer}->length - 1 + $min_bases_after_primer);
+$brksite->{misprimed_threshold} = $brksite->{primer_start} + $brksite->{aln_strand} * ($brksite->{primer}->length - 1 + $min_bases_after_primer);
+
+$params->{brksite} = $brksite;
+
 
 # Read in adapter sequence
 my $adpt_io = Bio::SeqIO->new(-file => $adapt_fa, -format => 'fasta');
@@ -285,6 +315,7 @@ if (defined $cut_fa) {
   my $cut_io = Bio::SeqIO->new(-file => $cut_fa, -format => 'fasta');
   $cutseq = $cut_io->next_seq();
 }
+$params->{cutter} = defined $cutseq ? $cutseq->seq : "";
 
 
 write_parameters_file;
@@ -316,7 +347,7 @@ unless ($skip_process || $skip_dedup) {
 
   $tlxlfh->print(join("\t", @tlxl_header)."\n");
   $tlxfh->print(join("\t", @tlx_header)."\n");
-  $filt_tlxfh->print(join("\t", @tlx_filter_header)."\n");
+  $filt_tlxfh->print(join("\t", @tlx_header, @filters)."\n");
   $unjoin_tlxfh->print(join("\t", @tlx_filter_header)."\n");
   $mapqfh->print(join("\t", qw(Qname R1_Rname R1_Rstart R1_Rend R1_Strand R1_Qstart R1_Qend R1_AS R1_CIGAR R2_Rname R2_Rstart R2_Rend R2_Strand R2_Qstart R2_Qend R2_AS R2_CIGAR) )."\n");
 
@@ -331,39 +362,39 @@ unless ($skip_process || $skip_dedup) {
   croak "Error: could not find tlx file when skipping processing step" unless -r $tlxfile;
 }
 
-unless ($skip_dedup || $no_dedup) {
+# unless ($skip_dedup || $no_dedup) {
 
-  deduplicate_junctions;
+#   deduplicate_junctions;
 
-} else {
-  $stats->{dedup} = $stats->{sequentialjuncs};
-  croak "Error: could not find tlx file when skipping dedup step" unless -r $tlxfile;
-}
+# } else {
+#   $stats->{dedup} = $stats->{sequentialjuncs};
+#   croak "Error: could not find tlx file when skipping dedup step" unless -r $tlxfile;
+# }
 
-sort_junctions;
-
-
-write_stats_file unless ($skip_process || $skip_dedup);
+# sort_junctions;
 
 
-post_process_junctions;
+# write_stats_file unless ($skip_process || $skip_dedup);
+
+
+# post_process_junctions;
 
 
 my $t1 = tv_interval($t0);
 
 printf("\nFinished all processes in %.2f seconds.\n", $t1);
 
-print("\nStats\n".join("\n","Total Reads: ".$stats->{totalreads},
-                          "Aligned: ".$stats->{aligned},
-                          "Junctions: ".$stats->{junctions}." (".$stats->{junc_reads}.")",
-                          "Priming: ".$stats->{priming}." (".$stats->{prim_reads}.")",
-                          "FrequentCutter: ".$stats->{freqcut}." (".$stats->{freq_reads}.")",
-                          "MapQuality: ".$stats->{mapqual}." (".$stats->{mapq_reads}.")",
-                          "Breaksite: ".$stats->{breaksite}." (".$stats->{break_reads}.")",
-                          "SequentialJuncs: ".$stats->{sequentialjuncs}." (".$stats->{sequential_reads}.")",
-                          "Dedup: ".$stats->{dedup})."\n");
+# print("\nStats\n".join("\n","Total Reads: ".$stats->{totalreads},
+#                           "Aligned: ".$stats->{aligned},
+#                           "Junctions: ".$stats->{junctions}." (".$stats->{junc_reads}.")",
+#                           "Priming: ".$stats->{priming}." (".$stats->{prim_reads}.")",
+#                           "FrequentCutter: ".$stats->{freqcut}." (".$stats->{freq_reads}.")",
+#                           "MapQuality: ".$stats->{mapqual}." (".$stats->{mapq_reads}.")",
+#                           "Breaksite: ".$stats->{breaksite}." (".$stats->{break_reads}.")",
+#                           "SequentialJuncs: ".$stats->{sequentialjuncs}." (".$stats->{sequential_reads}.")",
+#                           "Dedup: ".$stats->{dedup})."\n");
 
-clean_up unless $no_clean;
+# clean_up unless $no_clean;
 
 
 #
@@ -806,61 +837,104 @@ sub process_optimal_coverage_set ($$$) {
   my $R1_alns = shift;
   my $R2_alns = shift;
 
-
-  # print "create tlxls\n";
+  print "starting ".$OCS_ref->[0]->{R1}->{Qname}."\n";
+  print "create tlxls\n";
   my $tlxls = create_tlxl_entries($OCS_ref);
 
-  $stats->{totalreads}++;
+  print "create tlxs\n";
+  my $tlxs = create_tlx_entries2($tlxls, {genome => $R1_samobj,
+                                         brk => $R1_brk_samobj,
+                                         adpt => $R1_adpt_samobj} )  ;
 
-  $stats->{aligned}++ unless $tlxls->[0]->{Unmapped};
+  
+  $stats->{total}->{reads}++;
+
+  my %filter_init;
+  @filter_init{@filters} = (0) x @filters;
+
+  foreach my $tlx (@$tlxs) {
+    $stats->{total}->{junctions}++ if (is_a_junction($tlx));
+    $tlx->{filters} = {%filter_init};
+  }
+
+
+  # Bundle alignments and everything into a single object
+  my $read_obj = {tlxs => $tlxs, tlxls => $tlxls, R1_alns => $R1_alns, R2_alns => $R2_alns};
+
+
+
+  foreach my $filter (@dispatch_names) {
+    print "$filter\n";
+    print Dumper(@{$stats->{$filter}}{("reads","junctions")});
+
+    my @current_stats = @{$stats->{$filter}}{("reads","junctions")};
+    my @filter_result = $filter_dispatch{$filter}->($read_obj, $params);
+
+    @{$stats->{$filter}}{("reads","junctions")} = 
+      pairwise {$a + $b} @current_stats, @filter_result;
+
+  }
+
+
+
+  # $stats->{aligned}++ unless $tlxls->[0]->{Unmapped};
    
-  # print "create tlxs\n";
-  create_tlx_entries($tlxls, { genome => $R1_samobj,
-                               brk => $R1_brk_samobj,
-                               adpt => $R1_adpt_samobj} )  ;
-
-  # print "filter unjoined\n";
-  my $junctions = filter_unjoined($tlxls,$brksite);
-
-  $stats->{junctions} += $junctions;
-  $stats->{junc_reads}++ if $junctions > 0;
-
-  # print "filter mispriming\n";
-  my $correct_priming = filter_mispriming($tlxls,$brksite);
-
-  $stats->{priming} += $correct_priming;
-  $stats->{prim_reads}++ if $correct_priming > 0;
-
-  # print "filter frequent cutter\n";
-  my $no_freq_cutter = filter_freq_cutter($tlxls,$cutseq);
-
-  $stats->{freqcut} += $no_freq_cutter;
-  $stats->{freq_reads}++ if $no_freq_cutter > 0;
-
-  # print "filter map quality\n";
-  my $quality_maps = filter_mapping_quality($tlxls,$R1_alns,$R2_alns,
-                                      $mapq_ol_thresh,$mapq_mismatch_thresh_int,$mapq_mismatch_thresh_coef,
-                                      $max_frag_len,$match_award,$mismatch_penalty,$mapqfh);
-
-  $stats->{mapqual} += $quality_maps;
-  $stats->{mapq_reads}++ if $quality_maps > 0;
 
 
-  # print "filter breaksite\n";
-  my $outside_breaksite = filter_breaksite($tlxls);
-
-  $stats->{breaksite} += $outside_breaksite;
-  $stats->{break_reads}++ if $outside_breaksite > 0;
 
 
-  # print "filter sequential juctions\n";
-  my $primary_junction = filter_sequential_junctions($tlxls);
-
-  $stats->{sequentialjuncs} += $primary_junction;
-  $stats->{sequential_reads}++ if $primary_junction > 0;
 
 
-  write_tlxls($tlxls);
+  # # print "filter unjoined\n";
+  # my $junctions = filter_unjoined($tlxls,$brksite);
+
+  # $stats->{junctions} += $junctions;
+  # $stats->{junc_reads}++ if $junctions > 0;
+
+  # # print "filter mispriming\n";
+  # my $correct_priming = filter_mispriming($tlxls,$brksite);
+
+  # $stats->{priming} += $correct_priming;
+  # $stats->{prim_reads}++ if $correct_priming > 0;
+
+  # # print "filter frequent cutter\n";
+  # my $no_freq_cutter = filter_freq_cutter($tlxls,$cutseq);
+
+  # $stats->{freqcut} += $no_freq_cutter;
+  # $stats->{freq_reads}++ if $no_freq_cutter > 0;
+
+  # # print "filter map quality\n";
+  # my $quality_maps = filter_mapping_quality($tlxls,$R1_alns,$R2_alns,
+  #                                     $mapq_ol_thresh,$mapq_mismatch_thresh_int,$mapq_mismatch_thresh_coef,
+  #                                     $max_frag_len,$match_award,$mismatch_penalty,$mapqfh);
+
+  # $stats->{mapqual} += $quality_maps;
+  # $stats->{mapq_reads}++ if $quality_maps > 0;
+
+
+  # # print "filter breaksite\n";
+  # my $outside_breaksite = filter_breaksite($tlxls);
+
+  # $stats->{breaksite} += $outside_breaksite;
+  # $stats->{break_reads}++ if $outside_breaksite > 0;
+
+
+  # # print "filter sequential juctions\n";
+  # my $primary_junction = filter_sequential_junctions($tlxls);
+
+  # $stats->{sequentialjuncs} += $primary_junction;
+  # $stats->{sequential_reads}++ if $primary_junction > 0;
+
+
+  # write_tlxls($tlxls);
+
+  foreach my $tlxl (@$tlxls) {
+    write_entry($tlxlfh,$tlxl,\@tlxl_header);
+  }
+  foreach my $tlx (@$tlxs) {
+    write_entry($tlxfh,$tlx,\@tlx_header);
+    write_filter_entry($filt_tlxfh,$tlx,\@tlx_header,\@filters);
+  }
 
 
 }
@@ -1235,12 +1309,12 @@ sub parse_command_line {
                             "skip-process" => \$skip_process,
                             "skip-dedup" => \$skip_dedup,
                             "no-dedup" => \$no_dedup,
-                            "mapq-ol=f" => \$mapq_ol_thresh,
-                            "mapq-mm-int=f" => \$mapq_mismatch_thresh_int,
-                            "mapq-mm-coef=f" => \$mapq_mismatch_thresh_coef,
-                            "priming-bp=i" => \$min_bases_after_primer,
-                            "dedup-offset-bp=i" => \$dedup_offset_dist,
-                            "dedup-bait-bp=i" => \$dedup_break_dist,
+                            "mapq-ol=f" => \$params->{mapq_ol_thresh},
+                            "mapq-mm-int=f" => \$params->{mapq_mismatch_thresh_int},
+                            "mapq-mm-coef=f" => \$params->{mapq_mismatch_thresh_coef},
+                            "priming-bp=i" => \$params->{min_bases_after_primer},
+                            "dedup-offset-bp=i" => \$params->{dedup_offset_dist},
+                            "dedup-bait-bp=i" => \$params->{dedup_break_dist},
                             # "bowtie-opt=s" => \$user_bowtie_opt,
 				            				"help" => \$help
 				            			) ;
