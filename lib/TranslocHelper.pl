@@ -456,8 +456,8 @@ sub find_random_barcode ($$$$) {
 
       foreach my $R1_aln (@$R1_alns) {
         if ($R1_aln->{Rname} eq "Adapter" && $R1_aln->{Strand} == 1) {
-          $adapter_aln = $R2_aln if ! defined $adapter_aln ||
-                                    $R2_aln->{Qend} > $adapter_aln->{Qend};
+          $adapter_aln = $R1_aln if ! defined $adapter_aln ||
+                                    $R1_aln->{Qend} > $adapter_aln->{Qend};
         }
       }
 
@@ -467,7 +467,7 @@ sub find_random_barcode ($$$$) {
 
   }
 
-  foreach my $tlxl (@tlxls) {
+  foreach my $tlxl (@$tlxls) {
     next unless defined $tlxl->{tlx};
     $tlxl->{tlx}->{Barcode} = $barcode;
   }
