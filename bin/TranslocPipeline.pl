@@ -89,6 +89,7 @@ my $adapt_fa;
 my $cut_fa;
 my $bowtie_threads = 4;
 my $dedup_threads = 4;
+my $random_barcode;
 
 my $skip_alignment;
 my $skip_process;
@@ -810,6 +811,7 @@ sub process_optimal_coverage_set ($$$) {
   # print "create tlxls\n";
   my $tlxls = create_tlxl_entries($OCS_ref);
 
+
   $stats->{totalreads}++;
 
   $stats->{aligned}++ unless $tlxls->[0]->{Unmapped};
@@ -818,6 +820,9 @@ sub process_optimal_coverage_set ($$$) {
   create_tlx_entries($tlxls, { genome => $R1_samobj,
                                brk => $R1_brk_samobj,
                                adpt => $R1_adpt_samobj} )  ;
+
+  find_random_barcode($tlxls,$R1_alns,$R2_alns,$random_barcode);
+
 
   # print "filter unjoined\n";
   my $junctions = filter_unjoined($tlxls,$brksite);
@@ -1231,6 +1236,7 @@ sub parse_command_line {
                             "cutter=s" => \$cut_fa,
                             "threads-bt=i" => \$bowtie_threads,
                             "threads-dedup=i" => \$dedup_threads,
+                            "random-barcode=i" => \$random_barcode,
                             "skip-align" => \$skip_alignment,
                             "skip-process" => \$skip_process,
                             "skip-dedup" => \$skip_dedup,

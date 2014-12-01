@@ -129,7 +129,7 @@ sub sam_file_is_empty ($) {
 sub tlx_header {
   my @tlx_header = ( qw(Qname Rname Junction Strand Rstart Rend),
                       qw(B_Rname B_Rstart B_Rend B_Strand B_Qstart B_Qend),
-                      qw(Qstart Qend Qlen Seq J_Seq) );
+                      qw(Qstart Qend Qlen Seq J_Seq Barcode) );
   return (@tlx_header);
 }
 
@@ -326,6 +326,7 @@ sub wrap_alignment ($$) {
 
 }
 
+
 sub pair_is_proper ($$$) {
   my $R1 = shift;
   my $R2 = shift;
@@ -419,6 +420,57 @@ sub create_tlxl_entries ($) {
   }
 
   return \@tlxls;
+
+}
+
+sub find_random_barcode ($$$$) {
+  my $tlxls = shift;
+  my $R1_alns = shift;
+  my $R2_alns= shift;
+  my $barcode_length = shift;
+
+  my $barcode = "";
+
+
+  if (defined $barcode_length && $barcode_length > 0) {
+    
+
+    # Search through OCS first
+
+    if (defined $tlxls->[$#$tlxls]->{R2_Rname} && $tlxls->[$#$tlxls]->{R2_Rname} eq "Adapter") {
+      my $adapter_aln = $tlxls->[$#$tlxls];
+      $barcode = substr($adapter_aln->{R2_Qseq},$adapter_aln->{R2_Qstart} - $barcode_length - 1,$barcode_length);
+    } elsif (defined $tlxls->[$#$tlxls]->{R1_Rname} && $tlxls->[$#$tlxls]->{R1_Rname} eq "Adapter") {
+      my $adapter_aln = $tlxls->[$#$tlxls];
+      $barcode = substr($adapter_aln->{R1_Qseq},$adapter_aln->{R1_Qstart} - $barcode_length - 1,$barcode_length);
+    } else {
+      
+      my $adapter_aln;
+
+      foreach my $R2_aln (@$R2_alns) {
+        if ($R2_aln->{Rname} eq "Adapter" && $R2_aln->{Strand} == 1) {
+          $adapter_aln = $R2_aln if ! defined $adapter_aln ||
+                                    $R2_aln->{Qend} > $adapter_aln->{Qend};
+        }
+      }
+
+      foreach my $R1_aln (@$R1_alns) {
+        if ($R1_aln->{Rname} eq "Adapter" && $R1_aln->{Strand} == 1) {
+          $adapter_aln = $R2_aln if ! defined $adapter_aln ||
+                                    $R2_aln->{Qend} > $adapter_aln->{Qend};
+        }
+      }
+
+      $barcode = substr($adapter_aln->{Seq},$adapter_aln->{Qstart} - $barcode_length - 1,$barcode_length) if defined $adapter_aln;
+
+    }
+
+  }
+
+  foreach my $tlxl (@tlxls) {
+    next unless defined $tlxl->{tlx};
+    $tlxl->{tlx}->{Barcode} = $barcode;
+  }
 
 }
 
@@ -894,8 +946,6 @@ sub create_tlx_entries ($$) {
     }
     $tlx->{J_Seq} = $tlx->{Strand} == 1 ? $ref->seq($tlx->{Rname},$tlx->{Rstart}-10,$tlx->{Rstart}+9) :
                                             $ref->seq($tlx->{Rname},$tlx->{Rend}-9,$tlx->{Rend}+10);
-
-
 
   }
 
