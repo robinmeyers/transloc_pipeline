@@ -448,14 +448,14 @@ sub find_random_barcode ($$$$) {
       my $adapter_aln;
 
       foreach my $R2_aln (@$R2_alns) {
-        if ($R2_aln->{Rname} eq "Adapter" && $R2_aln->{Strand} == 1) {
+        if ($R2_aln->{Unmapped} == 0 && $R2_aln->{Rname} eq "Adapter" && $R2_aln->{Strand} == 1) {
           $adapter_aln = $R2_aln if ! defined $adapter_aln ||
                                     $R2_aln->{Qend} > $adapter_aln->{Qend};
         }
       }
 
       foreach my $R1_aln (@$R1_alns) {
-        if ($R1_aln->{Rname} eq "Adapter" && $R1_aln->{Strand} == 1) {
+        if ($R1_aln->{Unmapped} == 0 && $R1_aln->{Rname} eq "Adapter" && $R1_aln->{Strand} == 1) {
           $adapter_aln = $R1_aln if ! defined $adapter_aln ||
                                     $R1_aln->{Qend} > $adapter_aln->{Qend};
         }
