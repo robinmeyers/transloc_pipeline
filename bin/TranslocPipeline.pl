@@ -87,8 +87,8 @@ my $breakcoord;
 my $prim_fa;
 my $adapt_fa;
 my $cut_fa;
-my $bowtie_threads = 4;
-my $dedup_threads = 4;
+my $bowtie_threads = 1;
+my $dedup_threads = 1;
 
 my $skip_alignment;
 my $skip_process;
