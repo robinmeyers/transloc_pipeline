@@ -1051,8 +1051,10 @@ sub deduplicate_junctions {
                           $tlxfile,
                           $dedup_output,
                           "cores=$dedup_threads",
-                          "offset_dist=$dedup_offset_dist",
-                          "break_dist=$dedup_break_dist") ;
+                          "offset.dist=$dedup_offset_dist",
+                          "break.dist=$dedup_break_dist") ;
+
+  $dedup_cmd .= " random.barcode=$random_barcode" if defined $random_barcode;
 
   System($dedup_cmd);
 

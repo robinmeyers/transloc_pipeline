@@ -8,8 +8,9 @@ if (commandArgs()[1] != "RStudio") {
   )
   
   OPTS <- c(
-    "offset_dist","numeric",1," ",
-    "break_dist","numeric",1," ",
+    "offset.dist","numeric",1," ",
+    "break.dist","numeric",1," ",
+    "random.barcode","numeric",0," ",
     "cores","numeric",0,"Number of compute nodes to run on"
   )
   
@@ -62,10 +63,15 @@ if (nrow(tlxs) > 0) {
     tlx <- tlxs[n,]
     matches <- subset(tlxs, 
                         Qname>tlx$Qname &
-                        abs(Offset-tlx$Offset)<=offset_dist & 
+                        abs(Offset-tlx$Offset)<=offset.dist & 
                         # abs(Junction-tlx$Junction)<=junc_dist &
-                        abs(B_Junction-tlx$B_Junction)<=break_dist & 
-                        abs(B_Qend-tlx$B_Qend)<=break_dist)
+                        abs(B_Junction-tlx$B_Junction)<=break.dist & 
+                        abs(B_Qend-tlx$B_Qend)<=break.dist)
+
+    if (random.barcode > 0 && strlen(tlx$Barcode) > 0) {
+      matches <- subset(matches, adist(tlx$Barcode,Barcode) <=2)
+    }
+
     if (nrow(matches) > 0) {
       return(paste(paste(matches$Qname,"(",matches$B_Junction-tlx$B_Junction,",",matches$Junction-tlx$Junction,")",sep="")[1:min(nrow(matches),3)],collapse=","))
     } else {
