@@ -8,8 +8,9 @@ if (commandArgs()[1] != "RStudio") {
   )
   
   OPTS <- c(
-    "offset_dist","numeric",1," ",
-    "break_dist","numeric",1," ",
+    "offset.dist","numeric",1," ",
+    "break.dist","numeric",1," ",
+    "random.barcode","numeric",0," ",
     "cores","numeric",0,"Number of compute nodes to run on"
   )
   
@@ -54,7 +55,6 @@ tlxs$B_Junction <- with(tlxs,ifelse(B_Strand==1,B_Rend,B_Rstart))
 # tlxs$B_Offset <- with(tlxs,ifelse(B_Strand==1,B_Junction-B_Qend,B_Junction+B_Qend))
 
 if (nrow(tlxs) > 0) {
-
   tlxs_by_chr_and_strand <- split(tlxs,list(tlxs$Rname,tlxs$Strand))
 
 
@@ -62,10 +62,15 @@ if (nrow(tlxs) > 0) {
     tlx <- tlxs[n,]
     matches <- subset(tlxs, 
                         Qname>tlx$Qname &
-                        abs(Offset-tlx$Offset)<=offset_dist & 
+                        abs(Offset-tlx$Offset) <= offset.dist & 
                         # abs(Junction-tlx$Junction)<=junc_dist &
-                        abs(B_Junction-tlx$B_Junction)<=break_dist & 
-                        abs(B_Qend-tlx$B_Qend)<=break_dist)
+                        abs(B_Junction-tlx$B_Junction) <= break.dist & 
+                        abs(B_Qend-tlx$B_Qend) <= break.dist)
+
+    if (random.barcode > 0 && nchar(tlx$Barcode) > 0) {
+      matches <- subset(matches, adist(Barcode,tlx$Barcode) <= 2)
+    }
+
     if (nrow(matches) > 0) {
       return(paste(paste(matches$Qname,"(",matches$B_Junction-tlx$B_Junction,",",matches$Junction-tlx$Junction,")",sep="")[1:min(nrow(matches),3)],collapse=","))
     } else {
@@ -87,7 +92,7 @@ if (nrow(tlxs) > 0) {
       cat(nrow(tlxs[[n]])," - ")
       print(object.size(tlxs[[n]]),units="Mb")
       
-      dups <- mclapply(1:nrow(tlxs[[n]]),findDuplicates,tlxs[[n]][,c("Qname","Offset","Junction","B_Junction","B_Qend")],mc.cores=cores)
+      dups <- mclapply(1:nrow(tlxs[[n]]),findDuplicates,tlxs[[n]][,c("Qname","Offset","Junction","B_Junction","B_Qend","Barcode")],mc.cores=cores)
       
       print(object.size(dups),units="Mb")
       
