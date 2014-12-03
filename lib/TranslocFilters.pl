@@ -536,8 +536,31 @@ sub filter_largegap ($$) {
 
 
 sub filter_mapqual ($$) {
-#   my $read_obj = shift;
-#   my $params = shift;
+  my $read_obj = shift;
+  my $params = shift;
+
+  my $tlxs = $read_obj->{tlxs};
+
+  my $R1_alns = $read_obj->{R1_alns};
+  my $R2_alns = $read_obj->{R2_alns};
+
+  my $i = 0;
+  foreach my $tlx (@$tlxs) {
+    print "TLX $i\n";
+    if (defined $tlx->{B_R1_ID}) {
+      print "B R1 " . $R1_alns->{$tlx->{B_R1_ID}}->{Rname} . "\n";
+    }
+    if (defined $tlx->{B_R2_ID}) {
+      print "B R2 " . $R2_alns->{$tlx->{B_R2_ID}}->{Rname} . "\n";
+    }
+    if (defined $tlx->{R1_ID}) {
+      print "R1 " . $R1_alns->{$tlx->{R1_ID}}->{Rname} . "\n";
+    }
+    if (defined $tlx->{R2_ID}) {
+      print "R2 " . $R2_alns->{$tlx->{R2_ID}}->{Rname} . "\n";
+    }
+    $i++;
+  }
 
 #   my $tlxls = $read_obj->{tlxls};
 

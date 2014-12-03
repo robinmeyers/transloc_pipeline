@@ -295,6 +295,8 @@ sub wrap_alignment ($$) {
   croak "Error: first argument to wrap_alignment must be either \"R1\" or \"R2\"" unless ($pe eq "R1" || $pe eq "R2");
   # my %wrapper :shared;
   my $wrapper = {Qname => $aln->qname};
+  $wrapper->{ID} = Data::GUID->new->as_string;
+
   if ($aln->unmapped) {
     $wrapper->{Unmapped} = 1;
     $wrapper->{Seq} = $pe eq "R1" ? $aln->query->dna : reverseComplement($aln->query->dna);
@@ -332,7 +334,6 @@ sub wrap_alignment ($$) {
 
   $wrapper->{Cigar} = join("",map {join("",@$_)} @{$wrapper->{CigarA}});
   $wrapper->{Qlen} = length($wrapper->{Seq});
-  $wrapper->{ID} = Data::GUID->new->as_string;
 
 
   return $wrapper;
@@ -460,14 +461,14 @@ sub find_random_barcode ($$$$) {
       
       my $adapter_aln;
 
-      foreach my $R2_aln (@$R2_alns) {
+      foreach my $R2_aln (values %$R2_alns) {
         if ($R2_aln->{Unmapped} == 0 && $R2_aln->{Rname} eq "Adapter" && $R2_aln->{Strand} == 1) {
           $adapter_aln = $R2_aln if ! defined $adapter_aln ||
                                     $R2_aln->{Qend} > $adapter_aln->{Qend};
         }
       }
 
-      foreach my $R1_aln (@$R1_alns) {
+      foreach my $R1_aln (values %$R1_alns) {
         if ($R1_aln->{Unmapped} == 0 && $R1_aln->{Rname} eq "Adapter" && $R1_aln->{Strand} == 1) {
           $adapter_aln = $R1_aln if ! defined $adapter_aln ||
                                     $R1_aln->{Qend} > $adapter_aln->{Qend};
@@ -518,13 +519,13 @@ sub create_tlx_entries2 ($$) {
     $R1_map = [1..length($Qseq)];
     $R2_map = [];
   } else {
-    print "merging alignments on $R2_idx\n";
+    # print "merging alignments on $R2_idx\n";
     ($Qseq,$R1_map,$R2_map) = merge_alignments($tlxls,$refs) ;
   }
 
 
   foreach my $i (0..$#$tlxls) {
-    print "TLX for ".$i."th segment\n";
+    # print "TLX for ".$i."th segment\n";
 
 
 
@@ -538,8 +539,8 @@ sub create_tlx_entries2 ($$) {
     $tlx->{Seq} = $Qseq;
     $tlx->{Qlen} = $R2_idx < 0 ? "" : length($Qseq);
 
-    print "B-R1: ".$b_tlxl->{R1_Qstart}."-".$b_tlxl->{R1_Qend}."\n" if defined $b_tlxl->{R1_Qstart};
-    print "B-R2: ".$b_tlxl->{R2_Qstart}."-".$b_tlxl->{R2_Qend}."\n" if defined $b_tlxl->{R2_Qstart};
+    # print "B-R1: ".$b_tlxl->{R1_Qstart}."-".$b_tlxl->{R1_Qend}."\n" if defined $b_tlxl->{R1_Qstart};
+    # print "B-R2: ".$b_tlxl->{R2_Qstart}."-".$b_tlxl->{R2_Qend}."\n" if defined $b_tlxl->{R2_Qstart};
 
 
     if ($i < $R2_idx || $R2_idx < 0) {
@@ -549,6 +550,8 @@ sub create_tlx_entries2 ($$) {
       $tlx->{B_Rend} = $b_tlxl->{R1_Rend};
       $tlx->{B_Qstart} = $R1_map->[$b_tlxl->{R1_Qstart}-1];
       $tlx->{B_Qend} = $R1_map->[$b_tlxl->{R1_Qend}-1];
+
+      $tlx->{B_R1_ID} = $b_tlxl->{R1_ID};
     
     } elsif ($i == $R2_idx) {
       # This is the segment we merged on
@@ -556,6 +559,7 @@ sub create_tlx_entries2 ($$) {
         # "+" strand alignment
         $tlx->{B_Rstart} = $b_tlxl->{R1_Rstart};
         $tlx->{B_Rend} = $b_tlxl->{R2_Rend};
+
       } else {
         # "-" strand alignment
         $tlx->{B_Rstart} = $b_tlxl->{R2_Rstart};
@@ -563,6 +567,9 @@ sub create_tlx_entries2 ($$) {
       }
       $tlx->{B_Qstart} = $R1_map->[$b_tlxl->{R1_Qstart}-1];
       $tlx->{B_Qend} = $R2_map->[$b_tlxl->{R2_Qend}-1];
+      $tlx->{B_R1_ID} = $b_tlxl->{R1_ID};
+      $tlx->{B_R2_ID} = $b_tlxl->{R2_ID};
+
     } else {
       # Segment post merge
       # Use R2
@@ -570,13 +577,14 @@ sub create_tlx_entries2 ($$) {
       $tlx->{B_Rend} = $b_tlxl->{R2_Rend};
       $tlx->{B_Qstart} = $R2_map->[$b_tlxl->{R2_Qstart}-1];
       $tlx->{B_Qend} = $R2_map->[$b_tlxl->{R2_Qend}-1];
+      $tlx->{B_R2_ID} = $b_tlxl->{R2_ID};
     }
     
     if ($i+1 <= $#$tlxls) {
       my $tlxl = $tlxls->[$i+1];
 
-      print "R1: ".$tlxl->{R1_Qstart}."-".$tlxl->{R1_Qend}."\n" if defined $tlxl->{R1_Qstart};
-      print "R2: ".$tlxl->{R2_Qstart}."-".$tlxl->{R2_Qend}."\n" if defined $tlxl->{R2_Qstart};
+      # print "R1: ".$tlxl->{R1_Qstart}."-".$tlxl->{R1_Qend}."\n" if defined $tlxl->{R1_Qstart};
+      # print "R2: ".$tlxl->{R2_Qstart}."-".$tlxl->{R2_Qend}."\n" if defined $tlxl->{R2_Qstart};
 
       $tlx->{Rname} = $tlxl->{Rname};
       $tlx->{Strand} = $tlxl->{Strand};
@@ -586,6 +594,9 @@ sub create_tlx_entries2 ($$) {
         $tlx->{Rend} = $tlxl->{R1_Rend};
         $tlx->{Qstart} = $R1_map->[$tlxl->{R1_Qstart}-1];
         $tlx->{Qend} = $R1_map->[$tlxl->{R1_Qend}-1];
+        
+        $tlx->{R1_ID} = $tlxl->{R1_ID};
+
       } elsif ($i+1 == $R2_idx) {
         if ($tlx->{Strand} == 1) {
           $tlx->{Rstart} = $tlxl->{R1_Rstart};
@@ -596,11 +607,18 @@ sub create_tlx_entries2 ($$) {
         }
         $tlx->{Qstart} = $R1_map->[$tlxl->{R1_Qstart}-1];
         $tlx->{Qend} = $R2_map->[$tlxl->{R2_Qend}-1];
+
+        $tlx->{R1_ID} = $tlxl->{R1_ID};
+        $tlx->{R2_ID} = $tlxl->{R2_ID};
+
       } else {
         $tlx->{Rstart} = $tlxl->{R2_Rstart};
         $tlx->{Rend} = $tlxl->{R2_Rend};
         $tlx->{Qstart} = $R2_map->[$tlxl->{R2_Qstart}-1];
         $tlx->{Qend} = $R2_map->[$tlxl->{R2_Qend}-1];
+
+        $tlx->{R2_ID} = $tlxl->{R2_ID};
+
       }
 
       if ($tlx->{Strand} == 1) {
@@ -678,7 +696,7 @@ sub merge_alignments ($$) {
 
 
   if ($Strand == 1) {
-    print "+ strand alignment\n";
+    # print "+ strand alignment\n";
     # Query sequence and quality info for each pair split into arrays
     @Qseq1 = split("",$tlxl->{R1_Seq});
     @Qseq2 = split("",$tlxl->{R2_Seq});
@@ -708,7 +726,7 @@ sub merge_alignments ($$) {
 
 
   } else {
-    print "- strand alignment\n";
+    # print "- strand alignment\n";
     # Query info again, this time flipping R1/R2, reversing (and complementing)
     @Qseq1 = split("",reverseComplement($tlxl->{R2_Seq}));
     @Qseq2 = split("",reverseComplement($tlxl->{R1_Seq}));
@@ -761,7 +779,7 @@ sub merge_alignments ($$) {
   # Note!!! For "-" alignments, R1 is actually temporarily R2
   # (but we can forget that because symmetry)
   if ($Qstart1 > 1) {
-    print "premerge\n";
+    # print "premerge\n";
     my @R1_tail = 0..($Qstart1-2);
     push(@Qseq, @Qseq1[@R1_tail]);
     @Qmap1[@R1_tail] = 1..(scalar @R1_tail);
@@ -775,7 +793,7 @@ sub merge_alignments ($$) {
   # Basically this means shifting off the front of the cigar array
   # and incrementing $Qpos2 until we're at the same Ref position as R1
   if ($Rstart2 < $Rstart1) {
-    print "pushing R2 premerge\n";
+    # print "pushing R2 premerge\n";
     my $Rpos_tmp = $Rstart2;
     while ($Rpos_tmp < $Rstart1) {
       my $c2 = shift(@Cigar2);
@@ -796,7 +814,7 @@ sub merge_alignments ($$) {
 
   # Push ahead on R1 where there is no overlap
   # So either until the end of R1 or the start of R2
-  print "pushing R1 at $Rpos\n";
+  # print "pushing R1 at $Rpos\n";
   while ($Rpos <= $Rend1 && $Rpos < $Rstart2) {
     my $c1 = shift(@Cigar1);
     switch ($c1) {
@@ -822,7 +840,7 @@ sub merge_alignments ($$) {
   # R1   |------------>
   # R2                      <--------------|
   if ($Rstart2 - $Rend1 > 1) {
-    print "handling gap at $Rpos\n";
+    # print "handling gap at $Rpos\n";
     my $Gap_start = $Rend1 - $Rstart1 + 1;
     my $Gap_end = $Rstart2 - $Rstart1 - 1;
     push(@Qseq, map {lc $_} @Rseq[$Gap_start..$Gap_end]);
@@ -833,7 +851,7 @@ sub merge_alignments ($$) {
   # R1  |------------->
   # R2       <--------------|
   if ($Rend1 >= $Rstart2) {
-    print "handling overlap at $Rpos\n";
+    # print "handling overlap at $Rpos\n";
     while ($Rpos <= $Rend1 && $Rpos <= $Rend2) {
       my $c1 = shift(@Cigar1);
       my $c2 = shift(@Cigar2);
@@ -951,7 +969,7 @@ sub merge_alignments ($$) {
 
 
   # Push ahead on R2
-  print "pushing R2 at $Rpos\n";
+  # print "pushing R2 at $Rpos\n";
   while ($Rpos <= $Rend2) {
     my $c2 = shift(@Cigar2);
     switch ($c2) {
@@ -983,7 +1001,7 @@ sub merge_alignments ($$) {
 
   # Handle everything on R2 after Qend
   if (scalar @Qseq2 > $Qend2) {
-    print "postmerge\n";
+    # print "postmerge\n";
     my @R2_tail = ($Qend2)..$#Qseq2;
     push(@Qseq, @Qseq2[@R2_tail]);
     @Qmap2[@R2_tail] = (scalar @Qseq - scalar @R2_tail - 1)..(scalar @Qseq);
@@ -992,18 +1010,18 @@ sub merge_alignments ($$) {
   my $Qseq = join("",@Qseq);
 
 
-  print "R1\n";
-  print join("",map {chr($_+33)} @Qual1)."\n";
-  print join("",@Qseq1)."\n";
-  print join(" ",@Qmap1)."\n";
+  # print "R1\n";
+  # print join("",map {chr($_+33)} @Qual1)."\n";
+  # print join("",@Qseq1)."\n";
+  # print join(" ",@Qmap1)."\n";
   
-  print "R2\n";
-  print join("",map {chr($_+33)} @Qual2)."\n";
-  print join("",@Qseq2)."\n";
-  print join(" ",@Qmap2)."\n";  
+  # print "R2\n";
+  # print join("",map {chr($_+33)} @Qual2)."\n";
+  # print join("",@Qseq2)."\n";
+  # print join(" ",@Qmap2)."\n";  
 
-  print "merge\n";
-  print "$Qseq\n";
+  # print "merge\n";
+  # print "$Qseq\n";
 
 
   # Flip things around if it was - strand alignment
@@ -1014,10 +1032,10 @@ sub merge_alignments ($$) {
     @Qmap1 = map {$_ == 0 ? 0 : (scalar @Qseq - $_ + 1) } reverse @Qmap2_tmp;
     @Qmap2 = map {$_ == 0 ? 0 : (scalar @Qseq - $_ + 1) } reverse @Qmap1_tmp;
 
-    print "reversed\n";
-    print join(" ",@Qmap1)."\n";
-    print join(" ",@Qmap2)."\n";  
-    print "$Qseq\n";
+    # print "reversed\n";
+    # print join(" ",@Qmap1)."\n";
+    # print join(" ",@Qmap2)."\n";  
+    # print "$Qseq\n";
   }
 
   return($Qseq,\@Qmap1,\@Qmap2);

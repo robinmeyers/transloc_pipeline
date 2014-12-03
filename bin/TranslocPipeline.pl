@@ -562,27 +562,34 @@ sub process_alignments {
 
     my $qname = $next_R1_aln->{Qname};
 
-    my @R1_alns = ();
-    my @R2_alns = ();
+    # my @R1_alns = ();
+    # my @R2_alns = ();
+
+    my %R1_alns_h;
+    my %R2_alns_h;
 
        
-    push(@R1_alns,$next_R1_aln);
+    # push(@R1_alns,$next_R1_aln);
+    $R1_alns_h{$next_R1_aln->{ID}} = $next_R1_aln;
     undef $next_R1_aln;
 
     while(my $aln = $R1_iter->next_seq) {
       $next_R1_aln = wrap_alignment("R1",$aln);
       last unless $next_R1_aln->{Qname} eq $qname;
-      push(@R1_alns,$next_R1_aln);
+      # push(@R1_alns,$next_R1_aln);
+      $R1_alns_h{$next_R1_aln->{ID}} = $next_R1_aln;
       undef $next_R1_aln;
     }
 
     if (defined $next_R2_aln && $next_R2_aln->{Qname} eq $qname) {
-      push(@R2_alns,$next_R2_aln);
+      # push(@R2_alns,$next_R2_aln);
+      $R2_alns_h{$next_R2_aln->{ID}} = $next_R2_aln;
       undef $next_R2_aln;
       while(my $aln = $R2_iter->next_seq) {
         $next_R2_aln = wrap_alignment("R2",$aln);
         last unless $next_R2_aln->{Qname} eq $qname;
-        push(@R2_alns,$next_R2_aln);
+        # push(@R2_alns,$next_R2_aln);
+        $R2_alns_h{$next_R2_aln->{ID}} = $next_R2_aln;
         undef $next_R2_aln;
       }
     }
@@ -590,23 +597,27 @@ sub process_alignments {
     # Read in Breaksite alignments only if brksite is non-endogenous
     unless ($brksite->{endogenous}) {
       if (defined $next_R1_brk_aln && $next_R1_brk_aln->{Qname} eq $qname) {
-        push(@R1_alns,$next_R1_brk_aln);
+        # push(@R1_alns,$next_R1_brk_aln);
+        $R1_alns_h{$next_R1_brk_aln->{ID}} = $next_R1_brk_aln;
         undef $next_R1_brk_aln;
         while(my $aln = $R1_brk_iter->next_seq) {
           $next_R1_brk_aln = wrap_alignment("R1",$aln);
           last unless $next_R1_brk_aln->{Qname} eq $qname;
-          push(@R1_alns,$next_R1_brk_aln);
+          # push(@R1_alns,$next_R1_brk_aln);
+          $R1_alns_h{$next_R1_brk_aln->{ID}} = $next_R1_brk_aln;
           undef $next_R1_brk_aln;
         }
       }
 
       if (defined $next_R2_brk_aln && $next_R2_brk_aln->{Qname} eq $qname) {
-        push(@R2_alns,$next_R2_brk_aln);
+        # push(@R2_alns,$next_R2_brk_aln);
+        $R2_alns_h{$next_R2_brk_aln->{ID}} = $next_R2_brk_aln;
         undef $next_R2_brk_aln;
         while(my $aln = $R2_brk_iter->next_seq) {
           $next_R2_brk_aln = wrap_alignment("R2",$aln);
           last unless $next_R2_brk_aln->{Qname} eq $qname;
-          push(@R2_alns,$next_R2_brk_aln);
+          # push(@R2_alns,$next_R2_brk_aln);
+          $R2_alns_h{$next_R2_brk_aln->{ID}} = $next_R2_brk_aln;
           undef $next_R2_brk_aln;
         }
       }
@@ -615,23 +626,27 @@ sub process_alignments {
 
     # Read in Adapter alignments
     if (defined $next_R1_adpt_aln && $next_R1_adpt_aln->{Qname} eq $qname) {
-      push(@R1_alns,$next_R1_adpt_aln);
+      # push(@R1_alns,$next_R1_adpt_aln);
+      $R1_alns_h{$next_R1_adpt_aln->{ID}} = $next_R1_adpt_aln;
       undef $next_R1_adpt_aln;
       while(my $aln = $R1_adpt_iter->next_seq) {
         $next_R1_adpt_aln = wrap_alignment("R1",$aln);
         last unless $next_R1_adpt_aln->{Qname} eq $qname;
-        push(@R1_alns,$next_R1_adpt_aln);
+        # push(@R1_alns,$next_R1_adpt_aln);
+        $R1_alns_h{$next_R1_adpt_aln->{ID}} = $next_R1_adpt_aln;
         undef $next_R1_adpt_aln;
       }
     }
 
     if (defined $next_R2_adpt_aln && $next_R2_adpt_aln->{Qname} eq $qname) {
-      push(@R2_alns,$next_R2_adpt_aln);
+      # push(@R2_alns,$next_R2_adpt_aln);
+      $R2_alns_h{$next_R2_adpt_aln->{ID}} = $next_R2_adpt_aln;
       undef $next_R2_adpt_aln;
       while(my $aln = $R2_adpt_iter->next_seq) {
         $next_R2_adpt_aln = wrap_alignment("R2",$aln);
         last unless $next_R2_adpt_aln->{Qname} eq $qname;
-        push(@R2_alns,$next_R2_adpt_aln);
+        # push(@R2_alns,$next_R2_adpt_aln);
+        $R2_alns_h{$next_R2_adpt_aln->{ID}} = $next_R2_adpt_aln;
         undef $next_R2_adpt_aln;
       }
     }
@@ -641,11 +656,11 @@ sub process_alignments {
     # print "\nbefore ocs ". Dumper(\@R2_alns) if @R2_alns < 2;
 
 
-    my $OCS = find_optimal_coverage_set(\@R1_alns,\@R2_alns);
+    my $OCS = find_optimal_coverage_set(\%R1_alns_h,\%R2_alns_h);
 
     
     
-    process_optimal_coverage_set($OCS,\@R1_alns,\@R2_alns);
+    process_optimal_coverage_set($OCS,\%R1_alns_h,\%R2_alns_h);
 
     
 
@@ -669,8 +684,8 @@ sub find_optimal_coverage_set ($$) {
   my @graph = ();
   my $OCS_ptr;
 
-  my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} @$R1_alns_ref;
-  my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} @$R2_alns_ref;
+  my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} values %$R1_alns_ref;
+  my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} values %$R2_alns_ref;
 
   # print "\nafter sort ".Dumper(\@R2_alns) if @R2_alns < 2;
 
@@ -795,13 +810,13 @@ sub find_optimal_coverage_set ($$) {
   }
 
   unless (defined $OCS_ptr) {
-    my @unmapped_OCS = ( { R1 => { Qname => $R1_alns_ref->[0]->{Qname},
-                                   Seq => $R1_alns_ref->[0]->{Seq},
-                                   Qual => $R1_alns_ref->[0]->{Qual},
+    my @unmapped_OCS = ( { R1 => { Qname => $R1_alns[0]->{Qname},
+                                   Seq => $R1_alns[0]->{Seq},
+                                   Qual => $R1_alns[0]->{Qual},
                                    Unmapped => 1 },
-                           R2 => { Qname => $R2_alns_ref->[0]->{Qname},
-                                   Seq => $R2_alns_ref->[0]->{Seq},
-                                   Qual => $R2_alns_ref->[0]->{Qual},
+                           R2 => { Qname => $R2_alns[0]->{Qname},
+                                   Seq => $R2_alns[0]->{Seq},
+                                   Qual => $R2_alns[0]->{Qual},
                                    Unmapped => 1 } } );
     return \@unmapped_OCS;
 
@@ -870,8 +885,8 @@ sub process_optimal_coverage_set ($$$) {
 
 
   foreach my $filter (@dispatch_names) {
-    print "$filter\n";
-    print Dumper(@{$stats->{$filter}}{("reads","junctions")});
+    # print "$filter\n";
+    # print Dumper(@{$stats->{$filter}}{("reads","junctions")});
 
     my @current_stats = @{$stats->{$filter}}{("reads","junctions")};
     my @filter_result = $filter_dispatch{$filter}->($read_obj, $params);
