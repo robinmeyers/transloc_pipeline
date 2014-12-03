@@ -437,10 +437,13 @@ sub create_tlxl_entries ($) {
 }
 
 sub find_random_barcode ($$$$) {
-  my $tlxls = shift;
-  my $R1_alns = shift;
-  my $R2_alns= shift;
+  my $read_obj = shift;
   my $barcode_length = shift;
+
+  my $tlxs = $read_obj->{tlxs};
+  my $R1_alns = $read_obj->{R1_alns};
+  my $R2_alns = $read_obj->{R2_alns};
+
 
   my $barcode = "";
 
@@ -450,12 +453,9 @@ sub find_random_barcode ($$$$) {
 
     # Search through OCS first
 
-    if (defined $tlxls->[$#$tlxls]->{R2_Rname} && $tlxls->[$#$tlxls]->{R2_Rname} eq "Adapter") {
-      my $adapter_aln = $tlxls->[$#$tlxls];
-      $barcode = substr($adapter_aln->{R2_Qseq},$adapter_aln->{R2_Qstart} - $barcode_length - 1,$barcode_length);
-    } elsif (defined $tlxls->[$#$tlxls]->{R1_Rname} && $tlxls->[$#$tlxls]->{R1_Rname} eq "Adapter") {
-      my $adapter_aln = $tlxls->[$#$tlxls];
-      $barcode = substr($adapter_aln->{R1_Qseq},$adapter_aln->{R1_Qstart} - $barcode_length - 1,$barcode_length);
+    if (defined $tlxs->[$#$tlxs]->{Rname} && $tlxs->[$#$tlxs]->{Rname} eq "Adapter") {
+      my $adapter_aln = $tlxs->[$#$tlxs];
+      $barcode = substr($adapter_aln->{Seq},$adapter_aln->{Qstart} - $barcode_length - 1,$barcode_length);
     } else {
       
       my $adapter_aln;
@@ -480,9 +480,8 @@ sub find_random_barcode ($$$$) {
 
   }
 
-  foreach my $tlxl (@$tlxls) {
-    next unless defined $tlxl->{tlx};
-    $tlxl->{tlx}->{Barcode} = $barcode;
+  foreach my $tlx (@$tlxs) {
+    $tlx->{Barcode} = $barcode;
   }
 
 }

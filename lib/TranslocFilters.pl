@@ -555,7 +555,7 @@ sub filter_breaksite ($$) {
   my $tlxs = $read_obj->{tlxs};
   my $i = 0;
   foreach my $tlx (@$tlxs) {
-    if ($tlx->{Rname} eq "Breaksite") {
+    if (defined $tlx->{Rname} && $tlx->{Rname} eq "Breaksite") {
       my $junctions = filter_remainder_of_read($tlxs,"breaksite",$i);
       return($i == 0 ? 1 : 0, $junctions);
     }

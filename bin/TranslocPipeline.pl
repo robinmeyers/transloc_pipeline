@@ -847,6 +847,8 @@ sub process_optimal_coverage_set ($$$) {
                                          brk => $R1_brk_samobj,
                                          adpt => $R1_adpt_samobj} )  ;
 
+
+
   
   $stats->{total}->{reads}++;
 
@@ -862,6 +864,8 @@ sub process_optimal_coverage_set ($$$) {
 
   # Bundle alignments and everything into a single object
   my $read_obj = {tlxs => $tlxs, tlxls => $tlxls, R1_alns => $R1_alns, R2_alns => $R2_alns};
+
+  find_random_barcode($read_obj,$random_barcode);
 
 
 
@@ -883,7 +887,6 @@ sub process_optimal_coverage_set ($$$) {
    
 
 
-  find_random_barcode($tlxls,$R1_alns,$R2_alns,$random_barcode);
 
 
 
