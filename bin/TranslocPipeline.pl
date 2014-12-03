@@ -88,8 +88,9 @@ my $breakcoord;
 my $prim_fa;
 my $adapt_fa;
 my $cut_fa;
-my $bowtie_threads = 4;
-my $dedup_threads = 4;
+my $bowtie_threads = 1;
+my $dedup_threads = 1;
+my $random_barcode;
 
 my $skip_alignment;
 my $skip_process;
@@ -852,6 +853,7 @@ sub process_optimal_coverage_set ($$$) {
   my %filter_init;
   @filter_init{@filters} = (0) x @filters;
 
+
   foreach my $tlx (@$tlxs) {
     $stats->{total}->{junctions}++ if (is_a_junction($tlx));
     $tlx->{filters} = {%filter_init};
@@ -879,6 +881,9 @@ sub process_optimal_coverage_set ($$$) {
 
   # $stats->{aligned}++ unless $tlxls->[0]->{Unmapped};
    
+
+
+  find_random_barcode($tlxls,$R1_alns,$R2_alns,$random_barcode);
 
 
 
@@ -1120,8 +1125,10 @@ sub deduplicate_junctions {
                           $tlxfile,
                           $dedup_output,
                           "cores=$dedup_threads",
-                          "offset_dist=$dedup_offset_dist",
-                          "break_dist=$dedup_break_dist") ;
+                          "offset.dist=$dedup_offset_dist",
+                          "break.dist=$dedup_break_dist") ;
+
+  $dedup_cmd .= " random.barcode=$random_barcode" if defined $random_barcode;
 
   System($dedup_cmd);
 
@@ -1305,6 +1312,7 @@ sub parse_command_line {
                             "cutter=s" => \$cut_fa,
                             "threads-bt=i" => \$bowtie_threads,
                             "threads-dedup=i" => \$dedup_threads,
+                            "random-barcode=i" => \$random_barcode,
                             "skip-align" => \$skip_alignment,
                             "skip-process" => \$skip_process,
                             "skip-dedup" => \$skip_dedup,
