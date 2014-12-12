@@ -401,8 +401,10 @@ sub parse_command_line {
 		croak "Error: cannot define both input directory and non-de-multiplexed reads" if (defined $read1 || defined $read2);		
 	} else {
 		croak "Error: cannot find read 1 $read1 does not exist" unless (-r $read1);
-		unless (-r $read2) {
+		unless (defined $read2) {
 			$paired_end = 0;
+		} else {
+			croak "Error: cannot find read 2 $read2 does not exist" unless (-r $read2);
 		}
 	}
 	unless (-d $outdir) {
