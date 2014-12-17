@@ -990,14 +990,15 @@ sub score_edge ($;$) {
     my $R1_AS = defined $node2->{R1} ? $node2->{R1}->{AS} : 0;
     my $R2_AS = defined $node2->{R2} ? $node2->{R2}->{AS} : 0;
     my $PEgap;
-    my $PEgap_pen;
+    my $PEgap_pen= 0;
 
     if (defined $node2->{R1} && defined $node2->{R2}) {
       $PEgap = $node2->{R1}->{Strand} == 1 ? $node2->{R2}->{Rstart} - $node2->{R1}->{Rend} : $node2->{R1}->{Rstart} - $node2->{R1}->{Rend};
+      $PEgap_pen = $PEgap > 1 ? $PE_pen_default : 0;
+      $PEgap_pen += $Dif_mult *($node1->{R1}->{Qlen} - $node1->{R1}->{Qend});
     }
 
     # $PEgap_pen = defined $PEgap && $PEgap > 1 ? $Brk_pen_min + $Brk_pen_mult * log10($PEgap)**$Brk_pen_power : 0;
-    $PEgap_pen = defined $PEgap && $PEgap > 1 ? $PE_pen_default : 0;
     # print $node1->{R1}->{Qname}." - $PEgap - $PEgap_pen\n" if defined $PEgap;
 
     $score = $node1->{score} + $R1_AS + $R2_AS - $PEgap_pen - $Brk_pen - $OL_correction;
@@ -1024,15 +1025,21 @@ sub score_edge ($;$) {
     my $R1_AS = $node1->{R1}->{AS};
     my $R2_AS = defined $node1->{R2} ? $node1->{R2}->{AS} : 0;
     my $PEgap;
-    my $PEgap_pen;
+    my $PEgap_pen = 0;
 
 
     if (defined $node1->{R1} && defined $node1->{R2}) {
       $PEgap = $node1->{R1}->{Strand} == 1 ? $node1->{R2}->{Rstart} - $node1->{R1}->{Rend} : $node1->{R1}->{Rstart} - $node1->{R1}->{Rend};
+      $PEgap_pen = $PEgap > 1 ? $PE_pen_default : 0;
+      $PEgap_pen += $Dif_mult *($node1->{R1}->{Qlen} - $node1->{R1}->{Qend});
     }
 
     # $PEgap_pen = defined $PEgap && $PEgap > 1 ? $Brk_pen_min + $Brk_pen_mult * log10($PEgap)**$Brk_pen_power : 0;
-    $PEgap_pen = defined $PEgap && $PEgap > 1 ? $PE_pen_default : 0;
+
+
+
+
+
     # print $node1->{R1}->{Qname}." - $PEgap - $PEgap_pen\n" if defined $PEgap;
 
     $score = $R1_AS + $R2_AS - $PEgap_pen - $Dif_mult * $brk_start_dif;
