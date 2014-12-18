@@ -290,6 +290,7 @@ sub filter_freq_cutter ($$) {
 
 
       if (defined $cutter && $cutter->seq =~ /\S/) {
+        # TODO: figure out why $tlxl->{tlx}->{Qstart} sometimes isn't defined here
         if (uc($tlxl->{tlx}->{J_Seq}) =~ $cutter->seq || substr($tlxl->{tlx}->{Seq},0,$tlxl->{tlx}->{Qstart}+4) =~ $cutter->seq) {
           $filter = "FreqCutter";
           $tlxl->{tlx}->{Filter} = $filter;
