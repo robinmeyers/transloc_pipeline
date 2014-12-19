@@ -539,33 +539,33 @@ sub filter_mapqual ($$) {
   my $read_obj = shift;
   my $params = shift;
 
-  my $tlxs = $read_obj->{tlxs};
+  # my $tlxs = $read_obj->{tlxs};
 
-  my $R1_alns = $read_obj->{R1_alns};
-  my $R2_alns = $read_obj->{R2_alns};
+  # my $R1_alns = $read_obj->{R1_alns};
+  # my $R2_alns = $read_obj->{R2_alns};
 
-  my $i = 0;
-  foreach my $tlx (@$tlxs) {
-    next unless is_a_junction($tlx);
-    my $R1_aln = ;
-    my $R2_aln;
+  # my $i = 0;
+  # foreach my $tlx (@$tlxs) {
+  #   next unless is_a_junction($tlx);
+  #   my $R1_aln = ;
+  #   my $R2_aln;
 
 
-    print "TLX $i\n";
-    if (defined $tlx->{B_R1_ID}) {
-      print "B R1 " . $R1_alns->{$tlx->{B_R1_ID}}->{Rname} . "\n";
-    }
-    if (defined $tlx->{B_R2_ID}) {
-      print "B R2 " . $R2_alns->{$tlx->{B_R2_ID}}->{Rname} . "\n";
-    }
-    if (defined $tlx->{R1_ID}) {
-      print "R1 " . $R1_alns->{$tlx->{R1_ID}}->{Rname} . "\n";
-    }
-    if (defined $tlx->{R2_ID}) {
-      print "R2 " . $R2_alns->{$tlx->{R2_ID}}->{Rname} . "\n";
-    }
-    $i++;
-  }
+  #   print "TLX $i\n";
+  #   if (defined $tlx->{B_R1_ID}) {
+  #     print "B R1 " . $R1_alns->{$tlx->{B_R1_ID}}->{Rname} . "\n";
+  #   }
+  #   if (defined $tlx->{B_R2_ID}) {
+  #     print "B R2 " . $R2_alns->{$tlx->{B_R2_ID}}->{Rname} . "\n";
+  #   }
+  #   if (defined $tlx->{R1_ID}) {
+  #     print "R1 " . $R1_alns->{$tlx->{R1_ID}}->{Rname} . "\n";
+  #   }
+  #   if (defined $tlx->{R2_ID}) {
+  #     print "R2 " . $R2_alns->{$tlx->{R2_ID}}->{Rname} . "\n";
+  #   }
+  #   $i++;
+  # }
 
 #   my $tlxls = $read_obj->{tlxls};
 

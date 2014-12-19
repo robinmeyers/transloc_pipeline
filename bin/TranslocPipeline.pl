@@ -854,10 +854,10 @@ sub process_optimal_coverage_set ($$$) {
   my $R2_alns = shift;
 
   print "starting ".$OCS_ref->[0]->{R1}->{Qname}."\n";
-  print "create tlxls\n";
+  # print "create tlxls\n";
   my $tlxls = create_tlxl_entries($OCS_ref);
 
-  print "create tlxs\n";
+  # print "create tlxs\n";
   my $tlxs = create_tlx_entries2($tlxls, {genome => $R1_samobj,
                                          brk => $R1_brk_samobj,
                                          adpt => $R1_adpt_samobj} )  ;
