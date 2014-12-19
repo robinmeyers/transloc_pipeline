@@ -429,7 +429,7 @@ sub filter_baitonly ($$) {
 
   my $tlxs = $read_obj->{tlxs};
 
-  if (! is_a_junction($tlxs->[0])) {
+  if (defined $tlxs->[0]->{B_Rname} && ! is_a_junction($tlxs->[0])) {
     my $junctions = filter_entire_read($tlxs,"baitonly");
     return(1,$junctions)
   } else {
