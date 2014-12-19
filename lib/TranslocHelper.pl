@@ -129,7 +129,7 @@ sub sam_file_is_empty ($) {
 sub tlx_header {
   my @tlx_header = ( qw(Qname Rname Junction Strand Rstart Rend),
                       qw(B_Rname B_Rstart B_Rend B_Strand B_Qstart B_Qend),
-                      qw(Qstart Qend Qlen Seq J_Seq Barcode) );
+                      qw(Qstart Qend Qlen B_Cigar Cigar Seq J_Seq Barcode) );
   return (@tlx_header);
 }
 
@@ -145,6 +145,79 @@ sub tlxl_header {
                       qw(R2_Rstart R2_Rend R2_Qstart R2_Qend R2_Qlen),
                       qw(R1_Rgap R2_Rgap R1_Cigar R2_Cigar) );
   return (@tlxl_header);
+}
+
+
+sub cigar_array_to_string ($) {
+  my $array_ref = shift;
+  my $string = join("",map {join("", reverse @$_)} @$array_ref);
+}
+
+sub cigar_string_to_array ($) {
+  my $string = shift;
+  my @array;
+  while ($string =~ /([0-9]+)([SMXIDN])/g) {
+    push(@array,[$2,$1]);
+  }
+  return \@array;
+}
+
+sub remap_cigar ($$$$) {
+  my $cigar_array_ref = shift;
+  my $rseq = shift;
+  my $qseq = shift;
+  my $qmap = shift;
+
+  my @new_cigar;
+
+
+
+  return \@new_cigar;
+}
+
+sub soft_clip_cigar ($) {
+  my $cigar_ref = shift;
+  my @cigar = @$cigar_ref;
+  if ($cigar[0]->[0] eq "S") {
+    shift(@cigar);
+  }
+  if ($cigar[$#cigar]->[0] eq "S") {
+    pop(@cigar);
+  }
+  return \@cigar;
+}
+
+sub expand_cigar ($) {
+  my $compact_cigar = shift;
+  my @expand_cigar;
+  foreach my $i (@$compact_cigar) {
+    next if $i->[0] eq "S";
+    push(@expand_cigar, ($i->[0]) x $i->[1]);
+  }
+  return \@expand_cigar;
+}
+
+sub compact_cigar ($) {
+  my $expand_cigar = shift;
+  my @compact_cigar = ();
+
+  my $prev_code = $expand_cigar->[0];
+  my $count = 1;
+  return [[$prev_code,$count]] if $#$expand_cigar < 1;
+
+  foreach my $i (1..$#) {
+    if ($expand_cigar->[$i] eq $prev_code) {
+      $count++;
+    } else {
+      push(@compact_cigar,[$prev_code,$count]);
+      $prev_code = $expand_cigar->[$i];
+      $count = 1;
+    }
+  }
+
+  push(@compact_cigar,[$prev_code,$count]);
+
+  return \@compact_cigar;
 }
 
 sub write_filter_entry ($$$$) {
@@ -509,6 +582,7 @@ sub create_tlx_entries2 ($$) {
   my $Qseq;
   my $R1_map;
   my $R2_map;
+  my $Cigar_array_ref;
 
   # First decide if we even need a merge
   my $R2_idx = firstidx {defined $_->{R2_Seq}} @$tlxls;
@@ -518,9 +592,10 @@ sub create_tlx_entries2 ($$) {
     $Qseq = $tlxls->[0]->{R1_Seq};
     $R1_map = [1..length($Qseq)];
     $R2_map = [];
+    $Cigar_array_ref = [];
   } else {
     # print "merging alignments on $R2_idx\n";
-    ($Qseq,$R1_map,$R2_map) = merge_alignments($tlxls,$refs) ;
+    ($Qseq,$R1_map,$R2_map,$Cigar_array_ref) = merge_alignments($tlxls,$refs) ;
   }
 
 
@@ -552,7 +627,8 @@ sub create_tlx_entries2 ($$) {
       $tlx->{B_Qend} = $R1_map->[$b_tlxl->{R1_Qend}-1];
 
       $tlx->{B_R1_ID} = $b_tlxl->{R1_ID};
-    
+      $tlx->{B_CigarA} = remap_cigar($b_tlxl->{R1_Cigar},$Rseq,$Qseq,$Qmap1);
+
     } elsif ($i == $R2_idx) {
       # This is the segment we merged on
       if ($tlx->{B_Strand} == 1) {
@@ -569,6 +645,7 @@ sub create_tlx_entries2 ($$) {
       $tlx->{B_Qend} = $R2_map->[$b_tlxl->{R2_Qend}-1];
       $tlx->{B_R1_ID} = $b_tlxl->{R1_ID};
       $tlx->{B_R2_ID} = $b_tlxl->{R2_ID};
+      $tlx->{B_CigarA} = $Cigar_array_ref;
 
     } else {
       # Segment post merge
@@ -578,7 +655,11 @@ sub create_tlx_entries2 ($$) {
       $tlx->{B_Qstart} = $R2_map->[$b_tlxl->{R2_Qstart}-1];
       $tlx->{B_Qend} = $R2_map->[$b_tlxl->{R2_Qend}-1];
       $tlx->{B_R2_ID} = $b_tlxl->{R2_ID};
+      $tlx->{B_CigarA} = remap_cigar($b_tlxl->{R2_Cigar},$Rseq,$Qseq,$Qmap2);
     }
+
+    $tlx->{B_Cigar} = cigar_array_to_string($tlx->{B_CigarA});
+
     
     if ($i+1 <= $#$tlxls) {
       my $tlxl = $tlxls->[$i+1];
@@ -595,6 +676,7 @@ sub create_tlx_entries2 ($$) {
         $tlx->{Qstart} = $R1_map->[$tlxl->{R1_Qstart}-1];
         $tlx->{Qend} = $R1_map->[$tlxl->{R1_Qend}-1];
         
+        $tlx->{CigarA} = remap_cigar($tlxl->{R1_Cigar},$Rseq,$Qseq,$Qmap1);
         $tlx->{R1_ID} = $tlxl->{R1_ID};
 
       } elsif ($i+1 == $R2_idx) {
@@ -608,6 +690,8 @@ sub create_tlx_entries2 ($$) {
         $tlx->{Qstart} = $R1_map->[$tlxl->{R1_Qstart}-1];
         $tlx->{Qend} = $R2_map->[$tlxl->{R2_Qend}-1];
 
+        $tlx->{CigarA} = $Cigar_array_ref;
+
         $tlx->{R1_ID} = $tlxl->{R1_ID};
         $tlx->{R2_ID} = $tlxl->{R2_ID};
 
@@ -616,6 +700,8 @@ sub create_tlx_entries2 ($$) {
         $tlx->{Rend} = $tlxl->{R2_Rend};
         $tlx->{Qstart} = $R2_map->[$tlxl->{R2_Qstart}-1];
         $tlx->{Qend} = $R2_map->[$tlxl->{R2_Qend}-1];
+
+        $tlx->{Cigar} = remap_cigar($tlxl->{R2_Cigar},$Rseq,$Qseq,$Qmap2);
 
         $tlx->{R2_ID} = $tlxl->{R2_ID};
 
@@ -704,14 +790,18 @@ sub merge_alignments ($$) {
     @Qual2 = @{$tlxl->{R2_Qual}};
 
     # Create cigar arrays
-    foreach my $i (@{$tlxl->{R1_CigarA}}) {
-      next if $i->[0] eq "S";
-      push(@Cigar1, ($i->[0]) x $i->[1]);
-    }
-    foreach my $i (@{$tlxl->{R2_CigarA}}) {
-      next if $i->[0] eq "S";
-      push(@Cigar2, ($i->[0]) x $i->[1]);
-    }
+
+    @Cigar1 = @{ expand_cigar(soft_clip_cigar($tlxl->{R1_CigarA})) };
+    @Cigar2 = @{ expand_cigar(soft_clip_cigar($tlxl->{R2_CigarA})) };
+
+    # foreach my $i (@{$tlxl->{R1_CigarA}}) {
+    #   next if $i->[0] eq "S";
+    #   push(@Cigar1, ($i->[0]) x $i->[1]);
+    # }
+    # foreach my $i (@{$tlxl->{R2_CigarA}}) {
+    #   next if $i->[0] eq "S";
+    #   push(@Cigar2, ($i->[0]) x $i->[1]);
+    # }
 
     # Pretty straight forward this time through
     $Qstart1 =  $tlxl->{R1_Qstart};
@@ -734,14 +824,18 @@ sub merge_alignments ($$) {
     @Qual2 = reverse @{$tlxl->{R1_Qual}};
 
     # Create cigar arrays, same as before, but reversed
-    foreach my $i (reverse @{$tlxl->{R2_CigarA}}) {
-      next if $i->[0] eq "S";
-      push(@Cigar1, ($i->[0]) x $i->[1]);
-    }
-    foreach my $i (reverse @{$tlxl->{R1_CigarA}}) {
-      next if $i->[0] eq "S";
-      push(@Cigar2, ($i->[0]) x $i->[1]);
-    }
+
+    @Cigar1 = reverse @{ expand_cigar(soft_clip_cigar($tlxl->{R2_CigarA})) };
+    @Cigar2 = reverse @{ expand_cigar(soft_clip_cigar($tlxl->{R1_CigarA})) };
+
+    # foreach my $i (reverse @{$tlxl->{R2_CigarA}}) {
+    #   next if $i->[0] eq "S";
+    #   push(@Cigar1, ($i->[0]) x $i->[1]);
+    # }
+    # foreach my $i (reverse @{$tlxl->{R1_CigarA}}) {
+    #   next if $i->[0] eq "S";
+    #   push(@Cigar2, ($i->[0]) x $i->[1]);
+    # }
 
     # This time flip all R1 with R2
     # And since we're reverse complimenting
@@ -765,8 +859,9 @@ sub merge_alignments ($$) {
 
   # Here's where we'll save the returned variables
   my @Qseq;
-  my @Qmap1 = (0) x scalar @Qseq1;
-  my @Qmap2 = (0) x scalar @Qseq2;
+  my @Qmap1 = (0) x @Qseq1;
+  my @Qmap2 = (0) x @Qseq2;
+  my @Cigar;
 
 
   # We will be interating through these
@@ -780,9 +875,11 @@ sub merge_alignments ($$) {
   # (but we can forget that because symmetry)
   if ($Qstart1 > 1) {
     # print "premerge\n";
+
     my @R1_tail = 0..($Qstart1-2);
     push(@Qseq, @Qseq1[@R1_tail]);
-    @Qmap1[@R1_tail] = 1..(scalar @R1_tail);
+    push(@Cigar,("S") x @R1_tail);
+    @Qmap1[@R1_tail] = 1..@R1_tail;
   }
 
 
@@ -820,15 +917,22 @@ sub merge_alignments ($$) {
     switch ($c1) {
       case 'M' {
         push(@Qseq,$Qseq1[$Qpos1-1]);
+        if ($Qseq1[$Qpos1-1] eq $Rseq[$Rpos-$Rstart1]) {
+          push(@Cigar,"M");
+        } else {
+          push(@Cigar,"X");
+        }
         $Qmap1[$Qpos1-1] = scalar @Qseq;
         $Qpos1++;
         $Rpos++;
       }
       case 'D' {
+        push(@Cigar,"D");
         $Rpos++;
       }
       case 'I' {
         push(@Qseq,$Qseq1[$Qpos1-1]);
+        push(@Cigar,"I");
         $Qmap1[$Qpos1-1] = scalar @Qseq;
         $Qpos1++;
       }
@@ -844,6 +948,7 @@ sub merge_alignments ($$) {
     my $Gap_start = $Rend1 - $Rstart1 + 1;
     my $Gap_end = $Rstart2 - $Rstart1 - 1;
     push(@Qseq, map {lc $_} @Rseq[$Gap_start..$Gap_end]);
+    push(@Cigar,("N") x $Gap_end-$Gap_start+1);
     $Rpos = $Rstart2;
   }
 
@@ -878,6 +983,11 @@ sub merge_alignments ($$) {
                 $n = $Qual1[$Qpos1-1] > $Qual2[$Qpos2-1] ? $q1 : $q2;
               }
               push(@Qseq,$n);
+              if ($n eq $r) {
+                push(@Cigar,"M");
+              } else {
+                push(@Cigar,"X");
+              }
               $Qmap1[$Qpos1-1] = scalar @Qseq;
               $Qmap2[$Qpos2-1] = scalar @Qseq;
               $Qpos1++;
@@ -890,6 +1000,9 @@ sub merge_alignments ($$) {
               # Update maps, and push forward on Q1 and R
               if ($q1 eq $r) {
                 push(@Qseq,$q1);
+                push(@Cigar,"M");
+              } else {
+                push(@Cigar,"D");
               }
               $Qmap1[$Qpos1-1] = scalar @Qseq;
               $Qpos1++;
@@ -913,6 +1026,9 @@ sub merge_alignments ($$) {
               # Update maps, and push forward on Q2 and R
               if ($q2 eq $r) {
                 push(@Qseq,$q2);
+                push(@Cigar,"M");
+              } else {
+                push(@Cigar,"D");
               }
               $Qmap2[$Qpos2-1] = scalar @Qseq;
               $Qpos2++;
@@ -921,6 +1037,7 @@ sub merge_alignments ($$) {
             case 'D' {
               # Del - Del
               # Push forward on R
+              push(@Cigar,"D");
               $Rpos++;
             }
             case 'I' {
@@ -956,6 +1073,7 @@ sub merge_alignments ($$) {
               # Take higher quality base
               # Update maps and push forward on Q1 and Q2
               push(@Qseq, $Qual1[$Qpos1-1] > $Qual2[$Qpos2-1] ? $q1 : $q2);
+              push(@Cigar,"I");
               $Qmap1[$Qpos1-1] = scalar @Qseq;
               $Qmap2[$Qpos2-1] = scalar @Qseq;
               $Qpos1++;
@@ -975,15 +1093,22 @@ sub merge_alignments ($$) {
     switch ($c2) {
       case 'M' {
         push(@Qseq,$Qseq2[$Qpos2-1]);
+        if ($Qseq2[$Qpos2-1] eq $Rseq[$Rpos-$Rstart1]) {
+          push(@Cigar,"M");
+        } else {
+          push(@Cigar,"X");
+        }
         $Qmap2[$Qpos2-1] = scalar @Qseq;
         $Qpos2++;
         $Rpos++;
       }
       case 'D' {
+        push(@Cigar,"D");
         $Rpos++;
       }
       case 'I' {
         push(@Qseq,$Qseq2[$Qpos2-1]);
+        push(@Cigar,"I");
         $Qmap2[$Qpos2-1] = scalar @Qseq;
         $Qpos2++;
       }
@@ -1004,6 +1129,7 @@ sub merge_alignments ($$) {
     # print "postmerge\n";
     my @R2_tail = ($Qend2)..$#Qseq2;
     push(@Qseq, @Qseq2[@R2_tail]);
+    push(@Cigar,("S") x @R2_tail);
     @Qmap2[@R2_tail] = (scalar @Qseq - scalar @R2_tail - 1)..(scalar @Qseq);
   }
 
@@ -1027,6 +1153,7 @@ sub merge_alignments ($$) {
   # Flip things around if it was - strand alignment
   if ($Strand == -1) {
     $Qseq = reverseComplement($Qseq);
+    @Cigar = reverse @Cigar;
     my @Qmap1_tmp = @Qmap1;
     my @Qmap2_tmp = @Qmap2;
     @Qmap1 = map {$_ == 0 ? 0 : (scalar @Qseq - $_ + 1) } reverse @Qmap2_tmp;
@@ -1038,7 +1165,7 @@ sub merge_alignments ($$) {
     # print "$Qseq\n";
   }
 
-  return($Qseq,\@Qmap1,\@Qmap2);
+  return($Qseq,\@Qmap1,\@Qmap2,compact_cigar(@Cigar));
 
 }
 

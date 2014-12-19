@@ -546,6 +546,11 @@ sub filter_mapqual ($$) {
 
   my $i = 0;
   foreach my $tlx (@$tlxs) {
+    next unless is_a_junction($tlx);
+    my $R1_aln = ;
+    my $R2_aln;
+
+
     print "TLX $i\n";
     if (defined $tlx->{B_R1_ID}) {
       print "B R1 " . $R1_alns->{$tlx->{B_R1_ID}}->{Rname} . "\n";
