@@ -54,6 +54,7 @@ my $which;
 my $pipeline_threads = 2;
 my $pipeline_opt;
 my $print_only;
+our $debug_level = 0;
 
 my $bsub;
 my $user_bsub_opt = "";
@@ -122,6 +123,8 @@ unless (defined $print_only) {
             
             # if there are open threads, create a new one, push it onto list, and exit while loop
             if (scalar @running < $pipeline_threads) {
+
+                debug_print("creating new thread",1);
                 my $thr = threads->create( sub {
                             
                             process_experiment($expt_id);
@@ -189,6 +192,8 @@ sub process_experiment ($) {
 
   $tl_cmd = join(" ", $tl_cmd, $pipeline_opt) if defined $pipeline_opt;
 
+  $tl_cmd = join(" ", $tl_cmd, "--debug", $debug_level) if $debug_level > 0;
+
   my $log = $expt_hash->{exptdir} . "/$expt_id.log";
 
   if (defined $bsub) {
@@ -209,7 +214,7 @@ sub process_experiment ($) {
 sub read_in_meta_file {
 	System("perl -pi -e 's/\\r/\\n/g' $meta_file",1);
 
-	print "\nReading in meta file...\n";
+	debug_print("reading in meta file",1);
 
   print join("\t",qw(. Library Researcher Genome Chr Start End Strand))."\n";
 
@@ -255,6 +260,8 @@ sub read_in_meta_file {
 sub check_validity_of_metadata ($) {
   my $expt = shift;
 
+  debug_print("checking validity of metadata",1,$expt->{library});
+
   # Convert all sequence fields to uppercase only
   $expt->{breakseq} = uc($expt->{breakseq});
   $expt->{mid} = uc($expt->{mid});
@@ -278,7 +285,7 @@ sub check_validity_of_metadata ($) {
   if ($expt->{breakseq} ne "") {
     croak "Metadata error: breaksite sequence contains non AGCT characters" unless $expt->{breakseq} =~ /^[AGCTagct]+$/;
     croak "Metadata error: breaksite must be defined if breakseq is" unless $expt->{breaksite};
-    croak "Metadata error: breaksite cannot be greater than the length of breakseq" if $expt->{breaksite} > length($expt->{breakseq});
+    croak "Metadata e for rror: breaksite cannot be greater than the length of breakseq" if $expt->{breaksite} > length($expt->{breakseq});
     croak "Metadata error: primer sequence not found in breakseq"
       unless index($expt->{breakseq},$expt->{primer}) > -1;
   } else {
@@ -299,9 +306,11 @@ sub check_validity_of_metadata ($) {
 
 sub prepare_working_directory ($) {
 
-
   my $expt_id = shift;
   my $expt_hash = $meta{$expt_id};
+
+  debug_print("creating working directory",1,$expt_id);
+
 
   my $seqdir = $expt_hash->{exptdir} . "/sequences";
 
@@ -349,7 +358,9 @@ sub prepare_working_directory ($) {
 }
 
 sub check_existance_of_files {
-	print "\nSearching for files\n";
+
+	debug_print("searching for input files",1);
+
 	foreach my $expt_id (sort keys %meta) {
 		my $base = $seqdir."/".$expt_id;
 
@@ -366,6 +377,9 @@ sub check_existance_of_files {
 }
 
 sub parse_command_line {
+
+  debug_print("parsing command line",1);
+
 	my $help;
 
 	usage() if (scalar @ARGV == 0);
@@ -376,6 +390,7 @@ sub parse_command_line {
 														"threads=i" => \$pipeline_threads,
                             "pipeline-opt=s" => \$pipeline_opt,
                             "print" => \$print_only,
+                            "debug=i" => \$debug_level,
 														"help" => \$help
 
 				            			);
@@ -441,6 +456,7 @@ $arg{"--bsub-opt","Specify bsub options different from default",$default_bsub_op
 $arg{"--threads","Number of libraries to run at once",$pipeline_threads}
 $arg{"--pipeline-opt","Specify pipeline options - see below"}
 $arg{"--print","Do not execute jobs, only print libraries found in metafile"}
+$arg{"--debug","Print debug info with verbosity at specified level, 1-4"}
 $arg{"--help","This helpful help screen."}
 
 --------------------------------------------

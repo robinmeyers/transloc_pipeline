@@ -6,12 +6,28 @@ use List::Util qw(min max);
 use List::MoreUtils qw(firstidx);
 use Data::GUID;
 
+sub debug_print ($$;$) {
+
+  my $msg = shift;
+  my $code = shift;
+  my $id = shift;
+
+  return if $main::debug_level < $code;
+
+  my $new_msg = $code . "|";
+  $new_msg = $new_msg . $id . "|" if defined $id;
+  $new_msg = $new_msg . $msg . "\n";
+
+  print $new_msg;
+
+}
+
 sub prepare_reference_genomes ($) {
 
 
   my $meta_ref = shift;
   my @masks = ();
-
+ 
   my $GENOME_DB = $ENV{'GENOME_DB'};
   my $BOWTIE2_INDEXES = $ENV{'BOWTIE2_INDEXES'};
 
@@ -297,6 +313,13 @@ sub wrap_alignment ($$) {
   croak "Error: first argument to wrap_alignment must be either \"R1\" or \"R2\"" unless ($pe eq "R1" || $pe eq "R2");
   # my %wrapper :shared;
   my $wrapper = {Qname => $aln->qname};
+
+  if ($wrapper->{Qname} =~ /(\d+:\d+:\d+$)/ ) {
+    $wrapper->{QnameShort} = $1;
+  } else {
+    $wrapper->{QnameShort} = $wrapper->{Qname};
+  }
+
   $wrapper->{ID} = Data::GUID->new->as_string;
 
   if ($aln->unmapped) {
@@ -311,6 +334,8 @@ sub wrap_alignment ($$) {
   $wrapper->{Rstart} = $aln->start;
   $wrapper->{Rend} = $aln->end;
   $wrapper->{AS} = $aln->aux =~ /AS:i:(\d+)/ ? $1 : 0;
+  $wrapper->{MDZ} = $aln->aux =~ /MD:Z:(\S+)/ ? $1 : 0;
+
   $wrapper->{Unmapped} = 0;
 
   if ($pe eq "R1") {
@@ -325,14 +350,20 @@ sub wrap_alignment ($$) {
     $wrapper->{Qual} = $aln->query->qscore;
     $wrapper->{Qstart} = $aln->query->start;
     $wrapper->{Qend} = $aln->query->end;
-    $wrapper->{CigarA} = $aln->cigar_array;
+    # $wrapper->{CigarA} = $aln->cigar_array;
   } else {
     $wrapper->{Seq} = reverseComplement($aln->query->dna);
     $wrapper->{Qual} = [reverse @{$aln->query->qscore}];
     $wrapper->{Qstart} = $aln->l_qseq - $aln->query->end + 1;
     $wrapper->{Qend} = $aln->l_qseq - $aln->query->start + 1;
-    $wrapper->{CigarA} = [reverse @{$aln->cigar_array}];
+    # $wrapper->{CigarA} = [reverse @{$aln->cigar_array}];
   }
+
+  $wrapper->{CigarA} = $wrapper->{MDZ} =~ /\d[ACGT]/ ?
+                         remap_cigar($aln->cigar_array,$aln->query->dna,$aln->dna) :
+                         $aln->cigar_array;
+
+  $wrapper->{CigarA} = [reverse @{$wrapper->{CigarA}}] unless $wrapper->{Strand} == 1;
 
   $wrapper->{Cigar} = cigar_array_to_string($wrapper->{CigarA});
   $wrapper->{Qlen} = length($wrapper->{Seq});
@@ -374,11 +405,14 @@ sub create_tlxl_entries ($) {
   my $OCS_ref = shift;
   my @OCS = @$OCS_ref;
 
+  debug_print("creating tlxl",2,$OCS[0]->{R1}->{QnameShort});
+
   my @tlxls = ();
 
 
   if ( $OCS[0]->{R1}->{Unmapped} ) {
     my $tlxl = { Qname => $OCS[0]->{R1}->{Qname},
+                 QnameShort => $OCS[0]->{R1}->{QnameShort},
                  R1_Seq => $OCS[0]->{R1}->{Seq},
                  R2_Seq => $OCS[0]->{R2}->{Seq},
                  Unmapped => 1 };
@@ -391,6 +425,7 @@ sub create_tlxl_entries ($) {
 
     if (defined $Qseg->{R1}) {
       $tlxl->{Qname} = $Qseg->{R1}->{Qname};
+      $tlxl->{QnameShort} = $Qseg->{R1}->{QnameShort};
       $tlxl->{OCS_score} = $Qseg->{score};
       $tlxl->{R1_Qstart} = $Qseg->{R1}->{Qstart};
       $tlxl->{R1_Qend} = $Qseg->{R1}->{Qend};
@@ -412,6 +447,7 @@ sub create_tlxl_entries ($) {
 
       unless (defined $Qseg->{R1}) {
         $tlxl->{Qname} = $Qseg->{R2}->{Qname};
+        $tlxl->{QnameShort} = $Qseg->{R2}->{QnameShort};
         $tlxl->{OCS_score} = $Qseg->{score};
         $tlxl->{Rname} = $Qseg->{R2}->{Rname};
         $tlxl->{Strand} = $Qseg->{R2}->{Strand};        
@@ -453,6 +489,7 @@ sub find_random_barcode ($$$$) {
 
   if (defined $barcode_length && $barcode_length > 0) {
     
+    debug_print("searching for barcode",2,$tlxs->[0]->{QnameShort});
 
     # Search through OCS first
 
@@ -565,7 +602,7 @@ sub remap_cigar ($$$) {
   my @old_cigar = @{ expand_cigar_array($cigar_array_ref) };
   my @new_cigar;
 
-  # print("remapping a cigar\n$rseq\n$qseq\n@old_cigar\n");
+  debug_print("remapping a cigar string\nold: @old_cigar\nref: $rseq\nqry: $qseq\n",3);
 
   while ($Qpos <= @Qseq) {
     # print "$Qpos\n";
@@ -575,7 +612,7 @@ sub remap_cigar ($$$) {
         push(@new_cigar,"S");
         $Qpos++;
       }
-      case 'M' {
+      case /[MX]/ {
         if ($Qseq[$Qpos-1] eq $Rseq[$Rpos-1]) {
           push(@new_cigar,"M");
         } else {
@@ -603,6 +640,8 @@ sub create_tlx_entries2 ($$) {
   my $tlxls = shift;
   my $refs = shift;
 
+  debug_print("creating tlx",2,$tlxls->[0]->{QnameShort});
+
   my @tlxs;
 
   # Unmapped reads are easy
@@ -610,6 +649,7 @@ sub create_tlx_entries2 ($$) {
   if ($tlxls->[0]->{Unmapped}) {
     my $tlx = {};
     $tlx->{Qname} = $tlxls->[0]->{Qname};
+    $tlx->{QnameShort} = $tlxls->[0]->{QnameShort};
     push(@tlxs,$tlx);
     return(\@tlxs);
   }
@@ -645,6 +685,7 @@ sub create_tlx_entries2 ($$) {
     my $b_tlxl = $tlxls->[$i];
 
     $tlx->{Qname} = $b_tlxl->{Qname};
+    $tlx->{QnameShort} = $b_tlxl->{QnameShort};
     $tlx->{B_Rname} = $b_tlxl->{Rname};
     $tlx->{B_Strand} = $b_tlxl->{Strand};
     $tlx->{Seq} = $Qseq;
@@ -678,7 +719,7 @@ sub create_tlx_entries2 ($$) {
       $Rseq = reverseComplement($Rseq) unless $tlx->{B_Strand} == 1;
       # print "retrieved rseq ".$tlx->{B_Rname}." ".$tlx->{B_Rstart}." ".$tlx->{B_Rend}."\n$Rseq\n";
 
-      $tlx->{B_CigarA} = soft_clip_cigar(remap_cigar($b_tlxl->{R1_CigarA},$b_tlxl->{R1_Seq},$Rseq));
+      $tlx->{B_CigarA} = soft_clip_cigar($b_tlxl->{R1_CigarA});
 
     } elsif ($i == $R2_idx) {
       # This is the segment we merged on
@@ -711,7 +752,7 @@ sub create_tlx_entries2 ($$) {
       $Rseq = reverseComplement($Rseq) unless $tlx->{B_Strand} == 1;
       # print "retrieved rseq ".$tlx->{B_Rname}." ".$tlx->{B_Rstart}." ".$tlx->{B_Rend}."\n$Rseq\n";
 
-      $tlx->{B_CigarA} = soft_clip_cigar(remap_cigar($b_tlxl->{R2_CigarA},$b_tlxl->{R2_Seq},$Rseq));
+      $tlx->{B_CigarA} = soft_clip_cigar($b_tlxl->{R2_CigarA});
 
     }
 
@@ -746,7 +787,7 @@ sub create_tlx_entries2 ($$) {
         $Rseq = reverseComplement($Rseq) unless $tlx->{Strand} == 1;
         # print "retrieved rseq ".$tlx->{Rname}." ".$tlx->{Rstart}." ".$tlx->{Rend}."\n$Rseq\n";
 
-        $tlx->{CigarA} = soft_clip_cigar(remap_cigar($tlxl->{R1_CigarA},$tlxl->{R1_Seq},$Rseq));
+        $tlx->{CigarA} = soft_clip_cigar($tlxl->{R1_CigarA});
 
         $tlx->{R1_ID} = $tlxl->{R1_ID};
 
@@ -777,7 +818,7 @@ sub create_tlx_entries2 ($$) {
         $Rseq = reverseComplement($Rseq) unless $tlx->{Strand} == 1;
         # print "retrieved rseq ".$tlx->{Rname}." ".$tlx->{Rstart}." ".$tlx->{Rend}."\n$Rseq\n";
 
-        $tlx->{CigarA} = soft_clip_cigar(remap_cigar($tlxl->{R2_CigarA},$tlxl->{R2_Seq},$Rseq));
+        $tlx->{CigarA} = soft_clip_cigar($tlxl->{R2_CigarA});
 
 
         $tlx->{R2_ID} = $tlxl->{R2_ID};
@@ -971,7 +1012,7 @@ sub merge_alignments ($$) {
     while ($Rpos_tmp < $Rstart1) {
       my $c2 = shift(@Cigar2);
       switch ($c2) {
-        case 'M' {
+        case /[MX]/ {
           $Qpos2++;
           $Rpos_tmp++;
         }
@@ -991,7 +1032,7 @@ sub merge_alignments ($$) {
   while ($Rpos <= $Rend1 && $Rpos < $Rstart2) {
     my $c1 = shift(@Cigar1);
     switch ($c1) {
-      case 'M' {
+      case /[MX]/ {
         push(@Qseq,$Qseq1[$Qpos1-1]);
         if ($Qseq1[$Qpos1-1] eq $Rseq[$Rpos-$Rstart1]) {
           push(@Cigar,"M");
@@ -1042,9 +1083,9 @@ sub merge_alignments ($$) {
 
 
       switch($c1) {
-        case 'M' {
+        case /[MX]/ {
           switch($c2) {
-            case 'M' {
+            case /[MX]/ {
               # Match - Match
               # Take base if they match each other,
               # otherwise take the one that matches the reference
@@ -1097,7 +1138,7 @@ sub merge_alignments ($$) {
         }
         case 'D' {
           switch($c2) {
-            case 'M' {
+            case /[MX]/ {
               # Del - Match
               # Take matched base if it matches reference
               # Update maps, and push forward on Q2 and R
@@ -1129,7 +1170,7 @@ sub merge_alignments ($$) {
         }
         case 'I' {
           switch($c2) {
-            case 'M' {
+            case /[MX]/ {
               # Match - Ins
               # Put cigar back for C2
               # Update maps and push forward on Q1
@@ -1168,7 +1209,7 @@ sub merge_alignments ($$) {
   while ($Rpos <= $Rend2) {
     my $c2 = shift(@Cigar2);
     switch ($c2) {
-      case 'M' {
+      case /[MX]/ {
         push(@Qseq,$Qseq2[$Qpos2-1]);
         if ($Qseq2[$Qpos2-1] eq $Rseq[$Rpos-$Rstart1]) {
           push(@Cigar,"M");

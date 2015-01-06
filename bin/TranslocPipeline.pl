@@ -98,6 +98,8 @@ my $skip_dedup;
 my $no_dedup;
 my $no_clean;
 
+our $debug_level = 0;
+
 my $params = {};
 
 # OL_mult must be set the same as --ma in bowtie2 options
@@ -188,7 +190,6 @@ foreach my $f (@stats_filters) {
   $stats->{$f} = {%stats_init}
 }
 
-print Dumper($stats);
 parse_command_line;
 
 # This was an interesting thought, but I wouldn't recommend using it
@@ -477,7 +478,7 @@ sub align_to_genome {
 
 sub process_alignments {
 
-  print "\nReading alignments\n";
+  debug_print("reading alignments",1,$expt);
   my ($R1_brk_iter,$R2_brk_iter);
   my ($R1_adpt_iter,$R2_adpt_iter);
   my ($R1_iter,$R2_iter);
@@ -561,6 +562,8 @@ sub process_alignments {
     # an array for read 1, and read 2 if the library is paired-end
 
     my $qname = $next_R1_aln->{Qname};
+
+    debug_print("initializing read - reading alignments",2,$qname);
 
     # my @R1_alns = ();
     # my @R2_alns = ();
@@ -677,15 +680,19 @@ sub find_optimal_coverage_set ($$) {
   # my $t0 = [gettimeofday];
 
 
-
   my $R1_alns_ref = shift;
   my $R2_alns_ref = shift;
+
+
 
   my @graph = ();
   my $OCS_ptr;
 
-  my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} values %$R1_alns_ref;
-  my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} values %$R2_alns_ref;
+  my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} values $R1_alns_ref;
+  my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} values $R2_alns_ref;
+
+  debug_print("finding OCS",2,$R1_alns[0]->{QnameShort});
+
 
   # print "\nafter sort ".Dumper(\@R2_alns) if @R2_alns < 2;
 
@@ -811,10 +818,12 @@ sub find_optimal_coverage_set ($$) {
 
   unless (defined $OCS_ptr) {
     my @unmapped_OCS = ( { R1 => { Qname => $R1_alns[0]->{Qname},
+                                   QnameShort => $R1_alns[0]->{QnameShort},
                                    Seq => $R1_alns[0]->{Seq},
                                    Qual => $R1_alns[0]->{Qual},
                                    Unmapped => 1 },
                            R2 => { Qname => $R2_alns[0]->{Qname},
+                                   QnameShort => $R2_alns[0]->{QnameShort},
                                    Seq => $R2_alns[0]->{Seq},
                                    Qual => $R2_alns[0]->{Qual},
                                    Unmapped => 1 } } );
@@ -853,8 +862,8 @@ sub process_optimal_coverage_set ($$$) {
   my $R1_alns = shift;
   my $R2_alns = shift;
 
-  print "starting ".$OCS_ref->[0]->{R1}->{Qname}."\n";
-  # print "create tlxls\n";
+  debug_print("processing OCS",2,$OCS_ref->[0]->{R1}->{QnameShort});
+
   my $tlxls = create_tlxl_entries($OCS_ref);
 
   # print "create tlxs\n";
@@ -1341,6 +1350,7 @@ sub parse_command_line {
                             "priming-bp=i" => \$params->{min_bases_after_primer},
                             "dedup-offset-bp=i" => \$params->{dedup_offset_dist},
                             "dedup-bait-bp=i" => \$params->{dedup_break_dist},
+                            "debug=i" => \$debug_level,
                             # "bowtie-opt=s" => \$user_bowtie_opt,
 				            				"help" => \$help
 				            			) ;
