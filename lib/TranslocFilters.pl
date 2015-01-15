@@ -534,19 +534,107 @@ sub filter_largegap ($$) {
 #   my $read_obj = shift;
 # }
 
+sub calc_sum_base_Q ($) {
+  my $aln = shift;
+  
+  my $sum = 0;
+
+  my @qual;
+  my @cigar;
+
+  
+
+  return($sum);
+
+}
+
+sub check_overlap ($$$;$$) {
+  my $ol_thresh;
+  my $base_aln_1 = shift;
+  my $aln_1 = shift;
+  my $base_aln_2 = shift;
+  my $aln_2 = shift;
+
+  my $base_length = 0;
+  my $check_length = 0;
+
+
+
+  if (defined $base_aln_2) {
+
+  }
+
+  if ($check_length/$base_length > $main::params->{}) {
+    return(1);
+  } else {
+    return(0);
+  }
+
+}
 
 sub filter_mapqual ($$) {
   my $read_obj = shift;
   my $params = shift;
 
-  # my $tlxs = $read_obj->{tlxs};
+  my $tlxs = $read_obj->{tlxs};
 
-  # my $R1_alns = $read_obj->{R1_alns};
-  # my $R2_alns = $read_obj->{R2_alns};
+  my $R1_alns = $read_obj->{R1_alns};
+  my $R2_alns = $read_obj->{R2_alns};
 
-  # my $i = 0;
-  # foreach my $tlx (@$tlxs) {
-  #   next unless is_a_junction($tlx);
+  my $i = 0;
+  foreach my $tlx (@$tlxs) {
+    next unless is_a_junction($tlx);
+
+    my $tlx_R1_aln = $R1_alns->{$tlx->{R1_ID}} if defined $tlx->{R1_ID};
+    my $tlx_R2_aln = $R2_alns->{$tlx->{R2_ID}} if defined $tlx->{R2_ID};
+
+    my $tlx_sum_base_Q = calc_sum_base_Q($tlx_R1_aln,$tlx_R2_aln);
+    my $tlx_aln_length = $tlx_R1_aln->{Qend} - $tlx_R1_aln->{Qstart} +
+                         $tlx_R2_aln->{Qend} - $tlx_R2_aln->{Qend};
+
+    my @competing_sum_base_Q;
+
+    if (defined $tlx_R1_aln && defined $tlx_R2_aln) {
+      # only consider paired alignments
+      foreach my $R1_aln_ID (keys $R1_alns) {
+        foreach my $R2_aln_ID (keys $R2_alns) {
+          next if $R1_aln_ID eq $tlx->{R1_ID} && $R2_aln_ID eq $tlx->{R2_ID};
+          my $R1_aln = $R1_alns->{$R1_aln_ID};
+          my $R2_aln = $R2_alns->{$R2_aln_ID};
+          next unless pair_is_proper($R1_aln,$R2_aln,$params->{max_frag_len});
+          next unless check_overlap($main::params->{mapq_ol_thresh},
+                                    $tlx_R1_aln,$R1_aln,$tlx_R2_aln,$R2_aln);
+
+          my $aln_length = $R1_aln->{Qend} - $R1_aln->{Qstart} +
+                           $R2_aln->{Qend} - $R2_aln->{Qend};
+          my $len_scale_factor = $tlx_aln_length/$aln_length;
+
+          push(@competing_sum_base_Q,$len_scale_factor*(calc_sum_base_Q($R1_aln) +
+                                                        calc_sum_base_Q($R2_aln)));
+        }
+
+
+
+      }
+
+
+    } elsif (defined $tlx_R1_aln) {
+      # only consider R1 alignments
+
+    } else {
+      # only consider R2 alignments
+
+    }
+
+    my $tlx_p = 10 ** (-$tlx_sum_base_Q/10);
+    my $competing_p = sum(map { 10 ** (-$_/10) } @competing_sum_base_Q);
+
+    my $map_qual_score = -10 * log10(1 - ($tlx_p/$competing_p));
+
+    $i++;
+  }
+
+
   #   my $R1_aln = ;
   #   my $R2_aln;
 
