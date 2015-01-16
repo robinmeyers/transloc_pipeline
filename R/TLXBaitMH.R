@@ -8,16 +8,15 @@ if (commandArgs()[1] != "RStudio") {
   )
   
   OPTS <- c(
-    "mh.ymax","integer",NA,"",
+    "mh.ymax","integer",NA_integer_,"",
     "mh.xmin","integer",0,"",
     "mh.xmax","integer",8,"",
-    "bait.ymax","integer",NA,"",
-    "bait.xmin","integer",NA,"",
-    "bait.xmax","integer",NA,"",
+    "bait.ymax","integer",NA_integer_,"",
+    "bait.xmin","integer",NA_integer_,"",
+    "bait.xmax","integer",NA_integer_,"",
     "bait.binsize","integer",1,"",
     "tlxlabels","character","","",
     "normalize","logical",T,"",
-    "normalize.by","integer",0,"",
     "rm.ins","logical",T,""
   )
   
@@ -37,23 +36,24 @@ if (commandArgs()[1] != "RStudio") {
   tlxfiles <- "~/Working/MH_BaitLen/rm_G30/"
   outputstub <- "~/Working/MH_BaitLen/VK_test"
   
-  mh.ymax <- NA
+  mh.ymax <- NA_integer_
   mh.xmin <- 0
   mh.xmax <- 8
-  bait.ymax <- NA
-  bait.xmin <- NA
-  bait.xmax <- NA
+  bait.ymax <- NA_integer_
+  bait.xmin <- NA_integer_
+  bait.xmax <- NA_integer_
   bait.binsize <- 1
   tlxlabels <- ""
   normalize <- T
-  normalize.by <- 0 
   rm.ins <- T
   
 }
 
 suppressPackageStartupMessages(library(data.table, quietly=TRUE))
 suppressPackageStartupMessages(library(dplyr, quietly=TRUE))
+suppressPackageStartupMessages(library(grid, quietly=TRUE))
 suppressPackageStartupMessages(library(ggplot2, quietly=TRUE))
+
 
 if (file.info(tlxfiles)[["isdir"]]) {
   tlxfiles <- list.files(tlxfiles,pattern = "*.tlx",full.names = T)
@@ -96,30 +96,31 @@ if (normalize) {
   freqpoly.y <- aes()
 }
 
+tlx <- tlx %>% group_by(tlxlabel) %>% summarize(bait.total = prettyNum(n(),big.mark=",")) %>% inner_join(tlx,by="tlxlabel")
 bait.bins = seq(min(tlx$BaitLen)-0.5,max(tlx$BaitLen)+0.5,by=bait.binsize)
 
-
-bait.gg <- ggplot(tlx,aes(x=BaitLen,color=tlxlabel))
+bait.gg <- ggplot(tlx,aes(x=BaitLen,color=paste(tlxlabel,"\nn=",bait.total,sep="")))
 bait.gg <- bait.gg + geom_freqpoly(freqpoly.y,breaks=bait.bins,lwd=1)
 bait.gg <- bait.gg + ylim(c(0,bait.ymax)) + xlim(c(bait.xmin,bait.xmax))
-bait.gg <- bait.gg + xlab("Bait Length") + theme(legend.title = element_blank())
+bait.gg <- bait.gg + xlab("Bait Length") + theme(legend.title = element_blank(),legend.key.height=unit(2,"line"))
 
 
 if (rm.ins) {
   tlx <- filter(tlx,MicroHom >= 0)
 }
 
+tlx <- tlx %>% group_by(tlxlabel) %>% summarize(mh.total = prettyNum(n(),big.mark=",")) %>% inner_join(tlx,by="tlxlabel")
 mh.bins = seq(min(tlx$MicroHom)-0.5,max(tlx$MicroHom)+0.5,by=1)
 
-mh.gg <- ggplot(tlx,aes(x=MicroHom,color=tlxlabel))
+mh.gg <- ggplot(tlx,aes(x=MicroHom,color=paste(tlxlabel,"\nn=",mh.total,sep="")))
 mh.gg <- mh.gg + geom_freqpoly(freqpoly.y,breaks=mh.bins,lwd=1)
 mh.gg <- mh.gg + ylim(c(0,mh.ymax)) + xlim(c(mh.xmin,mh.xmax))
-mh.gg <- mh.gg + xlab("Micro-Homology") + theme(legend.title = element_blank())
+mh.gg <- mh.gg + xlab("Micro-Homology") + theme(legend.title = element_blank(),legend.key.height=unit(2,"line"))
 
 
-pdf(paste(outputstub,"_baitlen.pdf",sep=""))
+pdf(paste(outputstub,"_baitlen.pdf",sep=""),width=10)
 print(bait.gg)
 dev.off()
-pdf(paste(outputstub,"_mh.pdf",sep=""))
+pdf(paste(outputstub,"_mh.pdf",sep=""),width=10)
 print(mh.gg)
 dev.off()
