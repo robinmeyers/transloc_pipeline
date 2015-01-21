@@ -26,8 +26,8 @@ if (commandArgs()[1] != "RStudio") {
   
 } else {
   source("~/TranslocPipeline//R/Rsub.R")
-  tlxfile <- "/Volumes//AltLab/Translocation/NewPipeline/Alt046/results/PW002_Alt046/PW002_Alt046.tlx"
-  output <- "~/Working/NewPipelineValidations/DedupTesting/PW002_dedup.txt"
+  tlxfile <- "~/Working/MapqDedup//tlx/JD116_Alt089_mapqdedup_tmp.tlx"
+  output <- "~/Working/MapqDedup//tlx/JD116_Alt089_dedup.txt"
 
   cores <- 4
 }
