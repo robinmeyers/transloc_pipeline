@@ -380,28 +380,34 @@ sub is_a_junction ($) {
   }
 }
 
-sub filter_entire_read ($$) {
+sub filter_entire_read ($$;$) {
   my $tlxs = shift;
   my $filter = shift;
+  my $value = shift;
+  $value = 1 unless defined $value;
 
-  my $junctions = 0;
-  foreach my $tlx (@$tlxs) {
-    $tlx->{filters}->{$filter} = 1;
-    $junctions++ if is_a_junction($tlx);
-  }
-  return($junctions);
+  filter_remainder_of_read($tlxs,$filter,0,$value);
+
+  # my $junctions = 0;
+  # foreach my $tlx (@$tlxs) {
+  #   $tlx->{filters}->{$filter} = 1;
+  #   $junctions++ if is_a_junction($tlx);
+  # }
+  # return($junctions);
 }
 
-sub filter_remainder_of_read ($$$) {
+sub filter_remainder_of_read ($$$;$) {
   my $tlxs = shift;
   my $filter = shift;
   my $i = shift;
+  my $value = shift;
+  $value = 1 unless defined $value;
 
-  my $junctions = 0;
+  # my $junctions = 0;
 
   foreach my $tlx (@$tlxs[$i..$#$tlxs]) {
-    $tlx->{filters}->{$filter} = 1;
-    $junctions++ if is_a_junction($tlx);
+    $tlx->{filters}->{$filter} = $value;
+    # $junctions++ if is_a_junction($tlx);
   }
 
 
@@ -414,10 +420,11 @@ sub filter_unaligned ($$) {
   my $tlxs = $read_obj->{tlxs};
 
   if (! defined $tlxs->[0]->{B_Rname}) {
-    my $junctions = filter_entire_read($tlxs,"unaligned");
-    return(1,$junctions);
+    # my $junctions = filter_entire_read($tlxs,"unaligned");
+    filter_entire_read($tlxs,"unaligned");
+    # return(1,$junctions);
   } else {
-    return(0,0);
+    # return(0,0);
   }
 
 }
@@ -430,10 +437,11 @@ sub filter_baitonly ($$) {
   my $tlxs = $read_obj->{tlxs};
 
   if (defined $tlxs->[0]->{B_Rname} && ! is_a_junction($tlxs->[0])) {
-    my $junctions = filter_entire_read($tlxs,"baitonly");
-    return(1,$junctions)
+    # my $junctions = filter_entire_read($tlxs,"baitonly");
+    filter_entire_read($tlxs,"baitonly");
+    # return(1,$junctions)
   } else {
-    return(0,0);
+    # return(0,0);
   }
 }
 
@@ -447,19 +455,22 @@ sub filter_uncut ($$) {
 
   if (defined $tlx->{B_Rname}) {
     if ($tlx->{B_Strand} == 1) {
-      if ($tlx->{B_Rend} > $params->{brksite}->{uncut_threshold}) {
-        my $junctions = filter_entire_read($tlxs,"uncut");
-        return(1,$junctions);
+      if ($tlx->{B_Rend} > $params->{brksite}->{breakcoord}) {
+        # my $junctions = filter_entire_read($tlxs,"uncut");
+        filter_entire_read($tlxs,"uncut",$tlx->{B_Rend} - $params->{brksite}->{breakcoord});
+        # return(1,$junctions);
       }
     } else {
-      if ($tlx->{B_Rstart} < $params->{brksite}->{uncut_threshold}) {
-        my $junctions = filter_entire_read($tlxs,"uncut");
-        return(1,$junctions);
+      if ($tlx->{B_Rstart} < $params->{brksite}->{breakcoord}) {
+
+        # my $junctions = filter_entire_read($tlxs,"uncut");
+        filter_entire_read($tlxs,"uncut",$params->{brksite}->{breakcoord} - $tlx->{B_Rstart});
+        # return(1,$junctions);
       }
     }
   }
 
-  return(0,0);
+  # return(0,0);
 }
 
 sub filter_misprimed ($$) {
@@ -471,19 +482,23 @@ sub filter_misprimed ($$) {
 
   if (defined $tlx->{B_Strand}) {
     if ($tlx->{B_Strand} == 1) {
-      if ($tlx->{B_Rend} < $params->{brksite}->{misprimed_threshold}) {
-        my $junctions = filter_entire_read($tlxs,"misprimed");
-        return(1,$junctions);
-      }
+      filter_entire_read($tlxs,"misprimed",
+        $tlx->{B_Rend} - ($params->{brksite}->{start} + $params->{primer}->length - 1));
+      # if ($tlx->{B_Rend} < $params->{brksite}->{misprimed_threshold}) {
+      #   my $junctions = filter_entire_read($tlxs,"misprimed");
+      #   return(1,$junctions);
+      # }
     } else {
-      if ($tlx->{B_Rstart} > $params->{brksite}->{misprimed_threshold}) {
-        my $junctions = filter_entire_read($tlxs,"misprimed");
-        return(1,$junctions);
-      }
+      filter_entire_read($tlxs,"misprimed",
+        ($params->{brksite}->{end} - $params->{primer}->length) - $tlx->{B_Rstart});
+      # if ($tlx->{B_Rstart} > $params->{brksite}->{misprimed_threshold}) {
+      #   my $junctions = filter_entire_read($tlxs,"misprimed");
+      #   return(1,$junctions);
+      # }
     }
   }
 
-  return(0,0);
+  # return(0,0);
 }
 
 
@@ -499,14 +514,15 @@ sub filter_freqcut ($$) {
     foreach my $tlx (@$tlxs) {
       if (uc($tlx->{J_Seq}) =~ $params->{cutter} ||
           uc(substr($tlx->{Seq},0,$tlx->{Qstart}+4)) =~ $params->{cutter}) {
-        my $junctions = filter_remainder_of_read($tlx,"freqcut",$i);
-        return($i == 0 ? 1 : 0, $junctions);
+        # my $junctions = filter_remainder_of_read($tlx,"freqcut",$i);
+        filter_remainder_of_read($tlx,"freqcut",$i);
+        # return($i == 0 ? 1 : 0, $junctions);
       }
       $i++;
     }
   }
 
-  return(0,0);
+  # return(0,0);
 }
 
 sub filter_largegap ($$) {
@@ -519,15 +535,20 @@ sub filter_largegap ($$) {
 
 
   foreach my $tlx (@$tlxs) {
-    if (defined $tlx->{Qstart} && defined $tlx->{B_Qend} &&
-        $tlx->{Qstart} - $tlx->{B_Qend} > $params->{max_largegap}) {
-      my $junctions = filter_remainder_of_read($tlxs,"largegap",$i);
-      return($i == 0 ? 1 : 0, $junctions);
+    if (defined $tlx->{Qstart} && defined $tlx->{B_Qend}) {
+      $tlx->{filters}->{"largegap"} = $tlx->{Qstart} - $tlx->{B_Qend} - 1;
     }
-    $i++;
+    
+    # if (defined $tlx->{Qstart} && defined $tlx->{B_Qend} &&
+    #     $tlx->{Qstart} - $tlx->{B_Qend} > $params->{max_largegap}) {
+    #   my $junctions = filter_remainder_of_read($tlxs,"largegap",$i);
+    #   # return($i == 0 ? 1 : 0, $junctions);
+    # }
+    # $i++;
+
   }
 
-  return(0,0);
+  # return(0,0);
 }
 
 # sub filter_repeatseq ($$) {
@@ -548,8 +569,7 @@ sub calc_sum_base_Q ($) {
 
 }
 
-sub check_overlap ($$$;$$) {
-  my $ol_thresh;
+sub find_overlap ($$;$$) {
   my $base_aln_1 = shift;
   my $aln_1 = shift;
   my $base_aln_2 = shift;
@@ -564,11 +584,7 @@ sub check_overlap ($$$;$$) {
 
   }
 
-  if ($check_length/$base_length > $main::params->{}) {
-    return(1);
-  } else {
-    return(0);
-  }
+  return($overlap);
 
 }
 
@@ -602,8 +618,7 @@ sub filter_mapqual ($$) {
           my $R1_aln = $R1_alns->{$R1_aln_ID};
           my $R2_aln = $R2_alns->{$R2_aln_ID};
           next unless pair_is_proper($R1_aln,$R2_aln,$params->{max_frag_len});
-          next unless check_overlap($main::params->{mapq_ol_thresh},
-                                    $tlx_R1_aln,$R1_aln,$tlx_R2_aln,$R2_aln);
+          next unless find_overlap($tlx_R1_aln,$R1_aln,$tlx_R2_aln,$R2_aln) > $params->{mapq_ol_thresh};
 
           my $aln_length = $R1_aln->{Qend} - $R1_aln->{Qstart} +
                            $R2_aln->{Qend} - $R2_aln->{Qend};
@@ -630,6 +645,8 @@ sub filter_mapqual ($$) {
     my $competing_p = sum(map { 10 ** (-$_/10) } @competing_sum_base_Q);
 
     my $map_qual_score = -10 * log10(1 - ($tlx_p/$competing_p));
+
+
 
     $i++;
   }
@@ -672,12 +689,13 @@ sub filter_breaksite ($$) {
   my $i = 0;
   foreach my $tlx (@$tlxs) {
     if (defined $tlx->{Rname} && $tlx->{Rname} eq "Breaksite") {
-      my $junctions = filter_remainder_of_read($tlxs,"breaksite",$i);
-      return($i == 0 ? 1 : 0, $junctions);
+      # my $junctions = filter_remainder_of_read($tlxs,"breaksite",$i);
+      filter_remainder_of_read($tlxs,"breaksite",$i);
+      # return($i == 0 ? 1 : 0, $junctions);
     }
     $i++;
   }
-  return(0,0);
+  # return(0,0);
 }
 
 sub filter_sequential ($$) {
@@ -687,11 +705,12 @@ sub filter_sequential ($$) {
   my $tlxs = $read_obj->{tlxs};
 
   if (defined $tlxs->[1] && is_a_junction($tlxs->[1])) {
-    my $junctions = filter_remainder_of_read($tlxs,"sequential",1);
-    return(0,$junctions);
+    # my $junctions = filter_remainder_of_read($tlxs,"sequential",1);
+    filter_remainder_of_read($tlxs,"sequential",1);
+    # return(0,$junctions);
   }
 
-  return(0,0);
+  # return(0,0);
 
 }
 

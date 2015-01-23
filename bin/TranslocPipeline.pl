@@ -179,16 +179,16 @@ my %filter_dispatch;
 # contains a key for each filter plus "total", "dedup" and "final"
 # Each of these contains another hash with reads and junctions as the keys
 # Access a stat like so: $stats->{filter}->{reads}
-my $stats = {};
+# my $stats = {};
 
-my @filters = (@dispatch_names,"repeatseq","dedup");
-my @stats_filters = ("total",@filters,"final");
+# my @filters = (@dispatch_names,"repeatseq","dedup");
+# my @stats_filters = ("total",@filters,"final");
 
-my %stats_init = (junctions => 0, reads => 0);
+# my %stats_init = (junctions => 0, reads => 0);
 
-foreach my $f (@stats_filters) {
-  $stats->{$f} = {%stats_init}
-}
+# foreach my $f (@stats_filters) {
+#   $stats->{$f} = {%stats_init}
+# }
 
 parse_command_line;
 
@@ -291,6 +291,7 @@ if (defined $break_fa) {
   $brksite->{aln_name} = $brksite->{chr};
   $brksite->{aln_strand} = $brksite->{strand} eq "+" ? 1 : -1;
   $brksite->{primer_start} = $brksite->{strand} eq "+" ? $brksite->{start} : $brksite->{end} - 1;
+  $brksite->{breakcoord} = $brksite->{strand} eq "+" ? $brksite->{end} - 1 : $breaksite->{start};
 }
 
 # Calculate threshold for uncut/unjoin filter
@@ -874,7 +875,7 @@ sub process_optimal_coverage_set ($$$) {
 
 
   
-  $stats->{total}->{reads}++;
+  # $stats->{total}->{reads}++;
 
   my %filter_init;
   @filter_init{@filters} = (0) x @filters;
@@ -897,11 +898,13 @@ sub process_optimal_coverage_set ($$$) {
     # print "$filter\n";
     # print Dumper(@{$stats->{$filter}}{("reads","junctions")});
 
-    my @current_stats = @{$stats->{$filter}}{("reads","junctions")};
-    my @filter_result = $filter_dispatch{$filter}->($read_obj, $params);
+    # my @current_stats = @{$stats->{$filter}}{("reads","junctions")};
+    # my @filter_result = $filter_dispatch{$filter}->($read_obj, $params);
 
-    @{$stats->{$filter}}{("reads","junctions")} = 
-      pairwise {$a + $b} @current_stats, @filter_result;
+    $filter_dispatch{$filter}->($read_obj, $params);
+
+    # @{$stats->{$filter}}{("reads","junctions")} = 
+    #   pairwise {$a + $b} @current_stats, @filter_result;
 
   }
 
