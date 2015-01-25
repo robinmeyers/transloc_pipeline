@@ -169,7 +169,7 @@ my @tlx_filter_header = tlx_filter_header();
 my $t0 = [gettimeofday];
 
 
-my @dispatch_names = qw(unaligned baitonly uncut misprimed freqcut largegap mapqual breaksite sequential);
+my @dispatch_names = qw(unaligned baitonly junction uncut misprimed freqcut largegap mapqual breaksite sequential);
 
 # This is a dispatch table
 my %filter_dispatch;
@@ -181,7 +181,7 @@ my %filter_dispatch;
 # Access a stat like so: $stats->{filter}->{reads}
 # my $stats = {};
 
-# my @filters = (@dispatch_names,"repeatseq","dedup");
+my @filters = (@dispatch_names,"repeatseq","duplicate");
 # my @stats_filters = ("total",@filters,"final");
 
 # my %stats_init = (junctions => 0, reads => 0);
@@ -291,7 +291,7 @@ if (defined $break_fa) {
   $brksite->{aln_name} = $brksite->{chr};
   $brksite->{aln_strand} = $brksite->{strand} eq "+" ? 1 : -1;
   $brksite->{primer_start} = $brksite->{strand} eq "+" ? $brksite->{start} : $brksite->{end} - 1;
-  $brksite->{breakcoord} = $brksite->{strand} eq "+" ? $brksite->{end} - 1 : $breaksite->{start};
+  $brksite->{breakcoord} = $brksite->{strand} eq "+" ? $brksite->{end} - 1 : $brksite->{start};
 }
 
 # Calculate threshold for uncut/unjoin filter
@@ -361,18 +361,22 @@ unless ($skip_process || $skip_dedup) {
   $filt_tlxfh->close;
   $unjoin_tlxfh->close;
 
+  # mark_repeatseq_junctions;
+
 } else {
   croak "Error: could not find tlx file when skipping processing step" unless -r $tlxfile;
 }
 
-# unless ($skip_dedup || $no_dedup) {
 
-#   deduplicate_junctions;
 
-# } else {
+unless ($skip_dedup || $no_dedup) {
+
+#   mark_duplicate_junctions;
+
+} else {
 #   $stats->{dedup} = $stats->{sequentialjuncs};
-#   croak "Error: could not find tlx file when skipping dedup step" unless -r $tlxfile;
-# }
+  croak "Error: could not find tlx file when skipping dedup step" unless -r $tlxfile;
+}
 
 # sort_junctions;
 
@@ -877,12 +881,13 @@ sub process_optimal_coverage_set ($$$) {
   
   # $stats->{total}->{reads}++;
 
-  my %filter_init;
-  @filter_init{@filters} = (0) x @filters;
+
 
 
   foreach my $tlx (@$tlxs) {
-    $stats->{total}->{junctions}++ if (is_a_junction($tlx));
+    # $stats->{total}->{junctions}++ if (is_a_junction($tlx));
+    my %filter_init;
+    @filter_init{@filters} = (0) x @filters;
     $tlx->{filters} = {%filter_init};
   }
 
@@ -1147,6 +1152,40 @@ sub score_edge ($;$) {
 
 }
 
+sub mark_repeatseq_junctions {
+
+  (my $repeatseq_output = $tlxfile) =~ s/.tlx$/_repeatseq.tlx.tmp/;
+
+  $repeatseq_bedfile = "$GENOME_DB/$assembly/annotation/repeatseq.bed" unless defined $repeatseq_bedfile;
+
+  return unless -r $repeatseq_bedfile;
+
+  my $repeatseq_cmd = join(" ","$FindBin::Bin/../R/TranslocRepeatSeq.pl",
+                          $tlxfile,
+                          $repeatseq_bedfile,
+                          $repeatseq_output) ;
+
+  System($repeatseq_cmd);
+
+  rename $repeatseq_output, $tlxfile;
+
+}
+
+sub mark_duplicate_junctions {
+  (my $duplicate_output = $tlxfile) =~ s/.tlx$/_duplicate.tlx.tmp/;
+
+  my $duplicate_cmd = join(" ","$FindBin::Bin/../R/TranslocDedup.pl",
+                          $tlxfile,
+                          $duplicate_output,
+                          "cores=$dedup_threads",
+                          "offset.dist=$dedup_offset_dist",
+                          "break.dist=$dedup_break_dist") ;
+
+  rename $duplicate_output, $tlxfile;
+
+}
+
+
 sub deduplicate_junctions {
 
 
@@ -1192,7 +1231,7 @@ sub deduplicate_junctions {
       write_entry($filt_tlxfh,$tlx,\@tlx_filter_header);
     } else {
       write_entry($tlxfh,$tlx,\@tlx_header);
-      $stats->{dedup}++;
+      # $stats->{dedup}++;
 
     }
   }
@@ -1282,33 +1321,33 @@ sub write_parameters_file {
 
 }
 
-sub write_stats_file {
+# sub write_stats_file {
 
-  my $statsfh = IO::File->new(">$statsfile");
+#   my $statsfh = IO::File->new(">$statsfile");
 
-  $statsfh->print(join("\t","TotalReads",
-                            "Aligned",
-                            "Junctions",
-                            "Priming",
-                            "FrequentCutter",
-                            "MappingQuality",                            
-                            "Breaksite",
-                            "SequentialJuncs",
-                            "DeDup")."\n");
+#   $statsfh->print(join("\t","TotalReads",
+#                             "Aligned",
+#                             "Junctions",
+#                             "Priming",
+#                             "FrequentCutter",
+#                             "MappingQuality",                            
+#                             "Breaksite",
+#                             "SequentialJuncs",
+#                             "DeDup")."\n");
 
-  $statsfh->print(join("\t",$stats->{totalreads},
-                            $stats->{aligned},
-                            $stats->{junctions}." (".$stats->{junc_reads}.")",
-                            $stats->{priming}." (".$stats->{prim_reads}.")",
-                            $stats->{freqcut}." (".$stats->{freq_reads}.")",
-                            $stats->{mapqual}." (".$stats->{mapq_reads}.")",                            
-                            $stats->{breaksite}." (".$stats->{break_reads}.")",
-                            $stats->{sequentialjuncs}." (".$stats->{sequential_reads}.")",
-                            $stats->{dedup})."\n");
+#   $statsfh->print(join("\t",$stats->{totalreads},
+#                             $stats->{aligned},
+#                             $stats->{junctions}." (".$stats->{junc_reads}.")",
+#                             $stats->{priming}." (".$stats->{prim_reads}.")",
+#                             $stats->{freqcut}." (".$stats->{freq_reads}.")",
+#                             $stats->{mapqual}." (".$stats->{mapq_reads}.")",                            
+#                             $stats->{breaksite}." (".$stats->{break_reads}.")",
+#                             $stats->{sequentialjuncs}." (".$stats->{sequential_reads}.")",
+#                             $stats->{dedup})."\n");
 
-  $statsfh->close;
+#   $statsfh->close;
 
-}
+# }
 
 sub clean_up {
 

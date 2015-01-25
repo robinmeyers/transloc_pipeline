@@ -1,5 +1,6 @@
 use strict;
 use warnings;
+use POSIX qw(floor ceil);
 
 
 
@@ -445,6 +446,15 @@ sub filter_baitonly ($$) {
   }
 }
 
+sub filter_junction ($$) {
+  my $read_obj = shift;
+  my $params = shift;
+  my $tlxs = $read_obj->{tlxs};
+
+  foreach my $tlx (@$tlxs) {
+    $tlx->{filters}->{junction} = 1 if is_a_junction($tlx);
+  }
+}
 
 sub filter_uncut ($$) {
   my $read_obj = shift;
@@ -490,7 +500,7 @@ sub filter_misprimed ($$) {
       # }
     } else {
       filter_entire_read($tlxs,"misprimed",
-        ($params->{brksite}->{end} - $params->{primer}->length) - $tlx->{B_Rstart});
+        ($params->{brksite}->{end} - $params->{brksite}->{primer}->length) - $tlx->{B_Rstart});
       # if ($tlx->{B_Rstart} > $params->{brksite}->{misprimed_threshold}) {
       #   my $junctions = filter_entire_read($tlxs,"misprimed");
       #   return(1,$junctions);
@@ -536,7 +546,7 @@ sub filter_largegap ($$) {
 
   foreach my $tlx (@$tlxs) {
     if (defined $tlx->{Qstart} && defined $tlx->{B_Qend}) {
-      $tlx->{filters}->{"largegap"} = $tlx->{Qstart} - $tlx->{B_Qend} - 1;
+      $tlx->{filters}->{largegap} = $tlx->{Qstart} - $tlx->{B_Qend} - 1;
     }
     
     # if (defined $tlx->{Qstart} && defined $tlx->{B_Qend} &&
@@ -555,38 +565,7 @@ sub filter_largegap ($$) {
 #   my $read_obj = shift;
 # }
 
-sub calc_sum_base_Q ($) {
-  my $aln = shift;
-  
-  my $sum = 0;
 
-  my @qual;
-  my @cigar;
-
-  
-
-  return($sum);
-
-}
-
-sub find_overlap ($$;$$) {
-  my $base_aln_1 = shift;
-  my $aln_1 = shift;
-  my $base_aln_2 = shift;
-  my $aln_2 = shift;
-
-  my $base_length = 0;
-  my $check_length = 0;
-
-
-
-  if (defined $base_aln_2) {
-
-  }
-
-  return($overlap);
-
-}
 
 sub filter_mapqual ($$) {
   my $read_obj = shift;
@@ -604,13 +583,16 @@ sub filter_mapqual ($$) {
     my $tlx_R1_aln = $R1_alns->{$tlx->{R1_ID}} if defined $tlx->{R1_ID};
     my $tlx_R2_aln = $R2_alns->{$tlx->{R2_ID}} if defined $tlx->{R2_ID};
 
-    my $tlx_sum_base_Q = calc_sum_base_Q($tlx_R1_aln,$tlx_R2_aln);
-    my $tlx_aln_length = $tlx_R1_aln->{Qend} - $tlx_R1_aln->{Qstart} +
-                         $tlx_R2_aln->{Qend} - $tlx_R2_aln->{Qend};
-
+    my $tlx_sum_base_Q;
+    my $tlx_aln_length;
     my @competing_sum_base_Q;
 
     if (defined $tlx_R1_aln && defined $tlx_R2_aln) {
+      $tlx_sum_base_Q = $tlx_R1_aln->{SumBaseQ} + $tlx_R2_aln->{SumBaseQ};
+      push(@competing_sum_base_Q,$tlx_sum_base_Q);
+      $tlx_aln_length = $tlx_R1_aln->{Qend} - $tlx_R1_aln->{Qstart} +
+                           $tlx_R2_aln->{Qend} - $tlx_R2_aln->{Qend};
+      debug_print("reporting tlx sum base Q of ".$tlx_sum_base_Q,3,$tlx->{QnameShort});
       # only consider paired alignments
       foreach my $R1_aln_ID (keys $R1_alns) {
         foreach my $R2_aln_ID (keys $R2_alns) {
@@ -623,9 +605,11 @@ sub filter_mapqual ($$) {
           my $aln_length = $R1_aln->{Qend} - $R1_aln->{Qstart} +
                            $R2_aln->{Qend} - $R2_aln->{Qend};
           my $len_scale_factor = $tlx_aln_length/$aln_length;
+          push(@competing_sum_base_Q,
+                $len_scale_factor*($R1_aln->{SumBaseQ} + $R2_aln->{SumBaseQ}));
+          debug_print("reporting competing sum base Q of ".($R1_aln->{SumBaseQ} + $R2_aln->{SumBaseQ}),3,$tlx->{QnameShort});
+          debug_print("reporting length scale factor of ".$len_scale_factor,3,$tlx->{QnameShort});
 
-          push(@competing_sum_base_Q,$len_scale_factor*(calc_sum_base_Q($R1_aln) +
-                                                        calc_sum_base_Q($R2_aln)));
         }
 
 
@@ -634,51 +618,63 @@ sub filter_mapqual ($$) {
 
 
     } elsif (defined $tlx_R1_aln) {
-      # only consider R1 alignments
+      $tlx_sum_base_Q = calc_sum_base_Q($tlx_R1_aln);
+      push(@competing_sum_base_Q,$tlx_sum_base_Q);
+      $tlx_aln_length = $tlx_R1_aln->{Qend} - $tlx_R1_aln->{Qstart};
+      debug_print("reporting tlx sum base Q of ".$tlx_sum_base_Q,3,$tlx->{QnameShort});
 
+      # only consider R1 alignments
+      foreach my $R1_aln_ID (keys $R1_alns) {
+      
+        next if $R1_aln_ID eq $tlx->{R1_ID};
+        my $R1_aln = $R1_alns->{$R1_aln_ID};
+        
+        next unless find_overlap($tlx_R1_aln,$R1_aln) > $params->{mapq_ol_thresh};
+
+        my $aln_length = $R1_aln->{Qend} - $R1_aln->{Qstart};
+        my $len_scale_factor = $tlx_aln_length/$aln_length;
+
+        push(@competing_sum_base_Q,$len_scale_factor*($R1_aln->{SumBaseQ}));
+        debug_print("reporting competing sum base Q of ".$R1_aln->{SumBaseQ},3,$tlx->{QnameShort});
+        debug_print("reporting length scale factor of ".$len_scale_factor,3,$tlx->{QnameShort});
+      
+      }
     } else {
+      $tlx_sum_base_Q = calc_sum_base_Q($tlx_R2_aln);
+      push(@competing_sum_base_Q,$tlx_sum_base_Q);
+      $tlx_aln_length = $tlx_R2_aln->{Qend} - $tlx_R2_aln->{Qstart};
       # only consider R2 alignments
+      foreach my $R2_aln_ID (keys $R2_alns) {
+      
+        next if $R2_aln_ID eq $tlx->{R2_ID};
+        my $R2_aln = $R2_alns->{$R2_aln_ID};
+        
+        next unless find_overlap($tlx_R2_aln,$R2_aln) > $params->{mapq_ol_thresh};
+
+        my $aln_length = $R2_aln->{Qend} - $R2_aln->{Qstart};
+        my $len_scale_factor = $tlx_aln_length/$aln_length;
+
+        push(@competing_sum_base_Q,$len_scale_factor*($R2_aln->{SumBaseQ}));
+        debug_print("reporting competing sum base Q of ".$R2_aln->{SumBaseQ},3,$tlx->{QnameShort});
+        debug_print("reporting length scale factor of ".$len_scale_factor,3,$tlx->{QnameShort});
+      
+      }
 
     }
 
     my $tlx_p = 10 ** (-$tlx_sum_base_Q/10);
     my $competing_p = sum(map { 10 ** (-$_/10) } @competing_sum_base_Q);
 
-    my $map_qual_score = -10 * log10(1 - ($tlx_p/$competing_p));
+    my $map_qual_score = 1 - $tlx_p/$competing_p > 0 ?
+                          floor(-10 * log10(1 - $tlx_p/$competing_p)) :
+                          255;
+    $map_qual_score = 255 if $map_qual_score > 255;
 
-
+    $tlx->{filters}->{mapqual} = $map_qual_score;
 
     $i++;
   }
 
-
-  #   my $R1_aln = ;
-  #   my $R2_aln;
-
-
-  #   print "TLX $i\n";
-  #   if (defined $tlx->{B_R1_ID}) {
-  #     print "B R1 " . $R1_alns->{$tlx->{B_R1_ID}}->{Rname} . "\n";
-  #   }
-  #   if (defined $tlx->{B_R2_ID}) {
-  #     print "B R2 " . $R2_alns->{$tlx->{B_R2_ID}}->{Rname} . "\n";
-  #   }
-  #   if (defined $tlx->{R1_ID}) {
-  #     print "R1 " . $R1_alns->{$tlx->{R1_ID}}->{Rname} . "\n";
-  #   }
-  #   if (defined $tlx->{R2_ID}) {
-  #     print "R2 " . $R2_alns->{$tlx->{R2_ID}}->{Rname} . "\n";
-  #   }
-  #   $i++;
-  # }
-
-#   my $tlxls = $read_obj->{tlxls};
-
-#   # Filter here
-#   # my $mapqual = first prey ? 1 : 0;
-
-#   return($mapqual,$n_juncs);
-  return(0,0);
 }
 
 sub filter_breaksite ($$) {

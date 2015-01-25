@@ -1,6 +1,7 @@
 use strict;
 use warnings;
 use Switch;
+use feature "switch";
 use Time::HiRes qw(time);
 use List::Util qw(min max);
 use List::MoreUtils qw(firstidx);
@@ -367,7 +368,7 @@ sub wrap_alignment ($$) {
 
   $wrapper->{Cigar} = cigar_array_to_string($wrapper->{CigarA});
   $wrapper->{Qlen} = length($wrapper->{Seq});
-
+  $wrapper->{SumBaseQ} = calc_sum_base_Q($wrapper);
 
   return $wrapper;
 
@@ -397,6 +398,69 @@ sub pair_is_proper ($$$) {
   }
 
   return 1;
+}
+
+sub calc_sum_base_Q ($) {
+
+  my $aln = shift;
+
+  my $Qsum = 0;
+  my @qual = @{$aln->{Qual}};
+  my @cigar = @{$aln->{CigarA}};
+
+  my $qpos = $aln->{Qstart};
+
+  while ($qpos <= $aln->{Qend}) {
+    my $c = shift(@cigar);
+
+    given ($c->[0]) {
+      when ('M') {
+        $qpos += $c->[1];
+      }
+      when ('X') {
+        foreach my $i (1..($c->[1])) {
+          $Qsum += $qual[$qpos-1];
+          $qpos++;
+        }
+      }
+      when ('I') {
+        foreach my $i (1..($c->[1])) {
+          $Qsum += $qual[$qpos-1];
+          $qpos++;
+        }
+      }
+      when ('D') {
+        $Qsum += ($qual[$qpos-1] + $qual[$qpos-2])/2 * $c->[1];
+      }
+      when ('S') {
+        next;
+      }
+    }
+  }
+  return $Qsum;
+}
+
+sub find_overlap ($$;$$) {
+  my $base_aln_1 = shift;
+  my $aln_1 = shift;
+  my $base_aln_2 = shift;
+  my $aln_2 = shift;
+
+  my $base_length = 0;
+  my $overlap_length = 0;
+
+  $base_length += $base_aln_1->{Qend} - $base_aln_1->{Qstart} + 1;
+  my $ol = min($base_aln_1->{Qend},$aln_1->{Qend}) - max($base_aln_1->{Qstart},$aln_1->{Qstart}) + 1;
+  $overlap_length += $ol if $ol > 0;
+
+  if (defined $base_aln_2) {
+
+    $base_length += $base_aln_2->{Qend} - $base_aln_2->{Qstart} + 1;
+    my $ol = min($base_aln_2->{Qend},$aln_2->{Qend}) - max($base_aln_2->{Qstart},$aln_2->{Qstart}) + 1;
+    $overlap_length += $ol if $ol > 0;
+  }
+
+  return($overlap_length/$base_length);
 
 }
 
@@ -607,7 +671,7 @@ sub remap_cigar ($$$) {
   while ($Qpos <= @Qseq) {
     # print "$Qpos\n";
     my $c = shift(@old_cigar);
-    switch($c) {
+    switch ($c) {
       case 'S' {
         push(@new_cigar,"S");
         $Qpos++;
@@ -1082,9 +1146,9 @@ sub merge_alignments ($$) {
       my $r = $Rseq[$Rpos-$Rstart1];
 
 
-      switch($c1) {
+      switch ($c1) {
         case /[MX]/ {
-          switch($c2) {
+          switch ($c2) {
             case /[MX]/ {
               # Match - Match
               # Take base if they match each other,
@@ -1137,7 +1201,7 @@ sub merge_alignments ($$) {
           }
         }
         case 'D' {
-          switch($c2) {
+          switch ($c2) {
             case /[MX]/ {
               # Del - Match
               # Take matched base if it matches reference
@@ -1169,7 +1233,7 @@ sub merge_alignments ($$) {
           }
         }
         case 'I' {
-          switch($c2) {
+          switch ($c2) {
             case /[MX]/ {
               # Match - Ins
               # Put cigar back for C2
@@ -1781,7 +1845,6 @@ sub nearby_quals ($$$) {
 
   return mean(@$qual_ref[max(0,$pos-$mar)..min($pos+$mar,$#{$qual_ref})]);
 }
-
 
 
 
