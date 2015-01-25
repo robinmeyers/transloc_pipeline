@@ -91,6 +91,7 @@ my $cut_fa;
 my $bowtie_threads = 1;
 my $dedup_threads = 1;
 my $random_barcode;
+my $repeatseq_bedfile;
 
 my $skip_alignment;
 my $skip_process;
