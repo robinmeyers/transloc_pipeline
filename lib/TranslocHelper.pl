@@ -1,7 +1,6 @@
 use strict;
 use warnings;
-use Switch;
-use feature "switch";
+use Switch::Plain;
 use Time::HiRes qw(time);
 use List::Util qw(min max);
 use List::MoreUtils qw(firstidx);
@@ -413,26 +412,26 @@ sub calc_sum_base_Q ($) {
   while ($qpos <= $aln->{Qend}) {
     my $c = shift(@cigar);
 
-    given ($c->[0]) {
-      when ('M') {
+    sswitch ($c->[0]) {
+      case 'M': {
         $qpos += $c->[1];
       }
-      when ('X') {
+      case 'X': {
         foreach my $i (1..($c->[1])) {
           $Qsum += $qual[$qpos-1];
           $qpos++;
         }
       }
-      when ('I') {
+      case 'I': {
         foreach my $i (1..($c->[1])) {
           $Qsum += $qual[$qpos-1];
           $qpos++;
         }
       }
-      when ('D') {
+      case 'D': {
         $Qsum += ($qual[$qpos-1] + $qual[$qpos-2])/2 * $c->[1];
       }
-      when ('S') {
+      case 'S': {
         next;
       }
     }
@@ -671,12 +670,13 @@ sub remap_cigar ($$$) {
   while ($Qpos <= @Qseq) {
     # print "$Qpos\n";
     my $c = shift(@old_cigar);
-    switch ($c) {
-      case 'S' {
+    sswitch ($c) {
+      case 'S': {
         push(@new_cigar,"S");
         $Qpos++;
       }
-      case /[MX]/ {
+      case 'M':
+      case 'X': {
         if ($Qseq[$Qpos-1] eq $Rseq[$Rpos-1]) {
           push(@new_cigar,"M");
         } else {
@@ -685,11 +685,11 @@ sub remap_cigar ($$$) {
         $Qpos++;
         $Rpos++;
       }
-      case 'D' {
+      case 'D': {
         push(@new_cigar,"D");
         $Rpos++;
       }
-      case 'I' {
+      case 'I': {
         push(@new_cigar,"I");
         $Qpos++;
       }
@@ -761,10 +761,10 @@ sub create_tlx_entries2 ($$) {
 
 
     my $b_ref;
-    switch ($tlx->{B_Rname}) {
-      case "Breaksite" { $b_ref = $refs->{brk}; }
-      case "Adapter" { $b_ref = $refs->{adpt}; }
-      else { $b_ref = $refs->{genome}; }
+    sswitch ($tlx->{B_Rname}) {
+      case "Breaksite": { $b_ref = $refs->{brk}; }
+      case "Adapter": { $b_ref = $refs->{adpt}; }
+      default: { $b_ref = $refs->{genome}; }
     }
 
 
@@ -834,10 +834,10 @@ sub create_tlx_entries2 ($$) {
 
 
       my $ref;
-      switch ($tlx->{Rname}) {
-        case "Breaksite" { $ref = $refs->{brk}; }
-        case "Adapter" { $ref = $refs->{adpt}; }
-        else { $ref = $refs->{genome}; }
+      sswitch ($tlx->{Rname}) {
+        case "Breaksite": { $ref = $refs->{brk}; }
+        case "Adapter": { $ref = $refs->{adpt}; }
+        default: { $ref = $refs->{genome}; }
       }
 
 
@@ -954,10 +954,10 @@ sub merge_alignments ($$) {
 
   # Need to know which sam object to use
   my $ref;
-  switch ($Rname) {
-    case "Breaksite" { $ref = $refs->{brk}; }
-    case "Adapter" { $ref = $refs->{adpt}; }
-    else { $ref = $refs->{genome}; }
+  sswitch ($Rname) {
+    case "Breaksite": { $ref = $refs->{brk}; }
+    case "Adapter": { $ref = $refs->{adpt}; }
+    default: { $ref = $refs->{genome}; }
   }
 
 
@@ -1075,15 +1075,16 @@ sub merge_alignments ($$) {
     my $Rpos_tmp = $Rstart2;
     while ($Rpos_tmp < $Rstart1) {
       my $c2 = shift(@Cigar2);
-      switch ($c2) {
-        case /[MX]/ {
+      sswitch ($c2) {
+        case 'M':
+        case 'X': {
           $Qpos2++;
           $Rpos_tmp++;
         }
-        case 'D' {
+        case 'D': {
           $Rpos_tmp++;
         }
-        case 'I' {
+        case 'I': {
           $Qpos2++;
         }
       }
@@ -1095,8 +1096,9 @@ sub merge_alignments ($$) {
   # print "pushing R1 at $Rpos\n";
   while ($Rpos <= $Rend1 && $Rpos < $Rstart2) {
     my $c1 = shift(@Cigar1);
-    switch ($c1) {
-      case /[MX]/ {
+    sswitch ($c1) {
+      case 'M':
+      case 'X': {
         push(@Qseq,$Qseq1[$Qpos1-1]);
         if ($Qseq1[$Qpos1-1] eq $Rseq[$Rpos-$Rstart1]) {
           push(@Cigar,"M");
@@ -1107,11 +1109,11 @@ sub merge_alignments ($$) {
         $Qpos1++;
         $Rpos++;
       }
-      case 'D' {
+      case 'D': {
         push(@Cigar,"D");
         $Rpos++;
       }
-      case 'I' {
+      case 'I': {
         push(@Qseq,$Qseq1[$Qpos1-1]);
         push(@Cigar,"I");
         $Qmap1[$Qpos1-1] = scalar @Qseq;
@@ -1146,10 +1148,12 @@ sub merge_alignments ($$) {
       my $r = $Rseq[$Rpos-$Rstart1];
 
 
-      switch ($c1) {
-        case /[MX]/ {
-          switch ($c2) {
-            case /[MX]/ {
+      sswitch ($c1) {
+        case 'M':
+        case 'X': {
+          sswitch ($c2) {
+            case 'M':
+            case 'X': {
               # Match - Match
               # Take base if they match each other,
               # otherwise take the one that matches the reference
@@ -1176,7 +1180,7 @@ sub merge_alignments ($$) {
               $Qpos2++;
               $Rpos++;
             }
-            case 'D' {
+            case 'D': {
               # Match - Del
               # Take matched base if it matches reference
               # Update maps, and push forward on Q1 and R
@@ -1190,7 +1194,7 @@ sub merge_alignments ($$) {
               $Qpos1++;
               $Rpos++;
             }
-            case 'I' {
+            case 'I': {
               # Match - Ins
               # Put cigar back for C1
               # Update maps and push forward on Q2
@@ -1200,9 +1204,10 @@ sub merge_alignments ($$) {
             }
           }
         }
-        case 'D' {
-          switch ($c2) {
-            case /[MX]/ {
+        case 'D': {
+          sswitch ($c2) {
+            case 'M':
+            case 'X': {
               # Del - Match
               # Take matched base if it matches reference
               # Update maps, and push forward on Q2 and R
@@ -1216,13 +1221,13 @@ sub merge_alignments ($$) {
               $Qpos2++;
               $Rpos++;
             }
-            case 'D' {
+            case 'D': {
               # Del - Del
               # Push forward on R
               push(@Cigar,"D");
               $Rpos++;
             }
-            case 'I' {
+            case 'I': {
               # Del - Ins
               # Put cigar back for C1
               # Update maps and push forward on Q2
@@ -1232,9 +1237,10 @@ sub merge_alignments ($$) {
             }
           }
         }
-        case 'I' {
-          switch ($c2) {
-            case /[MX]/ {
+        case 'I': {
+          sswitch ($c2) {
+            case 'M':
+            case 'X': {
               # Match - Ins
               # Put cigar back for C2
               # Update maps and push forward on Q1
@@ -1242,7 +1248,7 @@ sub merge_alignments ($$) {
               $Qmap1[$Qpos1-1] = scalar @Qseq;
               $Qpos1++;
             }
-            case 'D' {
+            case 'D': {
               # Ins - Del
               # Put cigar back for C2
               # Update maps and push forward on Q1
@@ -1250,7 +1256,7 @@ sub merge_alignments ($$) {
               $Qmap1[$Qpos1-1] = scalar @Qseq;
               $Qpos1++;
             }
-            case 'I' {
+            case 'I': {
               # Ins - Ins
               # Take higher quality base
               # Update maps and push forward on Q1 and Q2
@@ -1272,8 +1278,9 @@ sub merge_alignments ($$) {
   # print "pushing R2 at $Rpos\n";
   while ($Rpos <= $Rend2) {
     my $c2 = shift(@Cigar2);
-    switch ($c2) {
-      case /[MX]/ {
+    sswitch ($c2) {
+      case 'M':
+      case 'X': {
         push(@Qseq,$Qseq2[$Qpos2-1]);
         if ($Qseq2[$Qpos2-1] eq $Rseq[$Rpos-$Rstart1]) {
           push(@Cigar,"M");
@@ -1284,11 +1291,11 @@ sub merge_alignments ($$) {
         $Qpos2++;
         $Rpos++;
       }
-      case 'D' {
+      case 'D': {
         push(@Cigar,"D");
         $Rpos++;
       }
-      case 'I' {
+      case 'I': {
         push(@Qseq,$Qseq2[$Qpos2-1]);
         push(@Cigar,"I");
         $Qmap2[$Qpos2-1] = scalar @Qseq;
@@ -1428,10 +1435,10 @@ sub merge_alignments ($$) {
 #       my $Rstart = $tlxl->{Strand} == 1 ? $tlxl->{R1_Rstart} : $tlxl->{R2_Rstart};
 #       my $Rend = $tlxl->{Strand} == 1 ? $tlxl->{R2_Rend} : $tlxl->{R1_Rend};
 #       my $ref;
-#       switch ($Rname) {
-#         case "Breaksite" { $ref = $refs->{brk}; }
-#         case "Adapter" { $ref = $refs->{adpt}; }
-#         else { $ref = $refs->{genome}; }
+#       sswitch ($Rname) {
+#         case "Breaksite": { $ref = $refs->{brk}; }
+#         case "Adapter": { $ref = $refs->{adpt}; }
+#         default: { $ref = $refs->{genome}; }
 #       }
 
 #       # Retrieve referense sequence, reverse complement if necessary
@@ -1822,9 +1829,9 @@ sub merge_alignments ($$) {
 #     $tlx->{Junction} = $tlx->{Strand} == 1 ? $tlx->{Rstart} : $tlx->{Rend};
 #     my $ref;
 #     switch ($tlx->{Rname}) {
-#       case "Breaksite" { $ref = $refs->{brk}; }
-#       case "Adapter" { $ref = $refs->{adpt}; }
-#       else { $ref = $refs->{genome}; }
+#       case "Breaksite": { $ref = $refs->{brk}; }
+#       case "Adapter": { $ref = $refs->{adpt}; }
+#       default: { $ref = $refs->{genome}; }
 #     }
 #     $tlx->{J_Seq} = $tlx->{Strand} == 1 ? $ref->seq($tlx->{Rname},$tlx->{Rstart}-10,$tlx->{Rstart}+9) :
 #                                             $ref->seq($tlx->{Rname},$tlx->{Rend}-9,$tlx->{Rend}+10);
