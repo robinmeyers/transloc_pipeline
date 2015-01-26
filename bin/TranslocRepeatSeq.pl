@@ -53,13 +53,23 @@ open JUNC, "<", $dedup_output;
 while (<JUNC>) {
   chomp;
   my @read = split("\t");
-  $filtered_reads{$read[0]} = 1;
+  $filtered_reads{$read[0]}->{$read[1]} = 1;
 }
 close JUNC;
 
+my $junc_id;
+my $qname;
 # Read in tlxfile line by line, writing to output
 while (my $tlx = $csv->getline_hr($infh)) {
-  if (defined $filtered_reads{$tlx->{Qname}}) {
+
+  if (! defined $qname || $tlx->{Qname} ne $qname) {
+    $junc_id = 1;
+    $qname = $tlx->{Qname}
+  } else {
+    $junc_id++;
+  }
+
+  if (defined $filtered_reads{$tlx->{Qname}}->{$junc_id}) {
     $tlx->{duplicate} = 1;
   }
   $outfh->print(join("\t",@{$tlx}{@$header})."\n");
