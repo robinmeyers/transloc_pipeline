@@ -149,6 +149,14 @@ my @tlx_header = tlx_header();
 my @tlx_filter_header = tlx_filter_header();
 
 
+my @dispatch_names = qw(unaligned baitonly isjunction uncut misprimed freqcut largegap mapqual breaksite sequential);
+
+# This is a dispatch table
+my %filter_dispatch;
+@filter_dispatch{@dispatch_names} = map {eval '\&filter_'.$_ } @dispatch_names;
+
+my @filters = (@dispatch_names,"repeatseq","duplicate");
+
 
 #
 # Start of Program
@@ -157,19 +165,7 @@ my @tlx_filter_header = tlx_filter_header();
 my $t0 = [gettimeofday];
 
 
-my @dispatch_names = qw(unaligned baitonly isjunction uncut misprimed freqcut largegap mapqual breaksite sequential);
 
-# This is a dispatch table
-my %filter_dispatch;
-@filter_dispatch{@dispatch_names} = map {eval '\&filter_'.$_ } @dispatch_names;
-
-# Stats hash ref
-# contains a key for each filter plus "total", "dedup" and "final"
-# Each of these contains another hash with reads and junctions as the keys
-# Access a stat like so: $stats->{filter}->{reads}
-# my $stats = {};
-
-my @filters = (@dispatch_names,"repeatseq","duplicate");
 # my @stats_filters = ("total",@filters,"final");
 
 # my %stats_init = (junctions => 0, reads => 0);
@@ -349,7 +345,7 @@ unless ($skip_process || $skip_dedup) {
   $filt_tlxfh->close;
   $unjoin_tlxfh->close;
 
-  # mark_repeatseq_junctions;
+  mark_repeatseq_junctions;
 
 } else {
   croak "Error: could not find tlx file when skipping processing step" unless -r $tlxfile;
@@ -362,10 +358,10 @@ unless ($skip_dedup || $no_dedup) {
 #   mark_duplicate_junctions;
 
 } else {
-#   $stats->{dedup} = $stats->{sequentialjuncs};
   croak "Error: could not find tlx file when skipping dedup step" unless -r $tlxfile;
 }
 
+# filter_junctions;
 # sort_junctions;
 
 
@@ -889,77 +885,16 @@ sub process_optimal_coverage_set ($$$) {
 
   foreach my $filter (@dispatch_names) {
     # print "$filter\n";
-    # print Dumper(@{$stats->{$filter}}{("reads","junctions")});
-
-    # my @current_stats = @{$stats->{$filter}}{("reads","junctions")};
-    # my @filter_result = $filter_dispatch{$filter}->($read_obj, $params);
 
     $filter_dispatch{$filter}->($read_obj, $params);
-
-    # @{$stats->{$filter}}{("reads","junctions")} = 
-    #   pairwise {$a + $b} @current_stats, @filter_result;
-
-  }
-
-
-
-  # $stats->{aligned}++ unless $tlxls->[0]->{Unmapped};
-   
-
-
-
-
-
-
-
-
-  # # print "filter unjoined\n";
-  # my $junctions = filter_unjoined($tlxls,$brksite);
-
-  # $stats->{junctions} += $junctions;
-  # $stats->{junc_reads}++ if $junctions > 0;
-
-  # # print "filter mispriming\n";
-  # my $correct_priming = filter_mispriming($tlxls,$brksite);
-
-  # $stats->{priming} += $correct_priming;
-  # $stats->{prim_reads}++ if $correct_priming > 0;
-
-  # # print "filter frequent cutter\n";
-  # my $no_freq_cutter = filter_freq_cutter($tlxls,$cutseq);
-
-  # $stats->{freqcut} += $no_freq_cutter;
-  # $stats->{freq_reads}++ if $no_freq_cutter > 0;
-
-  # # print "filter map quality\n";
-  # my $quality_maps = filter_mapping_quality($tlxls,$R1_alns,$R2_alns,
-  #                                     $mapq_ol_thresh,$mapq_mismatch_thresh_int,$mapq_mismatch_thresh_coef,
-  #                                     $max_frag_len,$match_award,$mismatch_penalty,$mapqfh);
-
-  # $stats->{mapqual} += $quality_maps;
-  # $stats->{mapq_reads}++ if $quality_maps > 0;
-
-
-  # # print "filter breaksite\n";
-  # my $outside_breaksite = filter_breaksite($tlxls);
-
-  # $stats->{breaksite} += $outside_breaksite;
-  # $stats->{break_reads}++ if $outside_breaksite > 0;
-
-
-  # # print "filter sequential juctions\n";
-  # my $primary_junction = filter_sequential_junctions($tlxls);
-
-  # $stats->{sequentialjuncs} += $primary_junction;
-  # $stats->{sequential_reads}++ if $primary_junction > 0;
 
 
   # write_tlxls($tlxls);
 
-  foreach my $tlxl (@$tlxls) {
+  foreach my $tlxl (@{$read_obj->{tlxls}}) {
     write_entry($tlxlfh,$tlxl,\@tlxl_header);
   }
-  foreach my $tlx (@$tlxs) {
+  foreach my $tlx (@{$read_obj->{tlxs}}) {
     write_entry($tlxfh,$tlx,\@tlx_header);
     write_filter_entry($filt_tlxfh,$tlx,\@tlx_header,\@filters);
   }
@@ -1178,58 +1113,63 @@ sub mark_duplicate_junctions {
 }
 
 
-sub deduplicate_junctions {
+# sub deduplicate_junctions {
 
 
 
-  my $dedup_cmd = join(" ","$FindBin::Bin/../R/TranslocDedup.R",
-                          $tlxfile,
-                          $dedup_output,
-                          "cores=$dedup_threads",
-                          "offset.dist=$dedup_offset_dist",
-                          "break.dist=$dedup_break_dist") ;
+#   my $dedup_cmd = join(" ","$FindBin::Bin/../R/TranslocDedup.R",
+#                           $tlxfile,
+#                           $dedup_output,
+#                           "cores=$dedup_threads",
+#                           "offset.dist=$dedup_offset_dist",
+#                           "break.dist=$dedup_break_dist") ;
 
-  $dedup_cmd .= " random.barcode=$random_barcode" if defined $random_barcode;
+#   $dedup_cmd .= " random.barcode=$random_barcode" if defined $random_barcode;
 
-  System($dedup_cmd);
+#   System($dedup_cmd);
 
-  my $tlxbak = "$tlxfile.bak";
-  rename $tlxfile, $tlxbak;
+#   my $tlxbak = "$tlxfile.bak";
+#   rename $tlxfile, $tlxbak;
 
-  my %hash;
+#   my %hash;
 
-  my $dedupfh = IO::File->new("<$dedup_output");
+#   my $dedupfh = IO::File->new("<$dedup_output");
 
-  while (my $read = $dedupfh->getline) {
-    chomp($read);
-    my @dup = split("\t",$read);
-    $hash{$dup[0]} = 1;
-  }
+#   while (my $read = $dedupfh->getline) {
+#     chomp($read);
+#     my @dup = split("\t",$read);
+#     $hash{$dup[0]} = 1;
+#   }
 
-  $dedupfh->close;
+#   $dedupfh->close;
 
-  my $filt_tlxfh = IO::File->new(">>$filt_tlxfile");
-  my $tlxfh = IO::File->new(">$tlxfile");
-  my $bak_tlxfh = IO::File->new("<$tlxbak");
+#   my $filt_tlxfh = IO::File->new(">>$filt_tlxfile");
+#   my $tlxfh = IO::File->new(">$tlxfile");
+#   my $bak_tlxfh = IO::File->new("<$tlxbak");
 
-  my $csv = Text::CSV->new({sep_char => "\t"});
-  my $header = $csv->getline($bak_tlxfh);
-  $csv->column_names(@$header);
-  $tlxfh->print(join("\t", @tlx_header)."\n");
+#   my $csv = Text::CSV->new({sep_char => "\t"});
+#   my $header = $csv->getline($bak_tlxfh);
+#   $csv->column_names(@$header);
+#   $tlxfh->print(join("\t", @tlx_header)."\n");
 
-  while (my $tlx = $csv->getline_hr($bak_tlxfh)) {
-    if (exists $hash{$tlx->{Qname}}) {
-      $tlx->{Filter} = "DeDup";
-      write_entry($filt_tlxfh,$tlx,\@tlx_filter_header);
-    } else {
-      write_entry($tlxfh,$tlx,\@tlx_header);
-      # $stats->{dedup}++;
+#   while (my $tlx = $csv->getline_hr($bak_tlxfh)) {
+#     if (exists $hash{$tlx->{Qname}}) {
+#       $tlx->{Filter} = "DeDup";
+#       write_entry($filt_tlxfh,$tlx,\@tlx_filter_header);
+#     } else {
+#       write_entry($tlxfh,$tlx,\@tlx_header);
+#       # $stats->{dedup}++;
 
-    }
-  }
+#     }
+#   }
 
-  unlink $tlxbak;
+#   unlink $tlxbak;
 
+# }
+
+
+sub filter_junctions {
+  
 }
 
 sub sort_junctions {
@@ -1287,29 +1227,29 @@ sub write_parameters_file {
 
   $paramsfh->print("$local_time\t$commandline\n\n");
 
-  $paramsfh->print(join("\n", map {join("\t",@$_)}
-    (["Alignment Options"],
-    ["Genome Bowtie2 Options", $bt2_opt],
-    ["Breaksite Bowtie2 Options", $bt2_break_opt],
-    ["Adapter Bowtie2 Options", $bt2_adapt_opt],
-    [],
-    ["Optimal Query Coverage Options"],
-    ["Break Penalty",$Brk_pen_default],
-    ["PE Gap Penalty",$PE_pen_default],
-    ["Overlap Penalty",$OL_mult],
-    ["Max Bait Offset",$maximum_brk_start_dif],
-    ["Bait Offset Penalty",$Dif_mult],
-    [],
-    ["Filtering Options"],
-    ["Max Bp After Cutsite", $max_bases_after_cutsite],
-    ["Min Bp After Primer", $min_bases_after_primer],
-    ["MapQuality Overlap Threshold", $mapq_ol_thresh],
-    ["MapQuality Mismatch Threshold Intercept", $mapq_mismatch_thresh_int],
-    ["MapQuality Mismatch Threshold Coefficient", $mapq_mismatch_thresh_coef],
-    [],
-    ["Dedup Options"],
-    ["Max Prey Offset Distance",$dedup_offset_dist],
-    ["Max Bait Junction Distance",$dedup_break_dist])));
+  # $paramsfh->print(join("\n", map {join("\t",@$_)}
+  #   (["Alignment Options"],
+  #   ["Genome Bowtie2 Options", $bt2_opt],
+  #   ["Breaksite Bowtie2 Options", $bt2_break_opt],
+  #   ["Adapter Bowtie2 Options", $bt2_adapt_opt],
+  #   [],
+  #   ["Optimal Query Coverage Options"],
+  #   ["Break Penalty",$Brk_pen_default],
+  #   ["PE Gap Penalty",$PE_pen_default],
+  #   ["Overlap Penalty",$OL_mult],
+  #   ["Max Bait Offset",$maximum_brk_start_dif],
+  #   ["Bait Offset Penalty",$Dif_mult],
+  #   [],
+  #   ["Filtering Options"],
+  #   ["Max Bp After Cutsite", $max_bases_after_cutsite],
+  #   ["Min Bp After Primer", $min_bases_after_primer],
+  #   ["MapQuality Overlap Threshold", $mapq_ol_thresh],
+  #   ["MapQuality Mismatch Threshold Intercept", $mapq_mismatch_thresh_int],
+  #   ["MapQuality Mismatch Threshold Coefficient", $mapq_mismatch_thresh_coef],
+  #   [],
+  #   ["Dedup Options"],
+  #   ["Max Prey Offset Distance",$dedup_offset_dist],
+  #   ["Max Bait Junction Distance",$dedup_break_dist])));
 
 }
 
