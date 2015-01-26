@@ -1178,9 +1178,9 @@ sub mark_duplicate_junctions {
   my $duplicate_cmd = join(" ","$FindBin::Bin/../R/TranslocDedup.pl",
                           $tlxfile,
                           $duplicate_output,
-                          "cores=$dedup_threads",
-                          "offset.dist=$dedup_offset_dist",
-                          "break.dist=$dedup_break_dist") ;
+                          "--cores $dedup_threads",
+                          "--offset_dist $dedup_offset_dist",
+                          "--break_dist $dedup_break_dist") ;
 
   rename $duplicate_output, $tlxfile;
 
