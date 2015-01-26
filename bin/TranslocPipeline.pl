@@ -14,7 +14,7 @@ use File::Which;
 use File::Copy;
 use Bio::SeqIO;
 use Bio::DB::Sam;
-use List::Util qw(min max);
+use List::Util qw(min max shuffle);
 use List::MoreUtils qw(pairwise);
 use Interpolation 'arg:@->$' => \&argument;
 use Time::HiRes qw(gettimeofday tv_interval);
@@ -101,35 +101,27 @@ my $no_clean;
 
 our $debug_level = 0;
 
-my $params = {};
+our $params = {};
 
 # OL_mult must be set the same as --ma in bowtie2 options
 # This is because we will subtract this number * overlapped bases
 # between two alignments so that the bases don't count twice
 # towards an optimal query coverage score
-my $OL_mult = 2;
 $params->{overlap_mult} = 2;
 
 # Bait alignment must be within this many bp
-my $maximum_brk_start_dif = 20; 
 $params->{max_brk_start_dif} = 20;
-my $Dif_mult = 2;
 $params->{dif_mult} = 2;
-my $Brk_pen_default = 40;
 $params->{brk_pen} = 40;
 # Max gap for concordant alignment (between R1 and R2)
 # Need to check if it's the gap or the entire aln fragment
-my $max_frag_len = 1500;
 $params->{max_frag_len} = 1500;
-my $PE_pen_default = 20;
 $params->{pe_pen} = 20;
 
 # uncut filter params
-my $max_bases_after_cutsite = 10;
 $params->{max_bp_after_cutsite} = 10;
 
 # misprimed filter params
-my $min_bases_after_primer = 10;
 $params->{min_bp_after_primer} = 10;
 
 # freqcut filter params
@@ -138,17 +130,12 @@ $params->{min_bp_after_primer} = 10;
 $params->{max_largegap} = 30;
 
 # mapqual filter params
-my $mapq_ol_thresh = 0.90;
 $params->{mapq_ol_thresh} = 0.9;
-my $mapq_mismatch_thresh_int = 1.5;
 $params->{mapq_mismatch_int} = 1.5;
-my $mapq_mismatch_thresh_coef = 0.01;
 $params->{mapq_mismatch_coef} = 0.01;
 
 # duplicate filter parameters
-my $dedup_offset_dist = 1;
 $params->{dedup_offset_dist} = 1;
-my $dedup_break_dist = 1;
 $params->{dedup_break_dist} = 1;
 
 
@@ -170,7 +157,7 @@ my @tlx_filter_header = tlx_filter_header();
 my $t0 = [gettimeofday];
 
 
-my @dispatch_names = qw(unaligned baitonly junction uncut misprimed freqcut largegap mapqual breaksite sequential);
+my @dispatch_names = qw(unaligned baitonly isjunction uncut misprimed freqcut largegap mapqual breaksite sequential);
 
 # This is a dispatch table
 my %filter_dispatch;
@@ -694,8 +681,8 @@ sub find_optimal_coverage_set ($$) {
   my @graph = ();
   my $OCS_ptr;
 
-  my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} values $R1_alns_ref;
-  my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} values $R2_alns_ref;
+  my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart}} shuffle values $R1_alns_ref;
+  my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart}} shuffle values $R2_alns_ref;
 
   debug_print("finding OCS",2,$R1_alns[0]->{QnameShort});
 
@@ -1157,7 +1144,7 @@ sub mark_repeatseq_junctions {
 
   (my $repeatseq_output = $tlxfile) =~ s/.tlx$/_repeatseq.tlx.tmp/;
 
-  $repeatseq_bedfile = "$GENOME_DB/$assembly/annotation/repeatseq.bed" unless defined $repeatseq_bedfile;
+  $repeatseq_bedfile = "$GENOME_DB/$assembly/annotation/repeatSeq.bed" unless defined $repeatseq_bedfile;
 
   return unless -r $repeatseq_bedfile;
 
@@ -1169,6 +1156,8 @@ sub mark_repeatseq_junctions {
   System($repeatseq_cmd);
 
   rename $repeatseq_output, $tlxfile;
+
+  return;
 
 }
 
@@ -1183,6 +1172,8 @@ sub mark_duplicate_junctions {
                           "--break_dist $dedup_break_dist") ;
 
   rename $duplicate_output, $tlxfile;
+
+  return;
 
 }
 

@@ -22,9 +22,11 @@ if (commandArgs()[1] != "RStudio") {
   parseArgs("TranslocRepeatSeq.R", ARGS, OPTS)
   
 } else {
-  #   source("~/TranslocPipeline/R/Rsub.R")
-  #   source("~/TranslocPipeline/R/TranslocHelper.R")
-  
+  source("~/TranslocPipeline/R/Rsub.R")
+  source("~/TranslocPipeline/R/TranslocHelper.R")
+  tlxfile <- "./VK020_Alt133.tlx"
+  output <- "./VK020_Alt133_repeatseq.txt"
+  bedfile <- "/Volumes/AltLab/Genomes/mm9/annotation/repeatSeq.bed"
 }
 
 suppressPackageStartupMessages(library(data.table, quietly=TRUE))
@@ -34,15 +36,17 @@ suppressPackageStartupMessages(library(rtracklayer, quietly=TRUE))
 
 bed <- import.bed(bedfile)
 
-tlx <- fread(tlxfiles[tlxfile],sep="\t",header=T,select=c("Rname","Junction","Strand","junction"))
+tlx <- fread(tlxfile,sep="\t",header=T,select=c("Qname","Rname","Junction","isjunction"))
 
-tlx <- tlx %>% group_by(Qname) %>% mutate(JuncID = 1:n()) %>% filter(tlx, junction)
+tlx <- tlx %>% group_by(Qname) %>% mutate(JuncID=row_number(Qname)) %>% filter(isjunction)
 
-gr <-  with(tlx,GRanges(seqnames=Rname,ranges=IRanges(start=Junction,width=1,names=Qname),strand=Strand))
+gr <-  with(tlx,GRanges(seqnames=Rname,ranges=IRanges(start=Junction,width=1,names=Qname)))
 
-tlx <- mutate(tlx, Overlap = overlapsAny(gr,bed,type="any"))
+ol <- suppressWarnings(overlapsAny(gr,bed,type="any"))
 
-tlx <- filter(tlx, Overlap) %>% select(Qname,JuncID)
+tlx <- ungroup(tlx) %>% mutate(Overlap = ol)
 
-write.table(tlx,output,sep="\t",row.names=F,quote=F,na="")
+tlx <- filter(tlx, Overlap == T) %>% select(Qname,JuncID)
+
+write.table(tlx,output,sep="\t",col.names=F,row.names=F,quote=F,na="")
 

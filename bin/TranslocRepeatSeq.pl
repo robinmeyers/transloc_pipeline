@@ -39,7 +39,7 @@ my $output;
 
 # Global variabless
 my %filtered_reads;
-
+my $repeatseq_output;
 #
 # Start of Program
 #
@@ -47,9 +47,17 @@ my %filtered_reads;
 parse_command_line;
 
 # Run Rscript to print list of junctions to filter
+($repeatseq_output = $output) =~ s/\.tlx$/.txt/;
+
+my $repeatseq_cmd = join(" ","$FindBin::Bin/../R/TranslocRepeatSeq.R",
+                        $tlxfile,
+                        $bedfile,
+                        $repeatseq_output);
+
+System($repeatseq_cmd);
 
 # Read in filtered junctions
-open JUNC, "<", $dedup_output;
+open JUNC, "<", $repeatseq_output;
 while (<JUNC>) {
   chomp;
   my @read = split("\t");
@@ -57,9 +65,20 @@ while (<JUNC>) {
 }
 close JUNC;
 
+
+# Read in tlxfile line by line, writing to output
+
+my $infh = IO::File->new("<$tlxfile");
+my $outfh = IO::File->new(">$output");
+my $csv = Text::CSV->new({sep_char => "\t"});
+my $header = $csv->getline($infh);
+$csv->column_names(@$header);
+
+$outfh->print(join("\t",@$header)."\n");
+
 my $junc_id;
 my $qname;
-# Read in tlxfile line by line, writing to output
+
 while (my $tlx = $csv->getline_hr($infh)) {
 
   if (! defined $qname || $tlx->{Qname} ne $qname) {
@@ -70,7 +89,8 @@ while (my $tlx = $csv->getline_hr($infh)) {
   }
 
   if (defined $filtered_reads{$tlx->{Qname}}->{$junc_id}) {
-    $tlx->{duplicate} = 1;
+    $tlx->{repeatseq} = 1;
+    print "found one\n";
   }
   $outfh->print(join("\t",@{$tlx}{@$header})."\n");
 }
@@ -82,8 +102,6 @@ while (my $tlx = $csv->getline_hr($infh)) {
 
 
 sub parse_command_line {
-
-  debug_print("parsing command line",1);
 
   my $help;
 
@@ -108,6 +126,7 @@ sub parse_command_line {
 
   croak "Error: cannot read tlxfile" unless -r $tlxfile;
   croak "Error: cannot read bedfile" unless -r $bedfile;
+  croak "Error: output must have .tlx extension" unless $output =~ /\.tlx$/;
 
 
   exit unless $result;

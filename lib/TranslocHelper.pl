@@ -12,7 +12,7 @@ sub debug_print ($$;$) {
   my $code = shift;
   my $id = shift;
 
-  return if $main::debug_level < $code;
+  return if ! defined $main::debug_level || $main::debug_level < $code;
 
   my $new_msg = $code . "|";
   $new_msg = $new_msg . $id . "|" if defined $id;

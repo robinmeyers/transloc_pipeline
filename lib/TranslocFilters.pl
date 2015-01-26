@@ -446,13 +446,13 @@ sub filter_baitonly ($$) {
   }
 }
 
-sub filter_junction ($$) {
+sub filter_isjunction ($$) {
   my $read_obj = shift;
   my $params = shift;
   my $tlxs = $read_obj->{tlxs};
 
   foreach my $tlx (@$tlxs) {
-    $tlx->{filters}->{junction} = 1 if is_a_junction($tlx);
+    $tlx->{filters}->{isjunction} = 1 if is_a_junction($tlx);
   }
 }
 
