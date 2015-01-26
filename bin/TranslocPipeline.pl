@@ -14,7 +14,7 @@ use File::Which;
 use File::Copy;
 use Bio::SeqIO;
 use Bio::DB::Sam;
-use List::Util qw(min max);
+use List::Util qw(min max shuffle);
 use Interpolation 'arg:@->$' => \&argument;
 use Time::HiRes qw(gettimeofday tv_interval);
 use Sys::Info;
@@ -638,8 +638,8 @@ sub find_optimal_coverage_set ($$) {
   my @graph = ();
   my $OCS_ptr;
 
-  my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} @$R1_alns_ref;
-  my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart} || $a->{Rstart} <=> $b->{Rstart}} @$R2_alns_ref;
+  my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart}} shuffle @$R1_alns_ref;
+  my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart}} shuffle @$R2_alns_ref;
 
   # print "\nafter sort ".Dumper(\@R2_alns) if @R2_alns < 2;
 
