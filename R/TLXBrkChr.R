@@ -9,8 +9,8 @@ if (commandArgs()[1] != "RStudio") {
   
   OPTS <- c(
     "metafile","character","","explicitly set breaksite, otherwise guess",
-    "by.percent","character","0.01,0.05,0.1","",
-    "by.distance","character","","Kb",
+    "by.percent","character","","",
+    "by.distance","character","1,10,200,1000","Kb",
     "tlxlabels","character","","",
     "resection.only","logical",F,""
     
@@ -34,7 +34,7 @@ if (commandArgs()[1] != "RStudio") {
   outdir <- "./BrkChr"
   
   by.percent <- ""
-  by.distance <- "1,10,200,500"
+  by.distance <- "1,10,200,1000"
   tlxlabels <- ""
   resection.only <- F
 
@@ -90,13 +90,17 @@ for (tlxfile in names(tlxfiles)) {
     # Code in guessing at breaksite if no metadata
     stop("Error: need metadata file for now")
   }
+
+  if (!file.exists(file.path(outdir,tlxfile))) {
+    dir.create(file.path(outdir,tlxfile))
+  }
   
   tlx <- fread(tlxfiles[tlxfile],sep="\t",header=T)
   
   tlx.off <- filter(tlx,Rname != brk.chr)
   tlx <- filter(tlx,Rname == brk.chr)
 
-  outfile <- file.path(outdir,paste(tlxfile,"_InterChr.tlx",sep=""))
+  outfile <- file.path(outdir,tlxfile,paste(tlxfile,"_InterChr.tlx",sep=""))
   write.table(tlx.off,outfile,sep="\t",row.names=F,quote=F,na="")
 
   tlx <- mutate(tlx, Distance2Break = Junction - brk.site)
@@ -157,11 +161,11 @@ for (tlxfile in names(tlxfiles)) {
   for (i in 1:nrow(distances)) {
     tlx.brk <- filter(tlx, Distance2Break <= distances$quant[i])
     tlx <- filter(tlx, Distance2Break > distances$quant[i])
-    outfile <- file.path(outdir,paste(tlxfile,"_BrkChr_",distances$name[i],".tlx",sep=""))
+    outfile <- file.path(outdir,tlxfile,paste(tlxfile,"_BrkChr_",distances$name[i],".tlx",sep=""))
     write.table(tlx.brk,outfile,sep="\t",row.names=F,quote=F,na="")
   }
   
-  outfile <- file.path(outdir,paste(tlxfile,"_BrkChr_",remainder.label,".tlx",sep=""))
+  outfile <- file.path(outdir,tlxfile,paste(tlxfile,"_BrkChr_",remainder.label,".tlx",sep=""))
   
   write.table(tlx,outfile,sep="\t",row.names=F,quote=F,na="")
                              

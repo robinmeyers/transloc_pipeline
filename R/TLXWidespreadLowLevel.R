@@ -72,6 +72,10 @@ by.percent <- sort(as.numeric(unlist(strsplit(by.percent,","))))
 
 for (tlxfile in names(tlxfiles)) {
   
+  if (!file.exists(file.path(outdir,tlxfile))) {
+    dir.create(file.path(outdir,tlxfile))
+  }
+  
   tlx <- fread(tlxfiles[tlxfile],sep="\t",header=T)
   
   gr <-  with(tlx,GRanges(seqnames=Rname,ranges=IRanges(start=Junction,width=1,names=Qname),strand=Strand))
@@ -116,11 +120,11 @@ for (tlxfile in names(tlxfiles)) {
   for (i in 1:nrow(distances)) {
     tlx.wsll <- filter(tlx, Distance2Nearest >= distances$quant[i])
     tlx <- filter(tlx, Distance2Nearest < distances$quant[i])
-    outfile <- file.path(outdir,paste(tlxfile,"_WSLL_",distances$name[i],".tlx",sep=""))
+    outfile <- file.path(outdir,tlxfile,paste(tlxfile,"_WSLL_",distances$name[i],".tlx",sep=""))
     write.table(tlx.wsll,outfile,sep="\t",row.names=F,quote=F,na="")
   }
 
-outfile <- file.path(outdir,paste(tlxfile,"_WSLL_",remainder.label,".tlx",sep=""))
+outfile <- file.path(outdir,tlxfile,paste(tlxfile,"_WSLL_",remainder.label,".tlx",sep=""))
   write.table(tlx,outfile,sep="\t",row.names=F,quote=F,na="")
                              
 }
