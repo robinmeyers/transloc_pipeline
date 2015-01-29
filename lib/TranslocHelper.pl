@@ -377,7 +377,7 @@ sub wrap_alignment ($$) {
 sub pair_is_proper ($$$) {
   my $R1 = shift;
   my $R2 = shift;
-  my $max_frag_len = shift;
+  # my $max_frag_len = shift;
   my $max_dovetail = 10;
 
   return 0 unless $R1->{Rname} eq $R2->{Rname};
@@ -386,12 +386,12 @@ sub pair_is_proper ($$$) {
 
   if ($R1->{Strand} == 1) {
     return 0 unless $R1->{Rstart} < $R2->{Rend};
-    return 0 if $R2->{Rend} - $R1->{Rstart} + 1 > $max_frag_len;
+    return 0 if $R2->{Rstart} - $R1->{Rend} - 1 > $main::params->{max_pe_gap};
     return 0 if $R1->{Rstart} > $R2->{Rstart} + $max_dovetail;
     return 0 if $R1->{Rend} > $R2->{Rend} + $max_dovetail;
   } else {
     return 0 unless $R2->{Rstart} < $R1->{Rend};
-    return 0 if $R1->{Rend} - $R2->{Rstart} + 1 > $max_frag_len;
+    return 0 if $R1->{Rstart} - $R2->{Rend} - 1 > $main::params->{max_pe_gap};
     return 0 if $R2->{Rstart} > $R1->{Rstart} + $max_dovetail;
     return 0 if $R2->{Rend} > $R1->{Rend} + $max_dovetail;
   }
@@ -460,6 +460,175 @@ sub find_overlap ($$;$$) {
   }
 
   return($overlap_length/$base_length);
+
+}
+
+
+sub score_edge ($;$) {
+  my $node1 = shift;
+  my $node2 = shift;
+
+  my $score;
+
+  if (defined $node2) {
+
+    my $R1_Qgap = 0;
+    my $R2_Qgap = 0;
+    my $Rname1;
+    my $Rname2;
+    my $Strand1;
+    my $Strand2;
+    my $Junc1;
+    my $Junc2;
+    my $R1_Rdist;
+    my $R2_Rdist;
+    my $Len1 = 0;
+    my $Len2 = 0;
+    my $OL_correction;
+
+    if ( defined $node1->{R2} ) {
+      return undef if defined $node2->{R1};
+      return undef unless defined $node2->{R2};
+      return undef if $node1->{R2}->{Rname} eq "Adapter";
+      return undef if $node2->{R2} == $node1->{R2};
+      return undef unless $node2->{R2}->{Qstart} > $node1->{R2}->{Qstart};
+      return undef unless $node2->{R2}->{Qend} > $node1->{R2}->{Qend};
+      $Rname1 = $node1->{R2}->{Rname};
+      $Strand1 = $node1->{R2}->{Strand};
+      $Rname2 = $node2->{R2}->{Rname};
+      $Strand2 = $node2->{R2}->{Strand};
+      # if ($Rname1 eq "Breaksite" && $Rname2 eq "Breaksite" && $Strand1 == 1 && $Strand2 == 1) {
+      #   return undef unless $node2->{R2}->{Rstart} > $node1->{R2}->{Rstart};
+      #   return undef unless $node2->{R2}->{Rend} > $node1->{R2}->{Rend};
+      # }
+      $R2_Qgap = $node2->{R2}->{Qstart} - $node1->{R2}->{Qend} - 1;
+      $R2_Rdist = find_genomic_distance($node1->{R2},$node2->{R2},$brksite);
+      $Len1 += $node1->{R2}->{Qend} - $node1->{R2}->{Qstart} + 1;
+      $Len2 += $node2->{R2}->{Qend} - $node2->{R2}->{Qstart} + 1;
+      $Junc1 = $Strand1 == 1 ? $node1->{R2}->{Rend} : $node1->{R2}->{Rstart};
+      $Junc2 = $Strand2 == 1 ? $node2->{R2}->{Rstart} : $node1->{R2}->{Rend};
+      $OL_correction = $OL_mult * max(0,-$R2_Qgap);
+    } else {
+      return undef unless defined $node2->{R1};
+      return undef if $node1->{R1}->{Rname} eq "Adapter";
+      return undef if $node2->{R1} == $node1->{R1};
+      return undef unless $node2->{R1}->{Qstart} > $node1->{R1}->{Qstart};
+      return undef unless $node2->{R1}->{Qend} > $node1->{R1}->{Qend};
+      $Rname1 = $node1->{R1}->{Rname};
+      $Strand1 = $node1->{R1}->{Strand};
+      $Rname2 = $node2->{R1}->{Rname};
+      $Strand2 = $node2->{R1}->{Strand};
+      # if ($Rname1 eq "Breaksite" && $Rname2 eq "Breaksite" && $Strand1 == 1 && $Strand2 == 1) {
+      #   return undef unless $node2->{R1}->{Rstart} > $node1->{R1}->{Rstart};
+      #   return undef unless $node2->{R1}->{Rend} > $node1->{R1}->{Rend};
+      # }
+      $R1_Qgap = $node2->{R1}->{Qstart} - $node1->{R1}->{Qend} - 1;
+      $R1_Rdist = find_genomic_distance($node1->{R1},$node2->{R1},$brksite);
+      $Len1 += $node1->{R1}->{Qend} - $node1->{R1}->{Qstart} + 1;
+      $Len2 += $node2->{R1}->{Qend} - $node2->{R1}->{Qstart} + 1;
+      $Junc1 = $Strand1 == 1 ? $node1->{R1}->{Rend} : $node1->{R1}->{Rstart};
+      $Junc2 = $Strand2 == 1 ? $node2->{R1}->{Rstart} : $node1->{R1}->{Rend};
+      $OL_correction = $OL_mult * max(0,-$R1_Qgap);
+
+    }
+
+    # my $totalOverlap = -min($R1_Qgap,0) -min($R2_Qgap,0);
+    # # return undef if $totalOverlap > $ol_thresh * $Len1 || $totalOverlap > $ol_thresh * $Len2;
+    # return undef if $totalOverlap > $Len1 - 20  || $totalOverlap > $Len2 - 20;
+
+
+
+    
+
+    my $Brk_pen;
+
+
+    if ($Rname2 eq "Adapter") {
+      
+      $Brk_pen = 0;
+
+    } elsif (defined $R1_Rdist) {
+
+      $Brk_pen = $R1_Rdist > 1 || $R1_Rdist < 0 ? $Brk_pen_default : 0;
+
+    } elsif (defined $R2_Rdist) {
+      $Brk_pen = $R2_Rdist > 1 || $R2_Rdist < 0 ? $Brk_pen_default : 0;
+
+    } else {
+
+      $Brk_pen = $Brk_pen_default;
+
+    }
+
+
+
+    my $R1_AS = defined $node2->{R1} ? $node2->{R1}->{AS} : 0;
+    my $R2_AS = defined $node2->{R2} ? $node2->{R2}->{AS} : 0;
+    my $PEgap;
+    my $PEgap_pen;
+
+    if (defined $node2->{R1} && defined $node2->{R2}) {
+      $PEgap = $node2->{R1}->{Strand} == 1 ? $node2->{R2}->{Rstart} - $node2->{R1}->{Rend} : $node2->{R1}->{Rstart} - $node2->{R1}->{Rend};
+    }
+
+    # $PEgap_pen = defined $PEgap && $PEgap > 1 ? $Brk_pen_min + $Brk_pen_mult * log10($PEgap)**$Brk_pen_power : 0;
+    $PEgap_pen = defined $PEgap && $PEgap > 1 ? $PE_pen_default : 0;
+    # print $node1->{R1}->{Qname}." - $PEgap - $PEgap_pen\n" if defined $PEgap;
+
+    $score = $node1->{score} + $R1_AS + $R2_AS - $PEgap_pen - $Brk_pen - $OL_correction;
+
+    # my $qname = defined $node1->{R1} ? $node1->{R1}->{Qname} : $node1->{R2}->{Qname};
+    # print "$qname PE: $score\n" if $Rname2 eq "Adapter" && defined $node2->{R1} && defined $node2->{R2};
+    # print "$qname SE1: $score\n" if $Rname2 eq "Adapter" && (defined $node2->{R1} && !defined $node2->{R2});
+    # print "$qname SE2: $score\n" if $Rname2 eq "Adapter" && (!defined $node2->{R1} && defined $node2->{R2});
+
+    
+  } else {
+
+    # First node
+    return undef unless defined $node1->{R1};
+
+    my $brk_start_pen = 0;
+
+    unless ($main::params->{relax_bait}) {
+
+      # Penalize for alignments away from bait site
+      return undef unless $node1->{R1}->{Rname} eq $brksite->{aln_name};
+      return undef unless $node1->{R1}->{Strand} == $brksite->{aln_strand};
+
+      my $brk_start_dif = $brksite->{aln_strand} == 1 ?
+                            abs($node1->{R1}->{Rstart} - $main::params->{brksite}->{primer_start}) :
+                            abs($node1->{R1}->{Rend} - $main::params->{brksite}->{primer_start}) ;
+      
+      $brk_start_pen = $main::params->{dif_mult} * $brk_start_dif;
+
+    }
+
+
+    return undef unless $brk_start_dif < $main::params->{maximum_brk_start_dif};
+
+    my $R1_AS = $node1->{R1}->{AS};
+    my $R2_AS = defined $node1->{R2} ? $node1->{R2}->{AS} : 0;
+
+    my $PE_pen = 0;
+    if (defined $node1->{R1} && defined $node1->{R2}) {
+      my $PE_gap = $node1->{R1}->{Strand} == 1 ?
+                    $node1->{R2}->{Rstart} - $node1->{R1}->{Rend} - 1 :
+                    $node1->{R1}->{Rstart} - $node1->{R1}->{Rend} - 1 ;
+      $PE_pen += $main::params->{pe_pen} * $PEgap/$main::params->{max_pe_gap} if $PE_gap > 0;
+      
+      # Correct for overlapping alignments
+
+
+      $PE_pen += $main::params->{dif_mult} * ($node1->{R1}->{Qlen} - $node1->{R1}->{Qend});
+
+    }
+
+    $score = $R1_AS + $R2_AS - $PEgap_pen - $brk_start_pen;
+
+  }
+
+  return $score;
 
 }
 
@@ -699,7 +868,7 @@ sub remap_cigar ($$$) {
 }
 
 
-sub create_tlx_entries2 ($$) {
+sub create_tlx_entries ($$) {
 
   my $tlxls = shift;
   my $refs = shift;
@@ -722,6 +891,8 @@ sub create_tlx_entries2 ($$) {
   # And return a query coordinate map for R1 -> merged seq
   # and for R2 -> merged seq
   my $Qseq;
+  my $Qlen;
+
   my $R1_map;
   my $R2_map;
   my $Cigar_array_ref;
@@ -730,14 +901,24 @@ sub create_tlx_entries2 ($$) {
   my $R2_idx = firstidx {defined $_->{R2_Seq}} @$tlxls;
 
   if ($R2_idx < 0) {
+
+
+    if ($tlxls->[$#$tlxls]->{Rname} eq "Adapter") {
+      $Qseq = substr($tlxls->[0]->{R1_Seq},0,$tlxls->[$#$tlxls]->{R1_Qend});
+      $Qlen = length($Qseq);
+    } else {
+      $Qseq = $tlxls->[0]->{R1_Seq};
+      $Qlen = "";    
+    }
+
     # Set R1 as Qseq and just a one-to-one map for R1 if no merge
-    $Qseq = $tlxls->[0]->{R1_Seq};
     $R1_map = [1..length($Qseq)];
     $R2_map = [];
     $Cigar_array_ref = [];
   } else {
     # print "merging alignments on $R2_idx\n";
     ($Qseq,$R1_map,$R2_map,$Cigar_array_ref) = merge_alignments($tlxls,$refs) ;
+    $Qlen = length($Qseq);
   }
 
 
@@ -753,7 +934,9 @@ sub create_tlx_entries2 ($$) {
     $tlx->{B_Rname} = $b_tlxl->{Rname};
     $tlx->{B_Strand} = $b_tlxl->{Strand};
     $tlx->{Seq} = $Qseq;
-    $tlx->{Qlen} = $R2_idx < 0 ? "" : length($Qseq);
+
+    # 
+    $tlx->{Qlen} = $Qlen;
 
   
     # print "B-R1: ".$b_tlxl->{R1_Qstart}."-".$b_tlxl->{R1_Qend}."\n" if defined $b_tlxl->{R1_Qstart};

@@ -28,9 +28,9 @@ if (commandArgs()[1] != "RStudio") {
 } else {
   #   source("~/TranslocPipeline/R/Rsub.R")
   #   source("~/TranslocPipeline/R/TranslocHelper.R")
-  tlxfiles <- "./"
-  outdir <- "./BedIntersct"
-  bedfile <- "./AID55.bed"
+  tlxfiles <- "../richard/brkchr/Cas9A_combined/Cas9A_combined_InterChr.tlx"
+  outdir <- "./"
+  bedfile <- "./Cas9A_OT.bed"
   
   tlxlabels <- ""
   
