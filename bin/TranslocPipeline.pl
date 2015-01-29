@@ -59,13 +59,15 @@ sub align_to_breaksite;
 sub align_to_adapter;
 sub align_to_genome;
 sub process_alignments;
-sub find_optimal_coverage_set ($$);
-sub process_optimal_coverage_set ($$$);
-sub score_edge ($;$);
-sub deduplicate_junctions;
+# sub find_optimal_coverage_set ($$);
+# sub process_optimal_coverage_set ($$$);
+# sub score_edge ($;$);
+# sub deduplicate_junctions;
+sub mark_repeatseq_junctions;
+sub mark_duplicate_junctions;
 sub sort_junctions;
 sub post_process_junctions;
-sub write_stats_file;
+# sub write_stats_file;
 sub clean_up;
 
 
@@ -117,8 +119,9 @@ $params->{dif_mult} = 2;
 $params->{brk_pen} = 50;
 # Max gap for concordant alignment (between R1 and R2)
 # Need to check if it's the gap or the entire aln fragment
-$params->{max_frag_len} = 1500;
+$params->{max_pe_gap} = 1500;
 $params->{pe_pen} = 50;
+$params->{max_dovetail} = 10;
 
 # uncut filter params
 $params->{max_bp_after_cutsite} = 10;
@@ -187,7 +190,7 @@ croak "Error: cannot find mismatch penalty in bowtie2 options" unless $bt2_opt =
 my $mismatch_penalty = $1;
 
 # I warned you
-carp "Warning: match award in bowtie2 does not equal OCS overlap penalty" unless $match_award eq $OL_mult;
+carp "Warning: match award in bowtie2 does not equal OCS overlap penalty" unless $match_award eq $params->{overlap_mult};
 
 
 my $expt = basename($workdir);
@@ -265,13 +268,14 @@ if (defined $break_fa) {
 # Calculate threshold for uncut/unjoin filter
 $brksite->{uncut_threshold} = $brksite->{endogenous} ?
                                   ($brksite->{strand} eq "+" ?
-                                    $brksite->{end} + $max_bases_after_cutsite :
-                                    $brksite->{start} - $max_bases_after_cutsite ) :
-                                  $brksite->{breakcoord} + $max_bases_after_cutsite;
+                                    $brksite->{end} + $params->{max_bp_after_cutsite}:
+                                    $brksite->{start} - $params->{max_bp_after_cutsite} - 1) :
+                                  $brksite->{breakcoord} + $params->{max_bp_after_cutsite} + 1;
 
 # Calculate thresholds for mispriming filters
 croak "Error: could not find primer within breaksite sequence" unless $brksite->{primer_start} > 0;
-$brksite->{misprimed_threshold} = $brksite->{primer_start} + $brksite->{aln_strand} * ($brksite->{primer}->length - 1 + $min_bases_after_primer);
+$brksite->{misprimed_threshold} = $brksite->{primer_start} +
+            $brksite->{aln_strand} * ($brksite->{primer}->length - 1 + $params->{min_bp_after_primer});
 
 $params->{brksite} = $brksite;
 
@@ -317,10 +321,9 @@ unless ($skip_process || $skip_dedup) {
   $mapqfh = IO::File->new(">$mapqfile");
 
   $tlxlfh->print(join("\t", @tlxl_header)."\n");
-  $tlxfh->print(join("\t", @tlx_header)."\n");
-  $filt_tlxfh->print(join("\t", @tlx_header, @filters)."\n");
-  $unjoin_tlxfh->print(join("\t", @tlx_filter_header)."\n");
-  $mapqfh->print(join("\t", qw(Qname R1_Rname R1_Rstart R1_Rend R1_Strand R1_Qstart R1_Qend R1_AS R1_CIGAR R2_Rname R2_Rstart R2_Rend R2_Strand R2_Qstart R2_Qend R2_AS R2_CIGAR) )."\n");
+  $tlxfh->print(join("\t", @tlx_header, @filters)."\n");
+  # $unjoin_tlxfh->print(join("\t", @tlx_filter_header)."\n");
+  # $mapqfh->print(join("\t", qw(Qname R1_Rname R1_Rstart R1_Rend R1_Strand R1_Qstart R1_Qend R1_AS R1_CIGAR R2_Rname R2_Rstart R2_Rend R2_Strand R2_Qstart R2_Qend R2_AS R2_CIGAR) )."\n");
 
   process_alignments;
 
@@ -523,9 +526,6 @@ sub process_alignments {
 
     debug_print("initializing read - reading alignments",2,$qname);
 
-    # my @R1_alns = ();
-    # my @R2_alns = ();
-
     my %R1_alns_h;
     my %R2_alns_h;
 
@@ -604,7 +604,7 @@ sub process_alignments {
 
     # process_optimal_coverage_set($OCS,\%R1_alns_h,\%R2_alns_h);
 
-      debug_print("processing OCS",2,$OCS_ref->[0]->{R1}->{QnameShort});
+    debug_print("processing OCS",2,$OCS->[0]->{R1}->{QnameShort});
 
     my $tlxls = create_tlxl_entries($OCS);
 
@@ -622,7 +622,7 @@ sub process_alignments {
 
 
     # Bundle alignments and everything into a single object
-    my $read_obj = {tlxs => $tlxs, tlxls => $tlxls, R1_alns => $R1_alns, R2_alns => $R2_alns};
+    my $read_obj = {tlxs => $tlxs, tlxls => $tlxls, R1_alns => \%R1_alns_h, R2_alns => \%R2_alns_h};
 
     find_random_barcode($read_obj,$random_barcode);
 
@@ -637,191 +637,14 @@ sub process_alignments {
       write_entry($tlxlfh,$tlxl,\@tlxl_header);
     }
     foreach my $tlx (@{$read_obj->{tlxs}}) {
-      write_entry($tlxfh,$tlx,\@tlx_header);
-      write_filter_entry($filt_tlxfh,$tlx,\@tlx_header,\@filters);
+      # write_entry($tlxfh,$tlx,\@tlx_header);
+      write_filter_entry($tlxfh,$tlx,\@tlx_header,\@filters);
     }
 
   }
 
 }
 
-
-sub find_optimal_coverage_set ($$) {
-
-  # print "finding OCS\n";
-  # my $t0 = [gettimeofday];
-
-
-  my $R1_alns_ref = shift;
-  my $R2_alns_ref = shift;
-
-
-
-  my @graph = ();
-  my $OCS_ptr;
-
-  my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart}} shuffle values $R1_alns_ref;
-  my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart}} shuffle values $R2_alns_ref;
-
-  debug_print("finding OCS",2,$R1_alns[0]->{QnameShort});
-
-
-  # print "\nafter sort ".Dumper(\@R2_alns) if @R2_alns < 2;
-
-  foreach my $R1_aln (@R1_alns) {
-
-    next if $R1_aln->{Unmapped};
-
-    my $graphsize = scalar @graph;
-
-    my $new_node = {R1 => $R1_aln};
-
-
-
-    my $init_score = score_edge($new_node);
-    $new_node->{score} = $init_score if defined $init_score;
-
-    # print "not a possible initial node\n" unless defined $init_score;
-    # print "initialized node to $init_score\n" if defined $init_score;
-
-    my $nodenum = 1;
-    foreach my $node (@graph) {
-      # print "scoring edge against node $nodenum\n";
-      my $edge_score = score_edge($node,$new_node);
-      next unless defined $edge_score;
-      # print "found edge score of $edge_score\n";
-
-      if (! exists $new_node->{score} || $edge_score > $new_node->{score}) {
-        $new_node->{score} = $edge_score;
-        $new_node->{back_ptr} = $node;
-
-        # print "setting back pointer to $nodenum\n";
-      }
-      $nodenum++;
-    }
-
-    if (defined $new_node->{score}) {
-      push(@graph,$new_node) ;
-      # print "pushed node into position ".scalar @graph." with score ".$new_node->{score}."\n";
-      # print "setting OCS pointer to node\n" if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
-      $OCS_ptr = $new_node if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
-    }
-
-    foreach my $R2_aln (@R2_alns) {
-      # print $R1_aln->{Qname}."\n" if ! defined $R2_aln->{Unmapped};
-      # print Dumper($R2_aln) if $R2_aln->{Unmapped};
-
-      next unless defined $R2_aln && ! $R2_aln->{Unmapped};
-
-      # print "testing proper-pairedness with R2:\n";
-      # print_aln($R2_aln_wrap);
-
-      next unless pair_is_proper($R1_aln,$R2_aln,$max_frag_len);
-
-      my $new_pe_node = {R1 => $R1_aln, R2 => $R2_aln};
-
-
-
-      # print "pair is proper\n";
-      my $init_score = score_edge($new_pe_node);
-      $new_pe_node->{score} = $init_score if defined $init_score;
-      # print "not a possible initial node\n" unless defined $init_score;
-      # print "initialized node to $init_score\n" if defined $init_score;
-      $nodenum = 1;
-      if ($graphsize > 0) {
-        foreach my $node (@graph[0..($graphsize-1)]) {
-          # print "scoring edge against node $nodenum\n";
-
-          my $edge_score = score_edge($node,$new_pe_node);
-          next unless defined $edge_score;
-          # print "found edge score of $edge_score\n";
-
-          if (! defined $new_pe_node->{score} || $edge_score > $new_pe_node->{score}) {
-            $new_pe_node->{score} = $edge_score;
-            $new_pe_node->{back_ptr} = $node;
-
-            # print "setting back pointer to $nodenum\n";
-
-          }
-          $nodenum++;
-        }
-      }
-      if (defined $new_pe_node->{score}) {
-        push(@graph,$new_pe_node);
-        # print "pushed node into position ".scalar @graph." with score ".$new_pe_node->{score}."\n";
-        # print "setting OCS pointer to node\n" if ! defined $OCS_ptr || $new_pe_node->{score} > $OCS_ptr->{score};
-        $OCS_ptr = $new_pe_node if ! defined $OCS_ptr || $new_pe_node->{score} > $OCS_ptr->{score};
-      }
-    }
-  }
-
-  foreach my $R2_aln (@R2_alns) {
-
-    # print "\nStarting test for R2:\n";
-    # print_aln($R2_aln_wrap);
-    next unless defined $R2_aln && ! $R2_aln->{Unmapped};
-
-    my $new_node = {R2 => $R2_aln};
-
-
-    my $nodenum = 1;
-    foreach my $node (@graph) {
-      # print "scoring edge against node $nodenum\n";
-      my $edge_score = score_edge($node,$new_node);
-      next unless defined $edge_score;
-      # print "found edge score of $edge_score\n";
-
-      if (! defined $new_node->{score} || $edge_score > $new_node->{score}) {
-        $new_node->{score} = $edge_score;
-        $new_node->{back_ptr} = $node;
-        # print "setting back pointer to $nodenum\n";
-      }
-      $nodenum++;
-    }
-
-    if (defined $new_node->{score}) {
-      push(@graph,$new_node) ;
-      # print "pushed node into position ".scalar @graph." with score ".$new_node->{score}."\n";
-      # print "setting OCS pointer to node\n" if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
-      $OCS_ptr = $new_node if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
-    }
-
-  }
-
-  unless (defined $OCS_ptr) {
-    my @unmapped_OCS = ( { R1 => { Qname => $R1_alns[0]->{Qname},
-                                   QnameShort => $R1_alns[0]->{QnameShort},
-                                   Seq => $R1_alns[0]->{Seq},
-                                   Qual => $R1_alns[0]->{Qual},
-                                   Unmapped => 1 },
-                           R2 => { Qname => $R2_alns[0]->{Qname},
-                                   QnameShort => $R2_alns[0]->{QnameShort},
-                                   Seq => $R2_alns[0]->{Seq},
-                                   Qual => $R2_alns[0]->{Qual},
-                                   Unmapped => 1 } } );
-    return \@unmapped_OCS;
-
-    next;
-  }
-
-  my @OCS;
-
-  while (defined $OCS_ptr->{back_ptr}) {
-    unshift(@OCS,$OCS_ptr);
-    $OCS_ptr->{R1_Rgap} = find_genomic_distance($OCS_ptr->{back_ptr}->{R1},$OCS_ptr->{R1},$brksite)
-      if defined $OCS_ptr->{R1} && defined $OCS_ptr->{back_ptr}->{R1};
-    $OCS_ptr->{R2_Rgap} = find_genomic_distance($OCS_ptr->{back_ptr}->{R2},$OCS_ptr->{R2},$brksite)
-      if defined $OCS_ptr->{R2} && defined $OCS_ptr->{back_ptr}->{R2};
-    $OCS_ptr->{back_ptr}->{score} = $OCS_ptr->{score};
-    $OCS_ptr = $OCS_ptr->{back_ptr};
-  }
-  unshift(@OCS,$OCS_ptr) if defined $OCS_ptr;
-
-
-  return \@OCS;
-
-
-}
 
 
 sub mark_repeatseq_junctions {
@@ -832,7 +655,7 @@ sub mark_repeatseq_junctions {
 
   return unless -r $repeatseq_bedfile;
 
-  my $repeatseq_cmd = join(" ","$FindBin::Bin/../R/TranslocRepeatSeq.pl",
+  my $repeatseq_cmd = join(" ","$FindBin::Bin/TranslocRepeatSeq.pl",
                           $tlxfile,
                           $repeatseq_bedfile,
                           $repeatseq_output) ;
@@ -852,8 +675,8 @@ sub mark_duplicate_junctions {
                           $tlxfile,
                           $duplicate_output,
                           "--cores $dedup_threads",
-                          "--offset_dist $dedup_offset_dist",
-                          "--break_dist $dedup_break_dist") ;
+                          "--offset_dist",$params->{dedup_offset_dist},
+                          "--break_dist",$params->{dedup_break_dist}) ;
 
   rename $duplicate_output, $tlxfile;
 
@@ -1060,9 +883,9 @@ sub parse_command_line {
                             "skip-dedup" => \$skip_dedup,
                             "no-dedup" => \$no_dedup,
                             "mapq-ol=f" => \$params->{mapq_ol_thresh},
-                            "mapq-mm-int=f" => \$params->{mapq_mismatch_thresh_int},
-                            "mapq-mm-coef=f" => \$params->{mapq_mismatch_thresh_coef},
-                            "priming-bp=i" => \$params->{min_bases_after_primer},
+                            "mapq-mm-int=f" => \$params->{mapq_mismatch_int},
+                            "mapq-mm-coef=f" => \$params->{mapq_mismatch_coef},
+                            "priming-bp=i" => \$params->{min_bp_after_primer},
                             "dedup-offset-bp=i" => \$params->{dedup_offset_dist},
                             "dedup-bait-bp=i" => \$params->{dedup_break_dist},
                             "debug=i" => \$debug_level,
@@ -1080,8 +903,8 @@ sub parse_command_line {
   croak "Error: cannot read read2 file" if defined $read2 && ! -r $read2;
   croak "Error: working directory does not exist" unless (-d $workdir);
 
-  croak "Error: priming-bp must be a positive integer" unless $min_bases_after_primer > 0;
-  croak "Error: mapq-ol must be a fraction between 0 and 1" if $mapq_ol_thresh < 0 || $mapq_ol_thresh > 1;
+  croak "Error: priming-bp must be a positive integer" unless $params->{min_bp_after_primer} > 0;
+  croak "Error: mapq-ol must be a fraction between 0 and 1" if $params->{mapq_ol_thresh} < 0 || $params->{mapq_ol_thresh} > 1;
   # croak "Error: mapq-score must be a fraction between 0 and 1" if $mapq_score_thresh < 0 || $mapq_score_thresh > 1;
   
 	exit unless $result;
@@ -1124,12 +947,12 @@ $arg{"--skip-align","Begin pipeline after alignment step - working directory mus
 $arg{"--skip-process","Begin pipeline after OCS and filtering steps - working directory must already have tlx files"}
 $arg{"--skip-dedup","Begin pipeline after dedup step (post-processing only) "}
 $arg{"--no-dedup","Do not run dedup filter"}
-$arg{"--priming-bp","Minimum number of bases in bait alignment after the primer",$min_bases_after_primer}
-$arg{"--mapq-ol","Minimum overlapping fraction for mapq filter",$mapq_ol_thresh}
-$arg{"--mapq-mm-int","Mapq score threshold intercept",$mapq_mismatch_thresh_int}
-$arg{"--mapq-mm-coef","Mapq score threshold coefficient (multiplied by alignment length)",$mapq_mismatch_thresh_coef}
-$arg{"--dedup-offset-bp","Minimum offset distance between prey alignments in dedup filter",$dedup_offset_dist}
-$arg{"--dedup-bait-bp","Minimum distance between bait alignments in dedup filter",$dedup_break_dist}
+$arg{"--priming-bp","Minimum number of bases in bait alignment after the primer",$params->{min_bp_after_primer}}
+$arg{"--mapq-ol","Minimum overlapping fraction for mapq filter",$params->{mapq_ol_thresh}}
+$arg{"--mapq-mm-int","Mapq score threshold intercept",$params->{mapq_mismatch_int}}
+$arg{"--mapq-mm-coef","Mapq score threshold coefficient (multiplied by alignment length)",$params->{mapq_mismatch_coef}}
+$arg{"--dedup-offset-bp","Minimum offset distance between prey alignments in dedup filter",$params->{dedup_offset_dist}}
+$arg{"--dedup-bait-bp","Minimum distance between bait alignments in dedup filter",$params->{dedup_break_dist}}
 
 $arg{"--help","This helpful help screen."}
 

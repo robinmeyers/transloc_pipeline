@@ -126,7 +126,7 @@ sub parse_command_line {
 
   croak "Error: cannot read tlxfile" unless -r $tlxfile;
   croak "Error: cannot read bedfile" unless -r $bedfile;
-  croak "Error: output must have .tlx extension" unless $output =~ /\.tlx$/;
+  croak "Error: tlxfile must have .tlx extension" unless $tlxfile =~ /\.tlx$/;
 
 
   exit unless $result;

@@ -599,8 +599,8 @@ sub filter_mapqual ($$) {
           next if $R1_aln_ID eq $tlx->{R1_ID} && $R2_aln_ID eq $tlx->{R2_ID};
           my $R1_aln = $R1_alns->{$R1_aln_ID};
           my $R2_aln = $R2_alns->{$R2_aln_ID};
-          next unless pair_is_proper($R1_aln,$R2_aln,$params->{max_frag_len});
-          next unless find_overlap($tlx_R1_aln,$R1_aln,$tlx_R2_aln,$R2_aln) > $params->{mapq_ol_thresh};
+          next unless pair_is_proper($R1_aln,$R2_aln);
+          next unless calculate_fraction_overlap($tlx_R1_aln,$R1_aln,$tlx_R2_aln,$R2_aln) > $params->{mapq_ol_thresh};
 
           my $aln_length = $R1_aln->{Qend} - $R1_aln->{Qstart} +
                            $R2_aln->{Qend} - $R2_aln->{Qend};
@@ -629,7 +629,7 @@ sub filter_mapqual ($$) {
         next if $R1_aln_ID eq $tlx->{R1_ID};
         my $R1_aln = $R1_alns->{$R1_aln_ID};
         
-        next unless find_overlap($tlx_R1_aln,$R1_aln) > $params->{mapq_ol_thresh};
+        next unless calculate_fraction_overlap($tlx_R1_aln,$R1_aln) > $params->{mapq_ol_thresh};
 
         my $aln_length = $R1_aln->{Qend} - $R1_aln->{Qstart};
         my $len_scale_factor = $tlx_aln_length/$aln_length;
@@ -649,7 +649,7 @@ sub filter_mapqual ($$) {
         next if $R2_aln_ID eq $tlx->{R2_ID};
         my $R2_aln = $R2_alns->{$R2_aln_ID};
         
-        next unless find_overlap($tlx_R2_aln,$R2_aln) > $params->{mapq_ol_thresh};
+        next unless calculate_fraction_overlap($tlx_R2_aln,$R2_aln) > $params->{mapq_ol_thresh};
 
         my $aln_length = $R2_aln->{Qend} - $R2_aln->{Qstart};
         my $len_scale_factor = $tlx_aln_length/$aln_length;
