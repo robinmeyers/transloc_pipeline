@@ -465,10 +465,10 @@ sub calculate_paired_end_penalty ($$) {
   my $PE_pen = $main::params->{pe_pen} * $PE_gap/$main::params->{max_pe_gap} if $PE_gap > 0;
       
   # Correct for overlapping alignments
-  $PE_pen += $main::params->{overlap_mult} * aln_reference_overlap($R1_aln,$R2_aln);
+  $PE_pen += $main::params->{match_award} * aln_reference_overlap($R1_aln,$R2_aln);
 
   # Penalize for unused R1
-  $PE_pen += $main::params->{dif_mult} * ($R1_aln->{Qlen} - $R1_aln->{Qend});
+  $PE_pen += $main::params->{match_award} * ($R1_aln->{Qlen} - $R1_aln->{Qend});
 
 }
 
@@ -516,7 +516,7 @@ sub score_edge ($;$) {
       $overlap_correction = 0;
       $brk_pen = 0;
     } else {
-      $overlap_correction = $main::params->{overlap_mult} * $query_overlap;
+      $overlap_correction = $main::params->{match_award} * $query_overlap;
       
       # Add in correction for brksite cassette?
       $brk_pen = $main::params->{brk_pen};
@@ -540,8 +540,6 @@ sub score_edge ($;$) {
 
     return undef unless defined $node1->{R1};
 
-    my $brksite_start_pen = 0;
-
     unless ($main::params->{relax_bait}) {
       # Penalize for alignments away from bait site
       return undef unless $node1->{R1}->{Rname} eq $main::params->{brksite}->{aln_name};
@@ -551,9 +549,8 @@ sub score_edge ($;$) {
                             abs($node1->{R1}->{Rstart} - $main::params->{brksite}->{primer_start}) :
                             abs($node1->{R1}->{Rend} - $main::params->{brksite}->{primer_start}) ;
 
-      return undef unless $brk_start_dif < $main::params->{max_brk_start_dif};
+      return undef unless $brk_start_dif < $main::params->{max_brkstart_dif};
 
-      $brksite_start_pen = $main::params->{dif_mult} * $brk_start_dif;
     }
 
 
@@ -567,7 +564,7 @@ sub score_edge ($;$) {
       $PE_pen = calculate_paired_end_penalty($node1->{R1},$node1->{R2});
     }
 
-    $score = $R1_AS + $R2_AS - $PE_pen - $brksite_start_pen;
+    $score = $R1_AS + $R2_AS - $PE_pen;
 
   }
 

@@ -85,13 +85,12 @@ my $brk_start;
 my $brk_end;
 my $brk_strand;
 my $mid_fa;
+my $prim_fa;
 my $break_fa;
 my $breakcoord;
-my $prim_fa;
 my $adapt_fa;
 my $cut_fa;
-my $bowtie_threads = 1;
-my $dedup_threads = 1;
+my $threads = 1;
 my $random_barcode;
 my $repeatseq_bedfile;
 
@@ -106,16 +105,29 @@ our $debug_level = 0;
 our $params = {};
 
 
-# OL_mult must be set the same as --ma in bowtie2 options
-# This is because we will subtract this number * overlapped bases
-# between two alignments so that the bases don't count twice
-# towards an optimal query coverage score
-$params->{overlap_mult} = 2;
 
-# Bait alignment must be within this many bp
+# Bowtie parameters
+$params->{match_award} = 2;
+$params->{max_mismatch_pen} = 6;
+$params->{min_mismatch_pen} = 2;
+$params->{n_base_pen} = 1;
+$params->{read_gap_open} = 5;
+$params->{read_gap_ext} = 3;
+$params->{ref_gap_open} = 5;
+$params->{ref_gap_ext} = 3;
+$params->{score_min} = "C,50";
+$params->{D_effort} = 15;
+$params->{R_effort} = 2;
+$params->{seed_mismatch} = 0;
+$params->{seed_length} = 20;
+$params->{seed_interval} = "C,6";
+$params->{breaksite_alignments} = 5;
+$params->{genome_alignments} = 20;
+
 $params->{force_bait} = 1;
-$params->{max_brk_start_dif} = 20;
-$params->{dif_mult} = 2;
+# Bait alignment must be within this many bp if forcing
+$params->{max_brkstart_dif} = 20;
+# OCS junction penalty
 $params->{brk_pen} = 50;
 # Max gap for concordant alignment (between R1 and R2)
 # Need to check if it's the gap or the entire aln fragment
@@ -136,17 +148,18 @@ $params->{max_largegap} = 30;
 
 # mapqual filter params
 $params->{mapq_ol_thresh} = 0.9;
-$params->{mapq_mismatch_int} = 1.5;
-$params->{mapq_mismatch_coef} = 0.01;
+$params->{mapq_score_thresh} = 10;
+# $params->{mapq_mismatch_int} = 1.5;
+# $params->{mapq_mismatch_coef} = 0.01;
 
 # duplicate filter parameters
 $params->{dedup_offset_dist} = 1;
 $params->{dedup_break_dist} = 1;
 
 
-my $user_bowtie_opt = "";
-my $user_bowtie_adapter_opt = "";
-my $user_bowtie_breaksite_opt = "";
+# my $user_bowtie_opt = "";
+# my $user_bowtie_adapter_opt = "";
+# my $user_bowtie_breaksite_opt = "";
 
 # Global variables
 my @tlxl_header = tlxl_header();
@@ -171,26 +184,73 @@ my $t0 = [gettimeofday];
 
 parse_command_line;
 
-my $default_bowtie_adapter_opt = "--local -L 10 --ma 2 --mp 6,2 --np 1 --rdg 5,3 --rfg 5,3 --score-min C,20 --no-unal -p $bowtie_threads --reorder -t";
-my $default_bowtie_breaksite_opt = "--very-sensitive-local --ma 2 --mp 10,6 --np 2 --rdg 6,4 --rfg 6,4 --score-min C,50 -k 5 --no-unal -p $bowtie_threads  --reorder -t";
-my $default_bowtie_opt = "--very-sensitive-local --ma 2 --mp 10,6 --np 2 --rdg 6,4 --rfg 6,4 --score-min C,50 -k 20 -p $bowtie_threads --reorder -t";
+my $bt2_break_opt = join(" ","--local --no-1mm-upfront",
+                             "-D",$params->{D_effort},
+                             "-R",$params->{R_effort},
+                             "-N",$params->{seed_mismatch},
+                             "-L",$params->{seed_length},
+                             "-i",$params->{seed_interval},
+                             "--ma",$params->{match_award},
+                             "--mp",$params->{max_mismatch_pen}.",".$params->{min_mismatch_pen},
+                             "--np",$params->{n_base_pen},
+                             "--rdg",$params->{read_gap_open}.",".$params->{read_gap_ext},
+                             "--rfg",$params->{ref_gap_open}.",".$params->{ref_gap_ext},
+                             "--score-min",$params->{score_min},
+                             "-k",$params->{breaksite_alignments},
+                             "-p",$threads,
+                             "--no-unal --reorder -t");
+
+my $bt2_opt = join(" ","--local --no-1mm-upfront",
+                             "-D",$params->{D_effort},
+                             "-R",$params->{R_effort},
+                             "-N",$params->{seed_mismatch},
+                             "-L",$params->{seed_length},
+                             "-i",$params->{seed_interval},
+                             "--ma",$params->{match_award},
+                             "--mp",$params->{max_mismatch_pen}.",".$params->{min_mismatch_pen},
+                             "--np",$params->{n_base_pen},
+                             "--rdg",$params->{read_gap_open}.",".$params->{read_gap_ext},
+                             "--rfg",$params->{ref_gap_open}.",".$params->{ref_gap_ext},
+                             "--score-min",$params->{score_min},
+                             "-k",$params->{genome_alignments},
+                             "-p",$threads,
+                             "--reorder -t");
+
+my $bt2_adapt_opt = join(" ","--local --no-1mm-upfront",
+                             "-D",15,
+                             "-R",2,
+                             "-N",1,
+                             "-L",10,
+                             "-i","C,6",
+                             "--ma",2,
+                             "--mp","6,2",
+                             "--np",1,
+                             "--rdg","5,3",
+                             "--rfg","5,3",
+                             "--score-min","C,20",
+                             "-p",$threads,
+                             "--no-unal --reorder -t");
+
+# my $default_bowtie_adapter_opt = "--very-sensitive-local -L 10 --ma 2 --mp 6,2 --np 1 --rdg 5,3 --rfg 5,3 --score-min C,20 --no-unal -p $bowtie_threads --reorder -t";
+# my $default_bowtie_breaksite_opt = "--very-sensitive-local --ma 2 --mp 10,2 --np 2 --rdg 6,4 --rfg 6,4 --score-min C,50 -k 5 --no-unal -p $bowtie_threads  --reorder -t";
+# my $default_bowtie_opt = "--very-sensitive-local --ma 2 --mp 10,2 --np 2 --rdg 6,4 --rfg 6,4 --score-min C,50 -k 20 -p $bowtie_threads --reorder -t";
 
 
 # This may be too complicated -
 # in the future perhaps just change it
 # such that the user inputs full bowtie2 option string
-my $bt2_break_opt = manage_program_options($default_bowtie_breaksite_opt,$user_bowtie_breaksite_opt);
-my $bt2_adapt_opt = manage_program_options($default_bowtie_adapter_opt,$user_bowtie_adapter_opt);
-my $bt2_opt = manage_program_options($default_bowtie_opt,$user_bowtie_opt);
+# my $bt2_break_opt = manage_program_options($default_bowtie_breaksite_opt,$user_bowtie_breaksite_opt);
+# my $bt2_adapt_opt = manage_program_options($default_bowtie_adapter_opt,$user_bowtie_adapter_opt);
+# my $bt2_opt = manage_program_options($default_bowtie_opt,$user_bowtie_opt);
 
 
-croak "Error: cannot find match award in bowtie2 options" unless $bt2_opt =~ /-ma (\d+)/;
-my $match_award = $1;
-croak "Error: cannot find mismatch penalty in bowtie2 options" unless $bt2_opt =~ /-mp (\d+),\d+/;
-my $mismatch_penalty = $1;
+# croak "Error: cannot find match award in bowtie2 options" unless $bt2_opt =~ /-ma (\d+)/;
+# my $match_award = $1;
+# croak "Error: cannot find mismatch penalty in bowtie2 options" unless $bt2_opt =~ /-mp (\d+),\d+/;
+# my $mismatch_penalty = $1;
 
-# I warned you
-carp "Warning: match award in bowtie2 does not equal OCS overlap penalty" unless $match_award eq $params->{overlap_mult};
+# # I warned you
+# carp "Warning: match award in bowtie2 does not equal OCS overlap penalty" unless $match_award eq $params->{overlap_mult};
 
 
 my $expt = basename($workdir);
@@ -332,7 +392,7 @@ unless ($skip_process || $skip_dedup) {
   $filt_tlxfh->close;
   $unjoin_tlxfh->close;
 
-  mark_repeatseq_junctions;
+  # mark_repeatseq_junctions;
 
 } else {
   croak "Error: could not find tlx file when skipping processing step" unless -r $tlxfile;
@@ -674,7 +734,7 @@ sub mark_duplicate_junctions {
   my $duplicate_cmd = join(" ","$FindBin::Bin/../R/TranslocDedup.pl",
                           $tlxfile,
                           $duplicate_output,
-                          "--cores $dedup_threads",
+                          "--cores $threads",
                           "--offset_dist",$params->{dedup_offset_dist},
                           "--break_dist",$params->{dedup_break_dist}) ;
 
@@ -817,6 +877,7 @@ sub write_parameters_file {
   my $paramsfh = IO::File->new(">$paramsfile");
 
   $paramsfh->print("$local_time\t$commandline\n\n");
+  $paramsfh->print(Dumper($params)."\n");
 
   # $paramsfh->print(join("\n", map {join("\t",@$_)}
   #   (["Alignment Options"],
@@ -863,33 +924,56 @@ sub parse_command_line {
 
 	my $result = GetOptions ( "read1=s" => \$read1,
                             "read2=s" => \$read2,
+                            "workdir=s" => \$workdir,
                             "assembly=s" => \$assembly,
                             "chr=s" => \$brk_chr,
                             "start=i" => \$brk_start,
                             "end=i" => \$brk_end,
                             "strand=s" => \$brk_strand,
-                            "workdir=s" => \$workdir,
                             "mid=s" => \$mid_fa,
                             "primer=s" => \$prim_fa,
                             "breakseq=s" => \$break_fa,
                             "breaksite=i" => \$breakcoord,
                             "adapter=s" => \$adapt_fa,
                             "cutter=s" => \$cut_fa,
-                            "threads-bt=i" => \$bowtie_threads,
-                            "threads-dedup=i" => \$dedup_threads,
+                            "threads=i" => \$threads,
                             "random-barcode=i" => \$random_barcode,
                             "skip-align" => \$skip_alignment,
                             "skip-process" => \$skip_process,
                             "skip-dedup" => \$skip_dedup,
                             "no-dedup" => \$no_dedup,
+                            "no-clean" => \$no_clean,
+                            "force-bait=i" => \$params->{force_bait},
+                            "match-award=i" => \$params->{match_award},
+                            "max-mismatch-pen=i" => \$params->{max_mismatch_pen},
+                            "min-mismatch-pen=i" => \$params->{min_mismatch_pen},
+                            "n-base-pen=i" => \$params->{n_base_pen},
+                            "read-gap-open=i" => \$params->{read_gap_open},
+                            "read-gap-ext=i" => \$params->{read_gap_ext},
+                            "ref-gap-open=i" => \$params->{ref_gap_open},
+                            "ref-gap-ext=i" => \$params->{ref_gap_ext},
+                            "score-min=s" => \$params->{score_min},
+                            "D-effort=i" => \$params->{D_effort},
+                            "R-effort=i" => \$params->{R_effort},
+                            "seed-mismatch=i" => \$params->{seed_mismatch},
+                            "seed-length=i" => \$params->{seed_length},
+                            "seed-interval=s" => \$params->{seed_interval},
+                            "breaksite-alignments=i" => \$params->{breaksite_alignments},
+                            "genome-alignments=i" => \$params->{genome_alignments},
+                            "max-brkstart-dif=i" => \$params->{max_brkstart_dif},
+                            "break-pen=i" => \$params->{brk_pen},
+                            "max-pe-gap=i" => \$params->{max_pe_gap},
+                            "pe-pen=i" => \$params->{pe_pen},
+                            "max-dovetail=i" => \$params->{max_dovetail},
+                            "max-uncut-bp=i" => \$params->{max_bp_after_cutsite},
+                            "min-priming-bp=i" => \$params->{min_bp_after_primer},
+                            "max-largegap=i" => \$params->{max_largegap},
                             "mapq-ol=f" => \$params->{mapq_ol_thresh},
-                            "mapq-mm-int=f" => \$params->{mapq_mismatch_int},
-                            "mapq-mm-coef=f" => \$params->{mapq_mismatch_coef},
-                            "priming-bp=i" => \$params->{min_bp_after_primer},
+                            "mapq-score=i" => \$params->{mapq_score_thresh},
+                            "repeatseq-bed=s" => \$repeatseq_bedfile,
                             "dedup-offset-bp=i" => \$params->{dedup_offset_dist},
                             "dedup-bait-bp=i" => \$params->{dedup_break_dist},
                             "debug=i" => \$debug_level,
-                            # "bowtie-opt=s" => \$user_bowtie_opt,
 				            				"help" => \$help
 				            			) ;
 
@@ -905,7 +989,6 @@ sub parse_command_line {
 
   croak "Error: priming-bp must be a positive integer" unless $params->{min_bp_after_primer} > 0;
   croak "Error: mapq-ol must be a fraction between 0 and 1" if $params->{mapq_ol_thresh} < 0 || $params->{mapq_ol_thresh} > 1;
-  # croak "Error: mapq-score must be a fraction between 0 and 1" if $mapq_score_thresh < 0 || $mapq_score_thresh > 1;
   
 	exit unless $result;
 }
@@ -918,7 +1001,7 @@ TranslocPipeline.pl, by Robin Meyers, 2013
 
 
 Usage: $0
-        --read1 FILE --read2 FILE --workdir DIR --assembly (mm9|hg19)
+        --read1 FILE --read2 FILE --workdir DIR --assembly (mm9|hg19|other)
         --chr chrN --start INT --end INT --strand (+|-) --MID FILE
         --primer FILE [--breaksite FILE] --adapter FILE --cutter FILE
         [--option VAL] [--flag] [--help]
@@ -940,20 +1023,52 @@ $arg{"--adapter","Adapter sequence"}
 $arg{"--cutter","Frequent cutter site sequence"}
 
 
-Arguments set manually with --pipeline-opt in TranslocWrapper.pl (defaults in parentheses):
-$arg{"--threads-bt","Number of threads to run bowtie on",$bowtie_threads}
-$arg{"--threads-dedup","Number of threads to run dedup on",$dedup_threads}
+All other arguments must be set manually with --pipeline-opt in TranslocWrapper.pl (defaults in parentheses):
+
+$arg{"--threads","Number of threads to run bowtie/dedup on",$threads}
+$arg{"--random-barcode","Set to integer N to find N-mer immediately before adapter"}
 $arg{"--skip-align","Begin pipeline after alignment step - working directory must already have alignment files "}
 $arg{"--skip-process","Begin pipeline after OCS and filtering steps - working directory must already have tlx files"}
 $arg{"--skip-dedup","Begin pipeline after dedup step (post-processing only) "}
 $arg{"--no-dedup","Do not run dedup filter"}
-$arg{"--priming-bp","Minimum number of bases in bait alignment after the primer",$params->{min_bp_after_primer}}
-$arg{"--mapq-ol","Minimum overlapping fraction for mapq filter",$params->{mapq_ol_thresh}}
-$arg{"--mapq-mm-int","Mapq score threshold intercept",$params->{mapq_mismatch_int}}
-$arg{"--mapq-mm-coef","Mapq score threshold coefficient (multiplied by alignment length)",$params->{mapq_mismatch_coef}}
-$arg{"--dedup-offset-bp","Minimum offset distance between prey alignments in dedup filter",$params->{dedup_offset_dist}}
-$arg{"--dedup-bait-bp","Minimum distance between bait alignments in dedup filter",$params->{dedup_break_dist}}
+$arg{"--no-clean","",$no_clean,"Do not delete temp files at end of process"}
+$arg{"--force-bait","Set to 0 to relax bait alignment restrictions",$params->{force_bait}}
 
+Arguments sent to Bowtie2 alignment (see manual)
+$arg{"--match-award","",$params->{match_award}}
+$arg{"--max-mismatch-pen","",$params->{max_mismatch_pen}}
+$arg{"--min-mismatch-pen","",$params->{min_mismatch_pen}}
+$arg{"--n-base-pen","",$params->{n_base_pen}}
+$arg{"--read-gap-open","",$params->{read_gap_open}}
+$arg{"--read-gap-ext","",$params->{read_gap_ext}}
+$arg{"--ref-gap-open","",$params->{ref_gap_open}}
+$arg{"--ref-gap-ext","",$params->{ref_gap_ext}}
+$arg{"--score-min","",$params->{score_min}}
+$arg{"--D-effort","",$params->{D_effort}}
+$arg{"--R-effort","",$params->{R_effort}}
+$arg{"--seed-mismatch","",$params->{seed_mismatch}}
+$arg{"--seed-length","",$params->{seed_length}}
+$arg{"--seed-interval","",$params->{seed_interval}}
+$arg{"--breaksite-alignments","Number of breaksite alignments reported",$params->{breaksite_alignments}}
+$arg{"--genome-alignments","Number of genome alignments reported",$params->{genome_alignments}}
+
+OQC and Filtering parameters
+$arg{"--max-brkstart-dif","Bait alignment forced to be within this distance of primer start site - not used if force-bait=0",$params->{max_brkstart_dif}}
+$arg{"--break-pen","Junction penalty incurred for every breakpoint in OQC",$params->{brk_pen}}
+$arg{"--max-pe-gap","Maximum gap allowed between paired-end alignments to be considered concordant",$params->{max_pe_gap}}
+$arg{"--pe-pen","Penalty incurred in OCS by gapped paired-end alignments (scaled to max-gap)",$params->{pe_pen}}
+$arg{"--max-dovetail","Maximum dovetail allowed between concordant alignments",$params->{max_dovetail}}
+$arg{"--max-uncut-bp","Maximum number of bases allowed to align after cutsite",$params->{max_bp_after_cutsite}}
+$arg{"--min-priming-bp","Minimum number of bases in bait alignment after the primer",$params->{min_bp_after_primer}}
+$arg{"--max-largegap","Maximum distance on query between bait and prey alignments",$params->{max_largegap}}
+$arg{"--mapq-ol","Minimum overlapping fraction for mapq filter",$params->{mapq_ol_thresh}}
+$arg{"--mapq-score","Minimum mapping quality score",$params->{mapq_score_thresh}}
+$arg{"--repeatseq-bed","Location of repeatseq bedfile (automatically found for default genome assemblies)",""}
+$arg{"--dedup-offset-bp","Minimum offset distance between prey alignments in dedup filter",$params->{dedup_offset_dist}}
+$arg{"--dedup-bait-bp","Minimum distance between bait alignments in dedup filter",$params->{dedup_bait_dist}}
+
+
+$arg{"--debug","",$params->{debug_level}}
 $arg{"--help","This helpful help screen."}
 
 
