@@ -114,7 +114,7 @@ sub filter_misprimed ($$) {
   if (defined $tlx->{B_Strand}) {
     if ($tlx->{B_Strand} == 1) {
       filter_entire_read($tlxs,"misprimed",
-        $tlx->{B_Rend} - ($params->{brksite}->{start} + $params->{primer}->length - 1));
+        $tlx->{B_Rend} - ($params->{brksite}->{start} + $params->{brksite}->{primer}->length - 1));
       # if ($tlx->{B_Rend} < $params->{brksite}->{misprimed_threshold}) {
       #   my $junctions = filter_entire_read($tlxs,"misprimed");
       #   return(1,$junctions);

@@ -109,7 +109,7 @@ sub tlxl_header {
   my @tlxl_header = ( qw(Qname OCS_score Rname Strand),
                       qw(R1_Rstart R1_Rend R1_Qstart R1_Qend R1_Qlen),
                       qw(R2_Rstart R2_Rend R2_Qstart R2_Qend R2_Qlen),
-                      qw(R1_Rgap R2_Rgap R1_Cigar R2_Cigar) );
+                      qw(R1_Cigar R2_Cigar) );
   return (@tlxl_header);
 }
 
@@ -140,9 +140,15 @@ sub write_entry ($$$) {
 }
 
 
-sub print_aln ($) {
+sub stringify_alignment ($) {
   my $aln = shift;
-  print $aln->{Qstart}."-".$aln->{Qend}." ".$aln->{Rname}.":".$aln->{Rstart}."-".$aln->{Rend}.":".$aln->{Strand}."\n";
+
+  return(join(",",$aln->{Rname},
+                  $aln->{Rstart},
+                  $aln->{Rend},
+                  $aln->{Qstart},
+                  $aln->{Qend},
+                  $aln->{Strand}));
 }
 
 sub find_genomic_distance ($$$) {
@@ -464,21 +470,42 @@ sub calculate_paired_end_penalty ($$) {
   
   my $PE_pen = $main::params->{pe_pen} * $PE_gap/$main::params->{max_pe_gap} if $PE_gap > 0;
       
-  # Correct for overlapping alignments
-  $PE_pen += $main::params->{match_award} * aln_reference_overlap($R1_aln,$R2_aln);
+  # Only give half credit for overlapping alignments
+  $PE_pen += $main::params->{match_award} * aln_reference_overlap($R1_aln,$R2_aln) / 2;
 
   # Penalize for unused R1
   $PE_pen += $main::params->{match_award} * ($R1_aln->{Qlen} - $R1_aln->{Qend});
 
 }
 
+
+
 sub score_edge ($;$) {
   my $node1 = shift;
   my $node2 = shift;
 
   my $score;
+  my $qname;
+
+  if (defined $node1->{R1}) {
+    $qname = $node1->{R1}->{QnameShort};
+  } else {
+    $qname = $qname;
+  }
+
+  debug_print("scoring edge",3,$qname);
+  debug_print("node1:R1:".stringify_alignment($node1->{R1}),4,$qname)
+    if defined $node1->{R1};
+  debug_print("node1:R2:".stringify_alignment($node1->{R2}),4,$qname)
+    if defined $node1->{R2};
 
   if (defined $node2) {
+
+    debug_print("node2:R1:".stringify_alignment($node2->{R1}),4,$qname)
+      if defined $node2->{R1};
+    debug_print("node2:R2:".stringify_alignment($node2->{R2}),4,$qname)
+      if defined $node2->{R2};
+
 
     my $Rname1;
     my $Rname2;
@@ -486,28 +513,63 @@ sub score_edge ($;$) {
 
     if ( defined $node1->{R2} ) {
 
-      return undef if defined $node2->{R1};
-      return undef unless defined $node2->{R2};
-      return undef if $node1->{R2}->{Rname} eq "Adapter";
-      return undef if $node2->{R2} == $node1->{R2};
-      return undef unless $node2->{R2}->{Qstart} >= $node1->{R2}->{Qstart};
-      return undef unless $node2->{R2}->{Qend} >= $node1->{R2}->{Qend};
+      if (defined $node2->{R1}) {
+        debug_print("score=undef; node1 has R2, node2 must not have R1",4,$qname);
+        return undef;
+      }
+      unless (defined $node2->{R2}) {
+        debug_print("score=undef; node1 has R2, node2 must have R2",4,$qname);
+        return undef;
+      }
+      if ($node1->{R2}->{Rname} eq "Adapter") {
+        debug_print("score=undef; node1 is adapter, nothing may follow",4,$qname);
+        return undef;
+      }
+      if ($node2->{R2}->{ID} eq $node1->{R2}->{ID}) {
+        debug_print("score=undef; node1 and node2 have equivalent R2",4,$qname);
+        return undef;
+      }
+      unless ($node2->{R2}->{Qstart} >= $node1->{R2}->{Qstart}) {
+        debug_print("score=undef; node1 R2 Qstart greater than node2 R2 Qstart",4,$qname);
+        return undef;
+      }
+      unless ($node2->{R2}->{Qend} >= $node1->{R2}->{Qend}) {
+        debug_print("score=undef; node1 R2 Qend greater than node2 R2 Qend",4,$qname);
+        return undef;
+      }
       $Rname1 = $node1->{R2}->{Rname};
       $Rname2 = $node2->{R2}->{Rname};
       $query_overlap = aln_query_overlap($node1->{R2},$node2->{R2});
 
     } else {
 
-      return undef unless defined $node2->{R1};
-      return undef if $node1->{R1}->{Rname} eq "Adapter";
-      return undef if $node2->{R1} == $node1->{R1};
-      return undef unless $node2->{R1}->{Qstart} >= $node1->{R1}->{Qstart};
-      return undef unless $node2->{R1}->{Qend} >= $node1->{R1}->{Qend};
+      unless (defined $node2->{R1}) {
+        debug_print("score=undef; node1 has no R2, node2 must have R1",4,$qname);
+        return undef;
+      }
+      if ($node1->{R1}->{Rname} eq "Adapter") {
+        debug_print("score=undef; node1 is adapter, nothing may follow",4,$qname);
+        return undef;
+      }
+      if ($node2->{R1}->{ID} eq $node1->{R1}->{ID}) {
+        debug_print("score=undef; node1 and node2 have equivalent R1",4,$qname);
+        return undef;
+      }
+      unless ($node2->{R1}->{Qstart} >= $node1->{R1}->{Qstart}) {
+        debug_print("score=undef; node1 R1 Qstart greater than node2 R1 Qstart",4,$qname);
+        return undef;
+      }
+      unless ($node2->{R1}->{Qend} >= $node1->{R1}->{Qend}) {
+        debug_print("score=undef; node1 R1 Qend greater than node2 R1 Qend",4,$qname);
+        return undef;
+      }
       $Rname1 = $node1->{R1}->{Rname};
       $Rname2 = $node2->{R1}->{Rname};
       $query_overlap = aln_query_overlap($node1->{R1},$node2->{R1});
 
     }
+
+    # node1 and node2 pass tests, calc score
 
     my $overlap_correction;    
     my $brk_pen;
@@ -533,27 +595,50 @@ sub score_edge ($;$) {
 
     }
 
+    debug_print("node1 score: ".$node1->{score},4,$qname);
+    debug_print("node2 R1 AS: ".$R1_AS,4,$qname);
+    debug_print("node2 R2 AS: ".$R2_AS,4,$qname);
+    debug_print("node2 PE penalty: ".$PE_pen,4,$qname);
+    debug_print("Junction penalty: ".$brk_pen,4,$qname);
+    debug_print("Overlap correction: ".$overlap_correction,4,$qname);
+
     $score = $node1->{score} + $R1_AS + $R2_AS - $PE_pen - $brk_pen - $overlap_correction;
     
+    debug_print("Edge score: ".$score,4,$qname);
+
+
   } else {
     # First node in OCS
 
-    return undef unless defined $node1->{R1};
+    unless (defined $node1->{R1}) {
+      debug_print("score=undef; first node must have R1",4,$qname);
+      return undef;
+    }
 
-    unless ($main::params->{relax_bait}) {
+    if ($main::params->{force_bait}) {
       # Penalize for alignments away from bait site
-      return undef unless $node1->{R1}->{Rname} eq $main::params->{brksite}->{aln_name};
-      return undef unless $node1->{R1}->{Strand} == $main::params->{brksite}->{aln_strand};
+
+      unless ($node1->{R1}->{Rname} eq $main::params->{brksite}->{aln_name}) {
+        debug_print("score=undef; first node must be on brksite chr",4,$qname);
+        return undef;
+      }
+      unless ($node1->{R1}->{Strand} == $main::params->{brksite}->{aln_strand}) {
+        debug_print("score=undef; first node must be on brksite strand",4,$qname);
+        return undef;
+      }
 
       my $brk_start_dif = $main::params->{brksite}->{aln_strand} == 1 ?
                             abs($node1->{R1}->{Rstart} - $main::params->{brksite}->{primer_start}) :
                             abs($node1->{R1}->{Rend} - $main::params->{brksite}->{primer_start}) ;
 
-      return undef unless $brk_start_dif < $main::params->{max_brkstart_dif};
+      unless ($brk_start_dif < $main::params->{max_brkstart_dif}) {
+        debug_print("score=undef; first node must be within max-brkstart-dif",4,$qname);
+        return undef;
+      }
 
     }
 
-
+    # node1 passes tests; calc score
 
     my $R1_AS = $node1->{R1}->{AS};
     my $R2_AS = defined $node1->{R2} ? $node1->{R2}->{AS} : 0;
@@ -564,7 +649,13 @@ sub score_edge ($;$) {
       $PE_pen = calculate_paired_end_penalty($node1->{R1},$node1->{R2});
     }
 
+    debug_print("node1 R1 AS: ".$R1_AS,4,$qname);
+    debug_print("node1 R2 AS: ".$R2_AS,4,$qname);
+    debug_print("node1 PE penalty: ".$PE_pen,4,$qname);
+
     $score = $R1_AS + $R2_AS - $PE_pen;
+
+    debug_print("Edge score: ".$score,4,$qname);
 
   }
 
@@ -575,13 +666,8 @@ sub score_edge ($;$) {
 
 sub find_optimal_coverage_set ($$) {
 
-  # print "finding OCS\n";
-  # my $t0 = [gettimeofday];
-
-
   my $R1_alns_ref = shift;
   my $R2_alns_ref = shift;
-
 
 
   my @graph = ();
@@ -590,132 +676,124 @@ sub find_optimal_coverage_set ($$) {
   my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart}} shuffle(values $R1_alns_ref);
   my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart}} shuffle(values $R2_alns_ref);
 
-  debug_print("finding OCS",2,$R1_alns[0]->{QnameShort});
+  my $qname = $R1_alns[0]->{QnameShort};
 
+  debug_print("finding OCS",2,$qname);
 
-  # print "\nafter sort ".Dumper(\@R2_alns) if @R2_alns < 2;
-
+  debug_print("searching through R1 and R1/R2 pairs",3,$qname);
   foreach my $R1_aln (@R1_alns) {
 
     next if $R1_aln->{Unmapped};
 
-    my $graphsize = scalar @graph;
+    # my $graphsize = scalar @graph;
 
     my $new_node = {R1 => $R1_aln};
-
-
 
     my $init_score = score_edge($new_node);
     $new_node->{score} = $init_score if defined $init_score;
 
-    # print "not a possible initial node\n" unless defined $init_score;
-    # print "initialized node to $init_score\n" if defined $init_score;
-
-    my $nodenum = 1;
     foreach my $node (@graph) {
-      # print "scoring edge against node $nodenum\n";
       my $edge_score = score_edge($node,$new_node);
       next unless defined $edge_score;
-      # print "found edge score of $edge_score\n";
 
       if (! exists $new_node->{score} || $edge_score > $new_node->{score}) {
         $new_node->{score} = $edge_score;
         $new_node->{back_ptr} = $node;
 
-        # print "setting back pointer to $nodenum\n";
+        debug_print("new best edge score for R1 node; set backpointer",3,$qname);
       }
-      $nodenum++;
     }
 
     if (defined $new_node->{score}) {
-      push(@graph,$new_node) ;
-      # print "pushed node into position ".scalar @graph." with score ".$new_node->{score}."\n";
-      # print "setting OCS pointer to node\n" if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
-      $OCS_ptr = $new_node if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
+      push(@graph,$new_node);
+      if (! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score}) {
+        $OCS_ptr = $new_node;
+        debug_print("new top OCS score for R1 node; set OCS pointer",3,$qname);
+      }
     }
 
     foreach my $R2_aln (@R2_alns) {
-      # print $R1_aln->{Qname}."\n" if ! defined $R2_aln->{Unmapped};
-      # print Dumper($R2_aln) if $R2_aln->{Unmapped};
 
       next unless defined $R2_aln && ! $R2_aln->{Unmapped};
-
-      # print "testing proper-pairedness with R2:\n";
-      # print_aln($R2_aln_wrap);
 
       next unless pair_is_proper($R1_aln,$R2_aln);
 
       my $new_pe_node = {R1 => $R1_aln, R2 => $R2_aln};
 
-
-
-      # print "pair is proper\n";
       my $init_score = score_edge($new_pe_node);
       $new_pe_node->{score} = $init_score if defined $init_score;
-      # print "not a possible initial node\n" unless defined $init_score;
-      # print "initialized node to $init_score\n" if defined $init_score;
-      $nodenum = 1;
-      if ($graphsize > 0) {
-        foreach my $node (@graph[0..($graphsize-1)]) {
-          # print "scoring edge against node $nodenum\n";
+      # if ($graphsize > 0) {
+        # foreach my $node (@graph[0..($graphsize-1)]) {
+        foreach my $node (@graph) {
 
           my $edge_score = score_edge($node,$new_pe_node);
           next unless defined $edge_score;
-          # print "found edge score of $edge_score\n";
 
           if (! defined $new_pe_node->{score} || $edge_score > $new_pe_node->{score}) {
             $new_pe_node->{score} = $edge_score;
             $new_pe_node->{back_ptr} = $node;
 
-            # print "setting back pointer to $nodenum\n";
+            debug_print("new best edge score for R1/R2 node; set backpointer",3,$qname);
 
           }
-          $nodenum++;
         }
-      }
+      # }
       if (defined $new_pe_node->{score}) {
         push(@graph,$new_pe_node);
-        # print "pushed node into position ".scalar @graph." with score ".$new_pe_node->{score}."\n";
-        # print "setting OCS pointer to node\n" if ! defined $OCS_ptr || $new_pe_node->{score} > $OCS_ptr->{score};
-        $OCS_ptr = $new_pe_node if ! defined $OCS_ptr || $new_pe_node->{score} > $OCS_ptr->{score};
+        if (! defined $OCS_ptr || $new_pe_node->{score} > $OCS_ptr->{score}) {
+          $OCS_ptr = $new_pe_node;
+          debug_print("new top OCS score for R1/R2 node; set OCS pointer",3,$qname);
+        }
       }
     }
   }
 
+
+  debug_print("searching through R2 alignments",3,$qname);
+  
   foreach my $R2_aln (@R2_alns) {
 
-    # print "\nStarting test for R2:\n";
-    # print_aln($R2_aln_wrap);
     next unless defined $R2_aln && ! $R2_aln->{Unmapped};
 
     my $new_node = {R2 => $R2_aln};
 
 
-    my $nodenum = 1;
     foreach my $node (@graph) {
-      # print "scoring edge against node $nodenum\n";
       my $edge_score = score_edge($node,$new_node);
       next unless defined $edge_score;
-      # print "found edge score of $edge_score\n";
 
       if (! defined $new_node->{score} || $edge_score > $new_node->{score}) {
         $new_node->{score} = $edge_score;
         $new_node->{back_ptr} = $node;
-        # print "setting back pointer to $nodenum\n";
+        debug_print("new best edge score for R2 node; set backpointer",3,$qname);
       }
-      $nodenum++;
     }
 
     if (defined $new_node->{score}) {
       push(@graph,$new_node) ;
-      # print "pushed node into position ".scalar @graph." with score ".$new_node->{score}."\n";
-      # print "setting OCS pointer to node\n" if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
-      $OCS_ptr = $new_node if ! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score};
+      if (! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score}) {
+        $OCS_ptr = $new_node;
+        debug_print("new top OCS score for R2 node; set OCS pointer",3,$qname);
+      }
     }
 
   }
 
-  unless (defined $OCS_ptr) {
+  if (defined $OCS_ptr) {
+
+    my @OCS = ($OCS_ptr);
+
+    while (defined $OCS_ptr->{back_ptr}) {
+      $OCS_ptr->{back_ptr}->{score} = $OCS_ptr->{score};
+      $OCS_ptr = $OCS_ptr->{back_ptr};
+      unshift(@OCS,$OCS_ptr)
+    }
+    debug_print("found OCS of length ".scalar @OCS,3,$qname);
+    return \@OCS;
+
+  } else {
+
+    debug_print("no defined OCS pointer, returning unmapped OCS",3,$qname);
     my @unmapped_OCS = ( { R1 => { Qname => $R1_alns[0]->{Qname},
                                    QnameShort => $R1_alns[0]->{QnameShort},
                                    Seq => $R1_alns[0]->{Seq},
@@ -728,25 +806,7 @@ sub find_optimal_coverage_set ($$) {
                                    Unmapped => 1 } } );
     return \@unmapped_OCS;
 
-    next;
   }
-
-  my @OCS;
-
-  while (defined $OCS_ptr->{back_ptr}) {
-    unshift(@OCS,$OCS_ptr);
-    $OCS_ptr->{R1_Rgap} = find_genomic_distance($OCS_ptr->{back_ptr}->{R1},$OCS_ptr->{R1},$main::params->{brksite})
-      if defined $OCS_ptr->{R1} && defined $OCS_ptr->{back_ptr}->{R1};
-    $OCS_ptr->{R2_Rgap} = find_genomic_distance($OCS_ptr->{back_ptr}->{R2},$OCS_ptr->{R2},$main::params->{brksite})
-      if defined $OCS_ptr->{R2} && defined $OCS_ptr->{back_ptr}->{R2};
-    $OCS_ptr->{back_ptr}->{score} = $OCS_ptr->{score};
-    $OCS_ptr = $OCS_ptr->{back_ptr};
-  }
-  unshift(@OCS,$OCS_ptr) if defined $OCS_ptr;
-
-
-  return \@OCS;
-
 
 }
 
