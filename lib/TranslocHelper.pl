@@ -93,7 +93,7 @@ sub sam_file_is_empty ($) {
 }
 
 sub tlx_header {
-  my @tlx_header = ( qw(Qname Rname Junction Strand Rstart Rend),
+  my @tlx_header = ( qw(Qname JuncID Rname Junction Strand Rstart Rend),
                       qw(B_Rname B_Rstart B_Rend B_Strand B_Qstart B_Qend),
                       qw(Qstart Qend Qlen B_Cigar Cigar Seq J_Seq Barcode) );
   return (@tlx_header);
@@ -1089,6 +1089,7 @@ sub create_tlx_entries ($$) {
     my $tlx = {};
     $tlx->{Qname} = $tlxls->[0]->{Qname};
     $tlx->{QnameShort} = $tlxls->[0]->{QnameShort};
+    $tlx->{JuncID} = 1;
     push(@tlxs,$tlx);
     return(\@tlxs);
   }
@@ -1130,7 +1131,7 @@ sub create_tlx_entries ($$) {
 
   foreach my $i (0..$#$tlxls) {
     # print "TLX for ".$i."th segment\n";
-
+    
 
     my $tlx = {};
     my $b_tlxl = $tlxls->[$i];
@@ -1140,6 +1141,7 @@ sub create_tlx_entries ($$) {
     $tlx->{B_Rname} = $b_tlxl->{Rname};
     $tlx->{B_Strand} = $b_tlxl->{Strand};
     $tlx->{Seq} = $Qseq;
+    $tlx->{JuncID} = $i + 1;
 
     # 
     $tlx->{Qlen} = $Qlen;

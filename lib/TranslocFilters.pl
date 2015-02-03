@@ -162,7 +162,7 @@ sub filter_largegap ($$) {
 
 
   foreach my $tlx (@$tlxs) {
-    if (defined $tlx->{Qstart} && defined $tlx->{B_Qend}) {
+    if (is_a_junction($tlx)) {
       $tlx->{filters}->{largegap} = max(0,$tlx->{Qstart} - $tlx->{B_Qend} - 1);
     }
     
@@ -182,7 +182,10 @@ sub filter_mapqual ($$) {
 
   my $i = 0;
   foreach my $tlx (@$tlxs) {
-    next unless is_a_junction($tlx);
+    unless (is_a_junction($tlx)) {
+      $tlx->{filters}->{mapqual} = 255;
+      next;
+    }
 
     my $tlx_R1_aln = $R1_alns->{$tlx->{R1_ID}} if defined $tlx->{R1_ID};
     my $tlx_R2_aln = $R2_alns->{$tlx->{R2_ID}} if defined $tlx->{R2_ID};
@@ -289,7 +292,7 @@ sub filter_breaksite ($$) {
   my $i = 0;
   foreach my $tlx (@$tlxs) {
     if (defined $tlx->{Rname} && $tlx->{Rname} eq "Breaksite") {
-      filter_remainder_of_read($tlxs,"breaksite",$i);
+      $tlx->{filters}->{breaksite} = 1;
     }
     $i++;
   }

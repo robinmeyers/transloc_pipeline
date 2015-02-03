@@ -33,13 +33,13 @@ sub parse_command_line;
 # Global flags and arguments, 
 # Set by command line arguments
 my $tlxfile;
-my $bedfile;
 my $output;
+my $filters;
 
 
 # Global variabless
 my %filtered_reads;
-my $repeatseq_output;
+my $filter_output;
 #
 # Start of Program
 #
@@ -47,17 +47,17 @@ my $repeatseq_output;
 parse_command_line;
 
 # Run Rscript to print list of junctions to filter
-($repeatseq_output = $output) =~ s/\.tlx$/.txt/;
+($filter_output = $output) =~ s/\.tlx$/.txt/;
 
-my $repeatseq_cmd = join(" ","$FindBin::Bin/../R/TranslocRepeatSeq.R",
+my $filter_cmd = join(" ","$FindBin::Bin/../R/TranslocFilter.R",
                         $tlxfile,
-                        $bedfile,
-                        $repeatseq_output);
+                        $filter_output,
+                        $filters);
 
-System($repeatseq_cmd);
+System($filter_cmd);
 
 # Read in filtered junctions
-open JUNC, "<", $repeatseq_output;
+open JUNC, "<", $filter_output;
 while (<JUNC>) {
   chomp;
   my @read = split("\t");
@@ -76,17 +76,14 @@ $csv->column_names(@$header);
 
 $outfh->print(join("\t",@$header)."\n");
 
-my %junc_id;
 
 while (my $tlx = $csv->getline_hr($infh)) {
-
   my $qname = $tlx->{Qname};
   my $junc_id = $tlx->{JuncID};
-
+  
   if (defined $filtered_reads{$qname}->{$junc_id}) {
-    $tlx->{repeatseq} = 1;
+    $outfh->print(join("\t",@{$tlx}{@$header})."\n");
   }
-  $outfh->print(join("\t",@{$tlx}{@$header})."\n");
 }
 
 
@@ -101,7 +98,7 @@ sub parse_command_line {
 
   usage() if (scalar @ARGV == 0);
 
-  my $result = GetOptions ( 
+  my $result = GetOptions ( "filters=s" => \$filters,
                             "help" => \$help
 
                           );
@@ -112,14 +109,12 @@ sub parse_command_line {
 
   #Check options
 
-  usage() if (scalar @ARGV < 3);
+  usage() if (scalar @ARGV < 2);
 
   $tlxfile = shift(@ARGV);
-  $bedfile = shift(@ARGV);
   $output = shift(@ARGV);
 
   croak "Error: cannot read tlxfile" unless -r $tlxfile;
-  croak "Error: cannot read bedfile" unless -r $bedfile;
   croak "Error: tlxfile must have .tlx extension" unless $tlxfile =~ /\.tlx$/;
 
 
@@ -130,23 +125,25 @@ sub parse_command_line {
 sub usage()
 {
 print<<EOF;
-TranslocRepeatSeq, by Robin Meyers, 2013
+TranslocFilter, by Robin Meyers, 2013
 
-Usage: $0 tlxfile bedfile output
+Usage: $0 tlxfile output
         [--option VAL] [--flag] [--help]
 
 
 Arguments (defaults in parentheses):
 
-$arg{"tlxfile","File containing meta data for one experiment per row - follow correct format"}
-$arg{"bedfile","File containing meta data for one experiment per row - follow correct format"}
-$arg{"output","File containing meta data for one experiment per row - follow correct format"}
+$arg{"tlxfile"," "}
+$arg{"output"," "}
+$arg{"--filters"," "}
 
 $arg{"--help","This helpful help screen."}
 
 --------------------------------------------
 
 EOF
+
+system("$FindBin::Bin/../R/TranslocFilter.R");
 
 exit 1;
 }

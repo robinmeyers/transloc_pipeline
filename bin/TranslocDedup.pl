@@ -101,10 +101,9 @@ sub parse_command_line {
 
   #Check options
 
-  usage() if (scalar @ARGV < 3);
+  usage() if (scalar @ARGV < 2);
 
   $tlxfile = shift(@ARGV);
-  $bedfile = shift(@ARGV);
   $output = shift(@ARGV);
 
   croak "Error: cannot read tlxfile" unless -r $tlxfile;
@@ -120,14 +119,13 @@ sub usage()
 print<<EOF;
 TranslocRepeatSeq, by Robin Meyers, 2013
 
-Usage: $0 tlxfile bedfile output
+Usage: $0 tlxfile output
         [--option VAL] [--flag] [--help]
 
 
 Arguments (defaults in parentheses):
 
 $arg{"tlxfile","File containing meta data for one experiment per row - follow correct format"}
-$arg{"bedfile","File containing meta data for one experiment per row - follow correct format"}
 $arg{"output","File containing meta data for one experiment per row - follow correct format"}
 
 $arg{"--help","This helpful help screen."}

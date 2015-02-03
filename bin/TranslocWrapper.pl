@@ -463,7 +463,7 @@ $arg{"--help","This helpful help screen."}
 
 EOF
 
-system('TranslocPipeline.pl --help');
+system("$FindBin::Bin/TranslocPipeline.pl --help");
 
 exit 1;
 }

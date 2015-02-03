@@ -36,17 +36,15 @@ suppressPackageStartupMessages(library(rtracklayer, quietly=TRUE))
 
 bed <- import.bed(bedfile)
 
-tlx <- fread(tlxfile,sep="\t",header=T,select=c("Qname","Rname","Junction","isjunction"))
+tlx <- fread(tlxfile,sep="\t",header=T,select=c("Qname","JuncID","Rname","Junction"))
 
-tlx <- tlx %>% group_by(Qname) %>% mutate(JuncID=row_number(Qname)) %>% filter(isjunction)
+tlx <- filter(tlx, ! is.na(Rname) & ! is.na(Junction))
 
 gr <-  with(tlx,GRanges(seqnames=Rname,ranges=IRanges(start=Junction,width=1,names=Qname)))
 
 ol <- suppressWarnings(overlapsAny(gr,bed,type="any"))
 
-tlx <- ungroup(tlx) %>% mutate(Overlap = ol)
-
-tlx <- filter(tlx, Overlap == T) %>% select(Qname,JuncID)
+tlx <- mutate(tlx, Overlap = ol) %>% filter(Overlap == T) %>% select(Qname,JuncID)
 
 write.table(tlx,output,sep="\t",col.names=F,row.names=F,quote=F,na="")
 

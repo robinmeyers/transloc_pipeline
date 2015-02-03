@@ -65,6 +65,7 @@ sub process_alignments;
 # sub deduplicate_junctions;
 sub mark_repeatseq_junctions;
 sub mark_duplicate_junctions;
+sub filter_junctions;
 sub sort_junctions;
 sub post_process_junctions;
 # sub write_stats_file;
@@ -392,7 +393,7 @@ unless ($skip_process || $skip_dedup) {
   $filt_tlxfh->close;
   $unjoin_tlxfh->close;
 
-  # mark_repeatseq_junctions;
+  mark_repeatseq_junctions;
 
 } else {
   croak "Error: could not find tlx file when skipping processing step" unless -r $tlxfile;
@@ -408,7 +409,7 @@ unless ($skip_dedup || $no_dedup) {
   croak "Error: could not find tlx file when skipping dedup step" unless -r $tlxfile;
 }
 
-# filter_junctions;
+filter_junctions;
 
 # print stat results of filter
 
@@ -709,7 +710,7 @@ sub process_alignments {
 
 sub mark_repeatseq_junctions {
 
-  (my $repeatseq_output = $tlxfile) =~ s/.tlx$/_repeatseq.tlx.tmp/;
+  (my $repeatseq_output = $tlxfile) =~ s/.tlx$/_repeatseq.tlx/;
 
   $repeatseq_bedfile = "$GENOME_DB/$assembly/annotation/repeatSeq.bed" unless defined $repeatseq_bedfile;
 
@@ -801,7 +802,30 @@ sub mark_duplicate_junctions {
 
 
 sub filter_junctions {
-  
+  (my $filter_output = $tlxfile) =~ s/.tlx$/_result.tlx/;
+
+  return unless -r $repeatseq_bedfile;
+
+  my $filter_cmd = join(" ","$FindBin::Bin/TranslocFilter.pl",
+                          $tlxfile,
+                          $filter_output,
+                          "--filters",
+                          "\"as.filter=T",
+                          "f.unaligned=G0",
+                          "f.baitonly=G0",
+                          "f.uncut=G0",
+                          "f.misprimed=L".$params->{min_bp_after_primer},
+                          "f.freqcut=G0",
+                          "f.largegap=G".$params->{max_largegap},
+                          "f.mapqual=L".$params->{mapq_score_thresh},
+                          "f.breaksite=G0",
+                          "f.sequential=G0",
+                          "f.repeatseq=G0",
+                          "f.duplicate=G0\"") ;
+
+  System($filter_cmd);
+
+  return;
 }
 
 sub sort_junctions {
