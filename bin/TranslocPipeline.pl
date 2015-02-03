@@ -167,7 +167,7 @@ my @tlx_header = tlx_header();
 my @tlx_filter_header = tlx_filter_header();
 
 
-my @dispatch_names = qw(unaligned baitonly isjunction uncut misprimed freqcut largegap mapqual breaksite sequential);
+my @dispatch_names = qw(unaligned baitonly uncut misprimed freqcut largegap mapqual breaksite sequential);
 
 # This is a dispatch table
 my %filter_dispatch;
