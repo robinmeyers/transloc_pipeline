@@ -467,14 +467,23 @@ sub calculate_paired_end_penalty ($$) {
                 $R2_aln->{Rstart} - $R1_aln->{Rend} - 1 :
                 $R1_aln->{Rstart} - $R2_aln->{Rend} - 1 ;
   
-  
-  my $PE_pen = $main::params->{pe_pen} * $PE_gap/$main::params->{max_pe_gap} if $PE_gap > 0;
-      
-  # Only give half credit for overlapping alignments
-  $PE_pen += $main::params->{match_award} * aln_reference_overlap($R1_aln,$R2_aln) / 2;
+  my $PE_pen = 0;
+
+  my $main_penalty = $PE_gap > 0 ? $main::params->{brk_pen} + $main::params->{pe_pen} * $PE_gap/$main::params->{max_pe_gap} : $main::params->{brk_pen};
+
+  $PE_pen += $main_penalty;
+
+  # Correct for overlap (half credit)
+  # my $overlap_penalty = $main::params->{match_award} * aln_reference_overlap($R1_aln,$R2_aln) / 2;
+  # $PE_pen += $overlap_penalty;
 
   # Penalize for unused R1
-  $PE_pen += $main::params->{match_award} * ($R1_aln->{Qlen} - $R1_aln->{Qend});
+  my $unused_R1_penalty = $main::params->{match_award} * ($R1_aln->{Qlen} - $R1_aln->{Qend});
+  $PE_pen += $unused_R1_penalty;
+
+  debug_print("paired-end penalties: main:".$main_penalty." unused_R1:".$unused_R1_penalty,4,$R1_aln->{QnameShort});
+
+  return $PE_pen;
 
 }
 
@@ -591,6 +600,19 @@ sub score_edge ($;$) {
 
     if (defined $node2->{R1} && defined $node2->{R2}) {
 
+      # Strange case:
+      # If node2 R2 makes a proper pair with node1 R1,
+      # But node2 R1 does not make a proper pair with node1 R1,
+      # Do not accept
+      if (pair_is_proper($node1->{R1},$node2->{R2})) {
+        
+        if (! pair_is_proper($node1->{R1},$node2->{R1})) {
+          debug_print("score=undef; guessing node2 R2 is pair of node1 R1",4,$qname);
+          return undef;
+        }
+      }
+
+
       $PE_pen = calculate_paired_end_penalty($node2->{R1},$node2->{R2});
 
     }
@@ -612,6 +634,11 @@ sub score_edge ($;$) {
 
     unless (defined $node1->{R1}) {
       debug_print("score=undef; first node must have R1",4,$qname);
+      return undef;
+    }
+
+    if ($node1->{R1}->{Rname} eq "Adapter") {
+      debug_print("score=undef; first node cannot be adapter",4,$qname);
       return undef;
     }
 

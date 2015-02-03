@@ -1031,7 +1031,7 @@ $arg{"--skip-align","Begin pipeline after alignment step - working directory mus
 $arg{"--skip-process","Begin pipeline after OCS and filtering steps - working directory must already have tlx files"}
 $arg{"--skip-dedup","Begin pipeline after dedup step (post-processing only) "}
 $arg{"--no-dedup","Do not run dedup filter"}
-$arg{"--no-clean","",$no_clean,"Do not delete temp files at end of process"}
+$arg{"--no-clean","Do not delete temp files at end of process"}
 $arg{"--force-bait","Set to 0 to relax bait alignment restrictions",$params->{force_bait}}
 
 Arguments sent to Bowtie2 alignment (see manual)
@@ -1063,12 +1063,12 @@ $arg{"--min-priming-bp","Minimum number of bases in bait alignment after the pri
 $arg{"--max-largegap","Maximum distance on query between bait and prey alignments",$params->{max_largegap}}
 $arg{"--mapq-ol","Minimum overlapping fraction for mapq filter",$params->{mapq_ol_thresh}}
 $arg{"--mapq-score","Minimum mapping quality score",$params->{mapq_score_thresh}}
-$arg{"--repeatseq-bed","Location of repeatseq bedfile (automatically found for default genome assemblies)",""}
+$arg{"--repeatseq-bed","Location of repeatseq bedfile (automatically found for default genome assemblies)"}
 $arg{"--dedup-offset-bp","Minimum offset distance between prey alignments in dedup filter",$params->{dedup_offset_dist}}
-$arg{"--dedup-bait-bp","Minimum distance between bait alignments in dedup filter",$params->{dedup_bait_dist}}
+$arg{"--dedup-bait-bp","Minimum distance between bait alignments in dedup filter",$params->{dedup_break_dist}}
 
 
-$arg{"--debug","",$params->{debug_level}}
+$arg{"--debug","Set to level 1-4 for increasing verbosity in log file",$debug_level}
 $arg{"--help","This helpful help screen."}
 
 
