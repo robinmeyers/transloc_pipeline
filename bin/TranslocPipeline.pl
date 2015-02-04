@@ -59,16 +59,11 @@ sub align_to_breaksite;
 sub align_to_adapter;
 sub align_to_genome;
 sub process_alignments;
-# sub find_optimal_coverage_set ($$);
-# sub process_optimal_coverage_set ($$$);
-# sub score_edge ($;$);
-# sub deduplicate_junctions;
 sub mark_repeatseq_junctions;
 sub mark_duplicate_junctions;
 sub filter_junctions;
 sub sort_junctions;
 sub post_process_junctions;
-# sub write_stats_file;
 sub clean_up;
 
 
@@ -286,11 +281,9 @@ my ($R1_brk_samobj,$R2_brk_samobj,$R1_adpt_samobj,$R2_adpt_samobj,$R1_samobj,$R2
 
 my $tlxlfile = "${expt_stub}.tlxl";
 my $tlxfile = "${expt_stub}.tlx";
-my $filt_tlxfile = "${expt_stub}_filtered.tlx";
-my $unjoin_tlxfile = "${expt_stub}_unjoined.tlx";
 my $mapqfile = "${expt_stub}_mapq.txt";
 
-my ($tlxlfh,$tlxfh,$filt_tlxfh,$unjoin_tlxfh,$mapqfh);
+my ($tlxlfh,$tlxfh,$mapqfh);
 
 my $statsfile = "${expt_stub}_stats.txt";
 my $paramsfile = "${expt_stub}_params.txt";
@@ -377,21 +370,17 @@ unless ($skip_alignment || $skip_process || $skip_dedup) {
 unless ($skip_process || $skip_dedup) {
   $tlxlfh = IO::File->new(">$tlxlfile");
   $tlxfh = IO::File->new(">$tlxfile");
-  $filt_tlxfh = IO::File->new(">$filt_tlxfile");
-  $unjoin_tlxfh = IO::File->new(">$unjoin_tlxfile");
   $mapqfh = IO::File->new(">$mapqfile");
 
   $tlxlfh->print(join("\t", @tlxl_header)."\n");
   $tlxfh->print(join("\t", @tlx_header, @filters)."\n");
-  # $unjoin_tlxfh->print(join("\t", @tlx_filter_header)."\n");
+
   # $mapqfh->print(join("\t", qw(Qname R1_Rname R1_Rstart R1_Rend R1_Strand R1_Qstart R1_Qend R1_AS R1_CIGAR R2_Rname R2_Rstart R2_Rend R2_Strand R2_Qstart R2_Qend R2_AS R2_CIGAR) )."\n");
 
   process_alignments;
 
   $tlxlfh->close;
   $tlxfh->close;
-  $filt_tlxfh->close;
-  $unjoin_tlxfh->close;
 
   mark_repeatseq_junctions;
 
@@ -663,19 +652,15 @@ sub process_alignments {
 
     my $OCS = find_optimal_coverage_set(\%R1_alns_h,\%R2_alns_h);
 
-    # process_optimal_coverage_set($OCS,\%R1_alns_h,\%R2_alns_h);
-
     debug_print("processing OCS",2,$OCS->[0]->{R1}->{QnameShort});
 
     my $tlxls = create_tlxl_entries($OCS);
 
-    # print "create tlxs\n";
     my $tlxs = create_tlx_entries($tlxls, {genome => $R1_samobj,
                                            brk => $R1_brk_samobj,
                                            adpt => $R1_adpt_samobj} )  ;
 
     foreach my $tlx (@$tlxs) {
-      # $stats->{total}->{junctions}++ if (is_a_junction($tlx));
       my %filter_init;
       @filter_init{@filters} = (0) x @filters;
       $tlx->{filters} = {%filter_init};
@@ -688,25 +673,20 @@ sub process_alignments {
     find_random_barcode($read_obj,$random_barcode);
 
     foreach my $filter (@dispatch_names) {
-      # print "$filter\n";
       $filter_dispatch{$filter}->($read_obj, $params);
     }
 
-    # write_tlxls($tlxls);
 
     foreach my $tlxl (@{$read_obj->{tlxls}}) {
       write_entry($tlxlfh,$tlxl,\@tlxl_header);
     }
-    foreach my $tlx (@{$read_obj->{tlxs}}) {
-      # write_entry($tlxfh,$tlx,\@tlx_header);
-      write_filter_entry($tlxfh,$tlx,\@tlx_header,\@filters);
+    foreach my $tlx (@{$read_obj->{tlxs}}) {  
+      write_filter_entry($tlxfh,$tlx,\@tlx_header,\@filters);        
     }
 
   }
 
 }
-
-
 
 sub mark_repeatseq_junctions {
 
@@ -745,62 +725,6 @@ sub mark_duplicate_junctions {
 
 }
 
-
-# sub deduplicate_junctions {
-
-
-
-#   my $dedup_cmd = join(" ","$FindBin::Bin/../R/TranslocDedup.R",
-#                           $tlxfile,
-#                           $dedup_output,
-#                           "cores=$dedup_threads",
-#                           "offset.dist=$dedup_offset_dist",
-#                           "break.dist=$dedup_break_dist") ;
-
-#   $dedup_cmd .= " random.barcode=$random_barcode" if defined $random_barcode;
-
-#   System($dedup_cmd);
-
-#   my $tlxbak = "$tlxfile.bak";
-#   rename $tlxfile, $tlxbak;
-
-#   my %hash;
-
-#   my $dedupfh = IO::File->new("<$dedup_output");
-
-#   while (my $read = $dedupfh->getline) {
-#     chomp($read);
-#     my @dup = split("\t",$read);
-#     $hash{$dup[0]} = 1;
-#   }
-
-#   $dedupfh->close;
-
-#   my $filt_tlxfh = IO::File->new(">>$filt_tlxfile");
-#   my $tlxfh = IO::File->new(">$tlxfile");
-#   my $bak_tlxfh = IO::File->new("<$tlxbak");
-
-#   my $csv = Text::CSV->new({sep_char => "\t"});
-#   my $header = $csv->getline($bak_tlxfh);
-#   $csv->column_names(@$header);
-#   $tlxfh->print(join("\t", @tlx_header)."\n");
-
-#   while (my $tlx = $csv->getline_hr($bak_tlxfh)) {
-#     if (exists $hash{$tlx->{Qname}}) {
-#       $tlx->{Filter} = "DeDup";
-#       write_entry($filt_tlxfh,$tlx,\@tlx_filter_header);
-#     } else {
-#       write_entry($tlxfh,$tlx,\@tlx_header);
-#       # $stats->{dedup}++;
-
-#     }
-#   }
-
-#   unlink $tlxbak;
-
-# }
-
-
 sub filter_junctions {
   (my $filter_output = $tlxfile) =~ s/.tlx$/_result.tlx/;
 
@@ -810,18 +734,17 @@ sub filter_junctions {
                           $tlxfile,
                           $filter_output,
                           "--filters",
-                          "\"as.filter=T",
-                          "f.unaligned=G0",
-                          "f.baitonly=G0",
-                          "f.uncut=G0",
+                          "\"f.unaligned=1",
+                          "f.baitonly=1",
+                          "f.uncut=1",
                           "f.misprimed=L".$params->{min_bp_after_primer},
-                          "f.freqcut=G0",
+                          "f.freqcut=1",
                           "f.largegap=G".$params->{max_largegap},
                           "f.mapqual=L".$params->{mapq_score_thresh},
-                          "f.breaksite=G0",
-                          "f.sequential=G0",
-                          "f.repeatseq=G0",
-                          "f.duplicate=G0\"") ;
+                          "f.breaksite=1",
+                          "f.sequential=1",
+                          "f.repeatseq=1",
+                          "f.duplicate=1\"") ;
 
   System($filter_cmd);
 
@@ -879,24 +802,6 @@ sub post_process_junctions {
 }
 
 
-sub write_tlxls ($) {
-  my $tlxls = shift;
-  # print "writing stuff\n";
-  foreach my $tlxl (@$tlxls) {
-    write_entry($tlxlfh,$tlxl,\@tlxl_header);
-    next unless defined $tlxl->{tlx};
-    if (defined $tlxl->{tlx}->{Filter}) {
-      if ($tlxl->{tlx}->{Filter} eq "Unjoined" || $tlxl->{tlx}->{Filter} eq "Unaligned") {
-        write_entry($unjoin_tlxfh,$tlxl->{tlx},\@tlx_filter_header);
-      } else {
-        write_entry($filt_tlxfh,$tlxl->{tlx},\@tlx_filter_header);
-      }
-    } else {
-      write_entry($tlxfh,$tlxl->{tlx},\@tlx_header);
-    }
-  }
-}
-
 sub write_parameters_file {
   my $paramsfh = IO::File->new(">$paramsfile");
 
@@ -932,8 +837,7 @@ sub write_parameters_file {
 
 sub clean_up {
 
-  print "\nCleaning up\n";
-
+  debug_print("Cleaning up extra files",1,$expt);
   unlink glob "${expt_stub}*.sam";
 
 }
@@ -1046,7 +950,6 @@ $arg{"--breaksite","Cutting coordinate on cassette (non-endogenous only)"}
 $arg{"--adapter","Adapter sequence"}
 $arg{"--cutter","Frequent cutter site sequence"}
 
-
 All other arguments must be set manually with --pipeline-opt in TranslocWrapper.pl (defaults in parentheses):
 
 $arg{"--threads","Number of threads to run bowtie/dedup on",$threads}
@@ -1091,14 +994,10 @@ $arg{"--repeatseq-bed","Location of repeatseq bedfile (automatically found for d
 $arg{"--dedup-offset-bp","Minimum offset distance between prey alignments in dedup filter",$params->{dedup_offset_dist}}
 $arg{"--dedup-bait-bp","Minimum distance between bait alignments in dedup filter",$params->{dedup_break_dist}}
 
-
 $arg{"--debug","Set to level 1-4 for increasing verbosity in log file",$debug_level}
 $arg{"--help","This helpful help screen."}
 
-
 EOF
-
-
 
 exit 1;
 }

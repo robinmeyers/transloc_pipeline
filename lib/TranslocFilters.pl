@@ -1,6 +1,8 @@
 use strict;
 use warnings;
 use POSIX qw(floor ceil);
+use Math::BigFloat;
+
 
 
 
@@ -172,6 +174,7 @@ sub filter_largegap ($$) {
 
 
 sub filter_mapqual ($$) {
+
   my $read_obj = shift;
   my $params = shift;
 
@@ -269,13 +272,23 @@ sub filter_mapqual ($$) {
 
     }
 
-    my $tlx_p = 10 ** (-$tlx_sum_base_Q/10);
-    my $competing_p = sum(map { 10 ** (-$_/10) } @competing_sum_base_Q);
+    my $tlx_p = Math::BigFloat->new(10)->bpow(-$tlx_sum_base_Q/10);
+    my $competing_p = sum(map { Math::BigFloat->new(10)->bpow(-$_/10) } @competing_sum_base_Q);
 
-    my $map_qual_score = 1 - $tlx_p/$competing_p > 0 ?
-                          floor(-10 * log10(1 - $tlx_p/$competing_p)) :
-                          255;
-    $map_qual_score = 255 if $map_qual_score > 255;
+    # my $map_qual_score;
+    # is there a better way of doing this?
+    # if ($competing_p == 0) {
+      # $map_qual_score = 0;
+    # } else {
+
+    my $mapq_incorrect_p = $tlx_p->copy()->bdiv($competing_p)->bmul(-1)->badd(1);
+    my $map_qual_score = $mapq_incorrect_p->is_zero() ?
+                            Math::BigFloat->new(255) :
+                            $mapq_incorrect_p->copy()->blog(10)->bmul(-10)->bfloor();
+                          # floor(-10 * log10(1 - $tlx_p/$competing_p)) 
+    # }
+
+    $map_qual_score = Math::BigFloat->new(255) if $map_qual_score->bcmp(255) > 0;
 
     $tlx->{filters}->{mapqual} = $map_qual_score;
 

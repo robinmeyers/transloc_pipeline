@@ -499,7 +499,7 @@ sub score_edge ($;$) {
   if (defined $node1->{R1}) {
     $qname = $node1->{R1}->{QnameShort};
   } else {
-    $qname = $qname;
+    $qname = $node1->{R2}->{QnameShort};
   }
 
   debug_print("scoring edge",3,$qname);
