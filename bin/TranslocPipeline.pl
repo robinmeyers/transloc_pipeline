@@ -104,13 +104,10 @@ our $params = {};
 
 # Bowtie parameters
 $params->{match_award} = 2;
-$params->{max_mismatch_pen} = 6;
-$params->{min_mismatch_pen} = 2;
+$params->{mismatch_pen} = "8,2";
 $params->{n_base_pen} = 1;
-$params->{read_gap_open} = 5;
-$params->{read_gap_ext} = 3;
-$params->{ref_gap_open} = 5;
-$params->{ref_gap_ext} = 3;
+$params->{read_gap_pen} = "8,4";
+$params->{ref_gap_pen} = "8,4";
 $params->{score_min} = "C,50";
 $params->{D_effort} = 15;
 $params->{R_effort} = 2;
@@ -376,6 +373,11 @@ unless ($skip_process || $skip_dedup) {
   $tlxfh->print(join("\t", @tlx_header, @filters)."\n");
 
   # $mapqfh->print(join("\t", qw(Qname R1_Rname R1_Rstart R1_Rend R1_Strand R1_Qstart R1_Qend R1_AS R1_CIGAR R2_Rname R2_Rstart R2_Rend R2_Strand R2_Qstart R2_Qend R2_AS R2_CIGAR) )."\n");
+
+  $mapqfh->print(join("\t",
+    qw(Qname Primary Read Rname Rstart Rend Strand Qstart Qend Match Mismatch))."\n");
+
+  $params->{mapqfh} = $mapqfh;
 
   process_alignments;
 
@@ -673,7 +675,7 @@ sub process_alignments {
     find_random_barcode($read_obj,$random_barcode);
 
     foreach my $filter (@dispatch_names) {
-      $filter_dispatch{$filter}->($read_obj, $params);
+      $filter_dispatch{$filter}->($read_obj);
     }
 
 
@@ -873,13 +875,10 @@ sub parse_command_line {
                             "no-clean" => \$no_clean,
                             "force-bait=i" => \$params->{force_bait},
                             "match-award=i" => \$params->{match_award},
-                            "max-mismatch-pen=i" => \$params->{max_mismatch_pen},
-                            "min-mismatch-pen=i" => \$params->{min_mismatch_pen},
+                            "mismatch-pen=s" => \$params->{mismatch_pen},
                             "n-base-pen=i" => \$params->{n_base_pen},
-                            "read-gap-open=i" => \$params->{read_gap_open},
-                            "read-gap-ext=i" => \$params->{read_gap_ext},
-                            "ref-gap-open=i" => \$params->{ref_gap_open},
-                            "ref-gap-ext=i" => \$params->{ref_gap_ext},
+                            "read-gap-pen=s" => \$params->{read_gap_pen},
+                            "ref-gap-pen=s" => \$params->{ref_gap_pen},
                             "score-min=s" => \$params->{score_min},
                             "D-effort=i" => \$params->{D_effort},
                             "R-effort=i" => \$params->{R_effort},
@@ -918,6 +917,32 @@ sub parse_command_line {
   croak "Error: priming-bp must be a positive integer" unless $params->{min_bp_after_primer} > 0;
   croak "Error: mapq-ol must be a fraction between 0 and 1" if $params->{mapq_ol_thresh} < 0 || $params->{mapq_ol_thresh} > 1;
   
+  if ($params->{mismatch_pen} =~ /^(\d+),(\d+)$/) {
+    $params->{max_mismatch_pen} = $1;
+    $params->{min_mismatch_pen} = $2;
+  } else {
+    croak "Error: mismatch-pen not input in correct format 'max,min'";
+  }
+
+  if ($params->{read_gap_pen} =~ /^(\d+),(\d+)$/) {
+    $params->{read_gap_open} = $1;
+    $params->{read_gap_ext} = $2;
+  } else {
+    croak "Error: read-gap-pen not input in correct format 'open,ext'";
+  }
+
+  if ($params->{ref_gap_pen} =~ /^(\d+),(\d+)$/) {
+    $params->{ref_gap_open} = $1;
+    $params->{ref_gap_ext} = $2;
+  } else {
+    croak "Error: ref-gap-pen not input in correct format 'open,ext'";
+  }
+  
+  
+
+
+                            "max-mismatch-pen=i" => \$params->{max_mismatch_pen},
+                            "min-mismatch-pen=i" => \$params->{min_mismatch_pen},
 	exit unless $result;
 }
 
@@ -963,13 +988,10 @@ $arg{"--force-bait","Set to 0 to relax bait alignment restrictions",$params->{fo
 
 Arguments sent to Bowtie2 alignment (see manual)
 $arg{"--match-award","",$params->{match_award}}
-$arg{"--max-mismatch-pen","",$params->{max_mismatch_pen}}
-$arg{"--min-mismatch-pen","",$params->{min_mismatch_pen}}
+$arg{"--mismatch-pen","",$params->{mismatch_pen}}
 $arg{"--n-base-pen","",$params->{n_base_pen}}
-$arg{"--read-gap-open","",$params->{read_gap_open}}
-$arg{"--read-gap-ext","",$params->{read_gap_ext}}
-$arg{"--ref-gap-open","",$params->{ref_gap_open}}
-$arg{"--ref-gap-ext","",$params->{ref_gap_ext}}
+$arg{"--read-gap-pen","",$params->{read_gap_pen}}
+$arg{"--ref-gap-pen","",$params->{ref_gap_pen}}
 $arg{"--score-min","",$params->{score_min}}
 $arg{"--D-effort","",$params->{D_effort}}
 $arg{"--R-effort","",$params->{R_effort}}

@@ -37,9 +37,8 @@ sub filter_remainder_of_read ($$$;$) {
   }
 }
 
-sub filter_unaligned ($$) {
+sub filter_unaligned ($) {
   my $read_obj = shift;
-  my $params = shift;
 
   my $tlxs = $read_obj->{tlxs};
 
@@ -54,9 +53,8 @@ sub filter_unaligned ($$) {
 }
 
 
-sub filter_baitonly ($$) {
+sub filter_baitonly ($) {
   my $read_obj = shift;
-  my $params = shift;
 
   my $tlxs = $read_obj->{tlxs};
 
@@ -69,9 +67,9 @@ sub filter_baitonly ($$) {
   }
 }
 
-sub filter_isjunction ($$) {
+sub filter_isjunction ($) {
   my $read_obj = shift;
-  my $params = shift;
+
   my $tlxs = $read_obj->{tlxs};
 
   foreach my $tlx (@$tlxs) {
@@ -79,9 +77,10 @@ sub filter_isjunction ($$) {
   }
 }
 
-sub filter_uncut ($$) {
+sub filter_uncut ($) {
   my $read_obj = shift;
-  my $params = shift;
+
+  my $params = $main::params;
 
   my $tlxs = $read_obj->{tlxs};
   my $tlx = $tlxs->[0];
@@ -106,9 +105,10 @@ sub filter_uncut ($$) {
   # return(0,0);
 }
 
-sub filter_misprimed ($$) {
+sub filter_misprimed ($) {
   my $read_obj = shift;
-  my $params = shift;
+
+  my $params = $main::params;
 
   my $tlxs = $read_obj->{tlxs};
   my $tlx = $tlxs->[0];
@@ -135,9 +135,10 @@ sub filter_misprimed ($$) {
 }
 
 
-sub filter_freqcut ($$) {
+sub filter_freqcut ($) {
   my $read_obj = shift;
-  my $params = shift;
+  
+  my $params = $main::params;
 
   my $tlxs = $read_obj->{tlxs};
 
@@ -154,9 +155,8 @@ sub filter_freqcut ($$) {
   }
 }
 
-sub filter_largegap ($$) {
+sub filter_largegap ($) {
   my $read_obj = shift;
-  my $params = shift;
 
   my $tlxs = $read_obj->{tlxs};
 
@@ -173,10 +173,11 @@ sub filter_largegap ($$) {
 }
 
 
-sub filter_mapqual ($$) {
+sub filter_mapqual ($) {
 
   my $read_obj = shift;
-  my $params = shift;
+
+  my $params = $main::params;
 
   my $tlxs = $read_obj->{tlxs};
 
@@ -202,6 +203,10 @@ sub filter_mapqual ($$) {
       push(@competing_sum_base_Q,$tlx_sum_base_Q);
       $tlx_aln_length = $tlx_R1_aln->{Qend} - $tlx_R1_aln->{Qstart} +
                            $tlx_R2_aln->{Qend} - $tlx_R2_aln->{Qend};
+
+
+
+
       debug_print("reporting tlx sum base Q of ".$tlx_sum_base_Q,3,$tlx->{QnameShort});
       # only consider paired alignments
       foreach my $R1_aln_ID (keys $R1_alns) {
@@ -272,23 +277,25 @@ sub filter_mapqual ($$) {
 
     }
 
-    my $tlx_p = Math::BigFloat->new(10)->bpow(-$tlx_sum_base_Q/10);
-    my $competing_p = sum(map { Math::BigFloat->new(10)->bpow(-$_/10) } @competing_sum_base_Q);
+    # my $tlx_p = Math::BigFloat->new(10)->bpow(-$tlx_sum_base_Q/10);
+    # my $competing_p = sum(map { Math::BigFloat->new(10)->bpow(-$_/10) } @competing_sum_base_Q);
 
-    # my $map_qual_score;
-    # is there a better way of doing this?
-    # if ($competing_p == 0) {
-      # $map_qual_score = 0;
-    # } else {
+    # # my $map_qual_score;
+    # # is there a better way of doing this?
+    # # if ($competing_p == 0) {
+    #   # $map_qual_score = 0;
+    # # } else {
 
-    my $mapq_incorrect_p = $tlx_p->copy()->bdiv($competing_p)->bmul(-1)->badd(1);
-    my $map_qual_score = $mapq_incorrect_p->is_zero() ?
-                            Math::BigFloat->new(255) :
-                            $mapq_incorrect_p->copy()->blog(10)->bmul(-10)->bfloor();
-                          # floor(-10 * log10(1 - $tlx_p/$competing_p)) 
-    # }
+    # my $mapq_incorrect_p = $tlx_p->copy()->bdiv($competing_p)->bmul(-1)->badd(1);
+    # my $map_qual_score = $mapq_incorrect_p->is_zero() ?
+    #                         Math::BigFloat->new(255) :
+    #                         $mapq_incorrect_p->copy()->blog(10)->bmul(-10)->bfloor();
+    #                       # floor(-10 * log10(1 - $tlx_p/$competing_p)) 
+    # # }
 
-    $map_qual_score = Math::BigFloat->new(255) if $map_qual_score->bcmp(255) > 0;
+    $map_qual_score = 255;
+
+    # $map_qual_score = Math::BigFloat->new(255) if $map_qual_score->bcmp(255) > 0;
 
     $tlx->{filters}->{mapqual} = $map_qual_score;
 
@@ -297,10 +304,9 @@ sub filter_mapqual ($$) {
 
 }
 
-sub filter_breaksite ($$) {
+sub filter_breaksite ($) {
   my $read_obj = shift;
-  my $params = shift;
-
+  
   my $tlxs = $read_obj->{tlxs};
   my $i = 0;
   foreach my $tlx (@$tlxs) {
@@ -311,9 +317,8 @@ sub filter_breaksite ($$) {
   }
 }
 
-sub filter_sequential ($$) {
+sub filter_sequential ($) {
   my $read_obj = shift;
-  my $params = shift;
 
   my $tlxs = $read_obj->{tlxs};
 

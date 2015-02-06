@@ -355,9 +355,15 @@ sub pair_is_proper ($$) {
   return 1;
 }
 
-sub calc_sum_base_Q ($) {
+sub calc_sum_base_Q ($;$$) {
 
   my $aln = shift;
+
+  my $qstart = shift;
+  my $qend = shift;
+
+  $qstart = $aln->{Qstart} unless defined $qstart;
+  $qend = $aln->{Qend} unless defined $qend;
 
   my $Qsum = 0;
   my @qual = @{$aln->{Qual}};
@@ -365,7 +371,24 @@ sub calc_sum_base_Q ($) {
 
   my $qpos = $aln->{Qstart};
 
-  while ($qpos <= $aln->{Qend}) {
+  while ($qpos < $qstart) {
+    my $c = shift(@cigar);
+    sswitch ($c->[0]) {
+      case 'M':
+      case 'X':
+      case 'I':
+      case 'N': {
+        $qpos += $c->[1];
+        if ($qpos > $qstart) {
+          unshift(@cigar,[$c->[0],$qpos-$qstart]);
+          $qpos = $qstart;
+        }
+      }
+    }
+
+  }
+
+  while ($qpos <= $qend) {
     my $c = shift(@cigar);
 
     sswitch ($c->[0]) {
