@@ -11,7 +11,8 @@ if (commandArgs()[1] != "RStudio") {
   OPTS <- c(
     "facetscales","character","free","allow free or free_x",
     "numbins","numeric",100,"",
-    "flanks","numeric",0,""
+    "flanks","numeric",0,"",
+    "force.regions","character","",""
     
   )
   
@@ -33,6 +34,7 @@ if (commandArgs()[1] != "RStudio") {
   flanks <- 5000
   facetscales <- "free"
   source("~/TranslocPipeline//R/Rsub.R")
+  force.regions <- ""
 
 }
 
@@ -124,13 +126,20 @@ p_main <- ggplot() +
 switch_agg <- aggregate(TLX ~ Name, data=switch_regions_data,sum)
 switch_agg <- with(switch_agg,switch_agg[order(-TLX),])
 
+force.regions <- unlist(strsplit(force.regions,","))
+which.regions <- switch_agg[switch_agg$Name %in% force.regions,]
 
+for (i in 1:nrow(switch_agg)) {
+  if (nrow(which.regions) < 4 && !switch_agg$Name[i] %in% which.regions$Name) {
+    which.regions <- rbind(which.regions,switch_agg[i,])
+  }
+}
 
 
 master <- data.frame()
 totals <- data.frame()
 
-for (srname in rev(switch_regions$Name[switch_regions$Name %in% switch_agg$Name[1:4]])) {
+for (srname in rev(switch_regions$Name[switch_regions$Name %in% which.regions$Name])) {
   sr <- switch_regions[switch_regions$Name == srname,]
   subbins <- make_bins(sr$Start-flanks,sr$End+flanks,numbins/2)
   subbins$Name <- srname
