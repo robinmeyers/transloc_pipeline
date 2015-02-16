@@ -730,8 +730,6 @@ sub mark_duplicate_junctions {
 sub filter_junctions {
   (my $filter_output = $tlxfile) =~ s/.tlx$/_result.tlx/;
 
-  return unless -r $repeatseq_bedfile;
-
   my $filter_cmd = join(" ","$FindBin::Bin/TranslocFilter.pl",
                           $tlxfile,
                           $filter_output,

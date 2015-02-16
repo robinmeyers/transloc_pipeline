@@ -82,7 +82,9 @@ for (filter.name in filter.names) {
     
     filter.values[filter.name] <- tmp.value
 
-  } else if (tmp.value != "") {
+  } else if (tmp.value == "") {
+    filter.values[filter.name] <- tmp.value
+  } else {
     stop(paste("Error:",filter.name,"filter entered in wrong format"))
   }
 }
@@ -105,6 +107,8 @@ filter.stats["total",] <- c(reads.total,junctions.total)
 tlx.filt.list <- list()
 
 for (filter.name in filter.names) {
+  
+  
   filter.value <- filter.values[filter.name]
   if (filter.value == "") next
 

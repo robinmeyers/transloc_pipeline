@@ -280,7 +280,7 @@ sub filter_mapqual ($) {
     # my $tlx_p = Math::BigFloat->new(10)->bpow(-$tlx_sum_base_Q/10);
     # my $competing_p = sum(map { Math::BigFloat->new(10)->bpow(-$_/10) } @competing_sum_base_Q);
 
-    # # my $map_qual_score;
+    my $map_qual_score;
     # # is there a better way of doing this?
     # # if ($competing_p == 0) {
     #   # $map_qual_score = 0;
