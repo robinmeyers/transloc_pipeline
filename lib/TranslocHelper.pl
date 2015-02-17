@@ -482,6 +482,28 @@ sub calculate_fraction_overlap ($$;$$) {
 }
 
 
+sub alignment_matches_simulation ($$) {
+  my $aln = shift;
+  my $sim_aln = shift;
+
+  if (defined $aln->{Rname} &&
+      $aln->{Rname} eq $sim_aln->{Rname} &&
+      $aln->{Strand} == $sim_aln->{Strand}) {
+    my $sim_start;
+    my $sim_end;
+    if ($aln->{Strand} == 1) {
+      $sim_start = $sim_aln->{Junction};
+      $sim_end = $sim_aln->{Junction} + $sim_aln->{Length} - 1;
+    } else {
+      $sim_start = $sim_aln->{Junction} - $sim_aln->{Length} + 1;
+      $sim_end = $sim_aln->{Junction};
+    }
+    debug_print("comparing aln ".$aln->{Rstart}."-".$aln->{Rend}." to sim ".$sim_start."-".$sim_end,4,$aln->{QnameShort});
+    return 1 if ($aln->{Rstart} <= $sim_end && $aln->{Rend} >= $sim_start);
+  }
+  return 0;
+}
+
 sub calculate_paired_end_penalty ($$) {
   my $R1_aln = shift;
   my $R2_aln = shift;

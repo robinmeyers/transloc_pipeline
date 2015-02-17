@@ -55,6 +55,7 @@ my $pipeline_threads = 2;
 my $pipeline_opt;
 my $print_only;
 our $debug_level = 0;
+my $simulate;
 
 my $bsub;
 my $user_bsub_opt = "";
@@ -190,9 +191,13 @@ sub process_experiment ($) {
   $tl_cmd = join(" ", $tl_cmd, "--breaksite", $expt_hash->{breaksite}) if $expt_hash->{breaksite};
   $tl_cmd = join(" ", $tl_cmd, "--cutter", $expt_hash->{cutfa}) if -r $expt_hash->{cutfa};
 
+  $tl_cmd = join(" ", $tl_cmd, "--simfile", $expt_hash->{simfile}) if defined $expt_hash->{simfile};
+
   $tl_cmd = join(" ", $tl_cmd, $pipeline_opt) if defined $pipeline_opt;
 
   $tl_cmd = join(" ", $tl_cmd, "--debug", $debug_level) if $debug_level > 0;
+
+
 
   my $log = $expt_hash->{exptdir} . "/$expt_id.log";
 
@@ -373,6 +378,14 @@ sub check_existance_of_files {
       croak "Error: could not locate read 1 file for $expt_id in $seqdir";
     }
 
+    if (defined $simulate) {
+      if (-r $base.".txt") {
+        $meta{$expt_id}->{simfile} = $base.".txt";  
+      } else {
+        croak "Error could not locate simulated file $base.txt";
+      }
+    }
+
   }
 }
 
@@ -391,6 +404,7 @@ sub parse_command_line {
                             "pipeline-opt=s" => \$pipeline_opt,
                             "print" => \$print_only,
                             "debug=i" => \$debug_level,
+                            "simulate" => \$simulate,
 														"help" => \$help
 
 				            			);
@@ -457,6 +471,7 @@ $arg{"--threads","Number of libraries to run at once",$pipeline_threads}
 $arg{"--pipeline-opt","Specify pipeline options - see below"}
 $arg{"--print","Do not execute jobs, only print libraries found in metafile"}
 $arg{"--debug","Print debug info with verbosity at specified level, 1-4"}
+$arg{"--simulate","Indicate that these are simulations"}
 $arg{"--help","This helpful help screen."}
 
 --------------------------------------------

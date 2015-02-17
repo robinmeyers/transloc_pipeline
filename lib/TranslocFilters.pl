@@ -194,85 +194,103 @@ sub filter_mapqual ($) {
     my $tlx_R1_aln = $R1_alns->{$tlx->{R1_ID}} if defined $tlx->{R1_ID};
     my $tlx_R2_aln = $R2_alns->{$tlx->{R2_ID}} if defined $tlx->{R2_ID};
 
-    my $tlx_sum_base_Q;
-    my $tlx_aln_length;
-    my @competing_sum_base_Q;
-
     if (defined $tlx_R1_aln && defined $tlx_R2_aln) {
-      $tlx_sum_base_Q = $tlx_R1_aln->{SumBaseQ} + $tlx_R2_aln->{SumBaseQ};
-      push(@competing_sum_base_Q,$tlx_sum_base_Q);
-      $tlx_aln_length = $tlx_R1_aln->{Qend} - $tlx_R1_aln->{Qstart} +
-                           $tlx_R2_aln->{Qend} - $tlx_R2_aln->{Qend};
 
+      $tlx_R1_aln->{Primary} = 1;
+      $tlx_R1_aln->{Read} = "R1";
+      $tlx_R1_aln->{Overlap} = "";
 
-
-
-      debug_print("reporting tlx sum base Q of ".$tlx_sum_base_Q,3,$tlx->{QnameShort});
-      # only consider paired alignments
+      $params->{mapqfh}->print(join("\t", @{$tlx_R1_aln}{@{$params->{mapq_header}}})."\n");
+      
       foreach my $R1_aln_ID (keys $R1_alns) {
+        next if $R1_aln_ID eq $tlx->{R1_ID};
+
         foreach my $R2_aln_ID (keys $R2_alns) {
-          next if $R1_aln_ID eq $tlx->{R1_ID} && $R2_aln_ID eq $tlx->{R2_ID};
+
           my $R1_aln = $R1_alns->{$R1_aln_ID};
           my $R2_aln = $R2_alns->{$R2_aln_ID};
+          next if ($R1_aln->{Rname} eq "Adapter");
           next unless pair_is_proper($R1_aln,$R2_aln);
-          next unless calculate_fraction_overlap($tlx_R1_aln,$R1_aln,$tlx_R2_aln,$R2_aln) > $params->{mapq_ol_thresh};
 
-          my $aln_length = $R1_aln->{Qend} - $R1_aln->{Qstart} +
-                           $R2_aln->{Qend} - $R2_aln->{Qend};
-          my $len_scale_factor = $tlx_aln_length/$aln_length;
-          push(@competing_sum_base_Q,
-                $len_scale_factor*($R1_aln->{SumBaseQ} + $R2_aln->{SumBaseQ}));
-          debug_print("reporting competing sum base Q of ".($R1_aln->{SumBaseQ} + $R2_aln->{SumBaseQ}),3,$tlx->{QnameShort});
-          debug_print("reporting length scale factor of ".$len_scale_factor,3,$tlx->{QnameShort});
+          $R1_aln->{Primary} = 0;
+          $R1_aln->{Read} = "R1";
 
+          $R1_aln->{Overlap} = calculate_fraction_overlap($tlx_R1_aln,$R1_aln);
+
+          $params->{mapqfh}->print(join("\t", @{$R1_aln}{@{$params->{mapq_header}}})."\n");
+          last;
         }
-
-
-
       }
+
+      $tlx_R2_aln->{Read} = "R2";
+      $tlx_R2_aln->{Primary} = 1;
+      $tlx_R2_aln->{Overlap} = "";
+      $params->{mapqfh}->print(join("\t", @{$tlx_R2_aln}{@{$params->{mapq_header}}})."\n");
+
+      foreach my $R2_aln_ID (keys $R2_alns) {
+        next if $R2_aln_ID eq $tlx->{R2_ID};
+
+        foreach my $R1_aln_ID (keys $R1_alns) {
+
+          my $R1_aln = $R1_alns->{$R1_aln_ID};
+          my $R2_aln = $R2_alns->{$R2_aln_ID};
+          next if ($R2_aln->{Rname} eq "Adapter");
+
+          next unless pair_is_proper($R1_aln,$R2_aln);
+
+          $R2_aln->{Primary} = 0;
+          $R2_aln->{Read} = "R2";
+
+          $R2_aln->{Overlap} = calculate_fraction_overlap($tlx_R2_aln,$R2_aln);
+
+          $params->{mapqfh}->print(join("\t", @{$R2_aln}{@{$params->{mapq_header}}})."\n");
+          last;
+        }
+      }
+
 
 
     } elsif (defined $tlx_R1_aln) {
-      $tlx_sum_base_Q = calc_sum_base_Q($tlx_R1_aln);
-      push(@competing_sum_base_Q,$tlx_sum_base_Q);
-      $tlx_aln_length = $tlx_R1_aln->{Qend} - $tlx_R1_aln->{Qstart};
-      debug_print("reporting tlx sum base Q of ".$tlx_sum_base_Q,3,$tlx->{QnameShort});
+      $tlx_R1_aln->{Primary} = 1;
+      $tlx_R1_aln->{Read} = "R1";
+      $tlx_R1_aln->{Overlap} = "";
+
+      $params->{mapqfh}->print(join("\t", @{$tlx_R1_aln}{@{$params->{mapq_header}}})."\n");
 
       # only consider R1 alignments
       foreach my $R1_aln_ID (keys $R1_alns) {
-      
         next if $R1_aln_ID eq $tlx->{R1_ID};
+
         my $R1_aln = $R1_alns->{$R1_aln_ID};
-        
-        next unless calculate_fraction_overlap($tlx_R1_aln,$R1_aln) > $params->{mapq_ol_thresh};
+        next if ($R1_aln->{Rname} eq "Adapter");
 
-        my $aln_length = $R1_aln->{Qend} - $R1_aln->{Qstart};
-        my $len_scale_factor = $tlx_aln_length/$aln_length;
+        $R1_aln->{Primary} = 0;
+        $R1_aln->{Read} = "R1";
 
-        push(@competing_sum_base_Q,$len_scale_factor*($R1_aln->{SumBaseQ}));
-        debug_print("reporting competing sum base Q of ".$R1_aln->{SumBaseQ},3,$tlx->{QnameShort});
-        debug_print("reporting length scale factor of ".$len_scale_factor,3,$tlx->{QnameShort});
-      
+        $R1_aln->{Overlap} = calculate_fraction_overlap($tlx_R1_aln,$R1_aln);
+
+        $params->{mapqfh}->print(join("\t", @{$R1_aln}{@{$params->{mapq_header}}})."\n");
       }
     } else {
-      $tlx_sum_base_Q = calc_sum_base_Q($tlx_R2_aln);
-      push(@competing_sum_base_Q,$tlx_sum_base_Q);
-      $tlx_aln_length = $tlx_R2_aln->{Qend} - $tlx_R2_aln->{Qstart};
+      $tlx_R2_aln->{Primary} = 1;
+      $tlx_R2_aln->{Read} = "R2";
+      $tlx_R2_aln->{Overlap} = "";
+
+      $params->{mapqfh}->print(join("\t", @{$tlx_R2_aln}{@{$params->{mapq_header}}})."\n");
+
       # only consider R2 alignments
       foreach my $R2_aln_ID (keys $R2_alns) {
-      
         next if $R2_aln_ID eq $tlx->{R2_ID};
+
         my $R2_aln = $R2_alns->{$R2_aln_ID};
-        
-        next unless calculate_fraction_overlap($tlx_R2_aln,$R2_aln) > $params->{mapq_ol_thresh};
+        next if ($R2s_aln->{Rname} eq "Adapter");
 
-        my $aln_length = $R2_aln->{Qend} - $R2_aln->{Qstart};
-        my $len_scale_factor = $tlx_aln_length/$aln_length;
+        $R2_aln->{Primary} = 0;
+        $R2_aln->{Read} = "R2";
 
-        push(@competing_sum_base_Q,$len_scale_factor*($R2_aln->{SumBaseQ}));
-        debug_print("reporting competing sum base Q of ".$R2_aln->{SumBaseQ},3,$tlx->{QnameShort});
-        debug_print("reporting length scale factor of ".$len_scale_factor,3,$tlx->{QnameShort});
-      
+        $R2_aln->{Overlap} = calculate_fraction_overlap($tlx_R2_aln,$R2_aln);
+
+        $params->{mapqfh}->print(join("\t", @{$R2_aln}{@{$params->{mapq_header}}})."\n");
       }
 
     }

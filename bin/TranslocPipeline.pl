@@ -89,6 +89,8 @@ my $cut_fa;
 my $threads = 1;
 my $random_barcode;
 my $repeatseq_bedfile;
+my $simfile;
+
 
 my $skip_alignment;
 my $skip_process;
@@ -348,7 +350,7 @@ write_parameters_file;
 
 
 
-unless ($skip_alignment || $skip_process || $skip_dedup) {
+unless ($skip_alignment || $skip_process) {
 
   align_to_breaksite unless $brksite->{endogenous};
   align_to_genome unless -r $R1_bam && -r $R2_bam;
@@ -364,7 +366,7 @@ unless ($skip_alignment || $skip_process || $skip_dedup) {
 }
 
 
-unless ($skip_process || $skip_dedup) {
+unless ($skip_process) {
   $tlxlfh = IO::File->new(">$tlxlfile");
   $tlxfh = IO::File->new(">$tlxfile");
   $mapqfh = IO::File->new(">$mapqfile");
@@ -372,12 +374,11 @@ unless ($skip_process || $skip_dedup) {
   $tlxlfh->print(join("\t", @tlxl_header)."\n");
   $tlxfh->print(join("\t", @tlx_header, @filters)."\n");
 
-  # $mapqfh->print(join("\t", qw(Qname R1_Rname R1_Rstart R1_Rend R1_Strand R1_Qstart R1_Qend R1_AS R1_CIGAR R2_Rname R2_Rstart R2_Rend R2_Strand R2_Qstart R2_Qend R2_AS R2_CIGAR) )."\n");
-
-  $mapqfh->print(join("\t",
-    qw(Qname Primary Read Rname Rstart Rend Strand Qstart Qend Match Mismatch))."\n");
-
+  my @mapq_header = qw(Qname Primary Read Rname Rstart Rend Strand Qstart Qend Cigar Overlap);
+  push(@mapq_header,"Simulation") if defined $simfile;
+  $mapqfh->print(join("\t", @mapq_header)."\n");
   $params->{mapqfh} = $mapqfh;
+  $params->{mapq_header} = \@mapq_header;
 
   process_alignments;
 
@@ -386,19 +387,18 @@ unless ($skip_process || $skip_dedup) {
 
   mark_repeatseq_junctions;
 
+
+  unless ($no_dedup) {
+
+  #   mark_duplicate_junctions;
+
+  }
+
+
 } else {
   croak "Error: could not find tlx file when skipping processing step" unless -r $tlxfile;
 }
 
-
-
-unless ($skip_dedup || $no_dedup) {
-
-#   mark_duplicate_junctions;
-
-} else {
-  croak "Error: could not find tlx file when skipping dedup step" unless -r $tlxfile;
-}
 
 filter_junctions;
 
@@ -495,9 +495,12 @@ sub process_alignments {
   my ($R1_brk_iter,$R2_brk_iter);
   my ($R1_adpt_iter,$R2_adpt_iter);
   my ($R1_iter,$R2_iter);
+  my ($simfh,$simcsv);
+
   my ($next_R1_brk_aln,$next_R2_brk_aln);
   my ($next_R1_adpt_aln,$next_R2_adpt_aln);
   my ($next_R1_aln,$next_R2_aln);
+  my $next_sim_aln;
 
   unless ($brksite->{endogenous}) {
     $R1_brk_samobj = Bio::DB::Sam->new(-bam => $R1_brk_bam,
@@ -525,7 +528,11 @@ sub process_alignments {
   $R1_iter = $R1_samobj->get_seq_stream();
   $next_R1_aln = wrap_alignment("R1",$R1_iter->next_seq);
 
-
+  if (defined $simfile) {
+    $simfh = IO::File->new("<$simfile");
+    $simcsv = Text::CSV->new({sep_char => "\t"});
+    $simcsv->column_names(qw(Qname Rname Junction Strand Length));
+  }
 
   if (defined $read2) {
 
@@ -581,23 +588,38 @@ sub process_alignments {
     my %R1_alns_h;
     my %R2_alns_h;
 
-       
+    if (defined $simfile) {
+      $next_sim_aln = $simcsv->getline_hr($simfh);
+      $next_R1_aln->{Simulation} = alignment_matches_simulation($next_R1_aln,$next_sim_aln);
+    } 
+
     $R1_alns_h{$next_R1_aln->{ID}} = $next_R1_aln;
     undef $next_R1_aln;
 
     while(my $aln = $R1_iter->next_seq) {
       $next_R1_aln = wrap_alignment("R1",$aln);
       last unless $next_R1_aln->{Qname} eq $qname;
+      if (defined $simfile) {
+        $next_R1_aln->{Simulation} = alignment_matches_simulation($next_R1_aln,$next_sim_aln);
+      } 
       $R1_alns_h{$next_R1_aln->{ID}} = $next_R1_aln;
       undef $next_R1_aln;
     }
 
     if (defined $next_R2_aln && $next_R2_aln->{Qname} eq $qname) {
+
+      if (defined $simfile) {
+        $next_R2_aln->{Simulation} = alignment_matches_simulation($next_R2_aln,$next_sim_aln);
+      } 
+
       $R2_alns_h{$next_R2_aln->{ID}} = $next_R2_aln;
       undef $next_R2_aln;
       while(my $aln = $R2_iter->next_seq) {
         $next_R2_aln = wrap_alignment("R2",$aln);
         last unless $next_R2_aln->{Qname} eq $qname;
+        if (defined $simfile) {
+          $next_R2_aln->{Simulation} = alignment_matches_simulation($next_R2_aln,$next_sim_aln);
+        } 
         $R2_alns_h{$next_R2_aln->{ID}} = $next_R2_aln;
         undef $next_R2_aln;
       }
@@ -899,6 +921,7 @@ sub parse_command_line {
                             "dedup-offset-bp=i" => \$params->{dedup_offset_dist},
                             "dedup-bait-bp=i" => \$params->{dedup_break_dist},
                             "debug=i" => \$debug_level,
+                            "simfile=s" => \$simfile,
 				            				"help" => \$help
 				            			) ;
 
@@ -983,6 +1006,7 @@ $arg{"--skip-dedup","Begin pipeline after dedup step (post-processing only) "}
 $arg{"--no-dedup","Do not run dedup filter"}
 $arg{"--no-clean","Do not delete temp files at end of process"}
 $arg{"--force-bait","Set to 0 to relax bait alignment restrictions",$params->{force_bait}}
+$arg{"--simfile"," "}
 
 Arguments sent to Bowtie2 alignment (see manual)
 $arg{"--match-award","",$params->{match_award}}
