@@ -283,7 +283,7 @@ sub filter_mapqual ($) {
         next if $R2_aln_ID eq $tlx->{R2_ID};
 
         my $R2_aln = $R2_alns->{$R2_aln_ID};
-        next if ($R2s_aln->{Rname} eq "Adapter");
+        next if ($R2_aln->{Rname} eq "Adapter");
 
         $R2_aln->{Primary} = 0;
         $R2_aln->{Read} = "R2";

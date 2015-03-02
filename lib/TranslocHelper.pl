@@ -563,7 +563,8 @@ sub score_edge ($;$) {
 
     my $Rname1;
     my $Rname2;
-    my $query_overlap;
+    my $query_intersection;
+    my $query_union;
 
     if ( defined $node1->{R2} ) {
 
@@ -593,7 +594,9 @@ sub score_edge ($;$) {
       }
       $Rname1 = $node1->{R2}->{Rname};
       $Rname2 = $node2->{R2}->{Rname};
-      $query_overlap = aln_query_overlap($node1->{R2},$node2->{R2});
+      $query_intersection = aln_query_overlap($node1->{R2},$node2->{R2});
+      $query_union = $node2->{R2}->{Qend} - $node1->{R2}->{Qstart} + 1;
+
 
     } else {
 
@@ -619,7 +622,8 @@ sub score_edge ($;$) {
       }
       $Rname1 = $node1->{R1}->{Rname};
       $Rname2 = $node2->{R1}->{Rname};
-      $query_overlap = aln_query_overlap($node1->{R1},$node2->{R1});
+      $query_intersection = aln_query_overlap($node1->{R1},$node2->{R1});
+      $query_union = $node2->{R1}->{Qend} - $node1->{R1}->{Qstart} + 1;
 
     }
 
@@ -632,7 +636,13 @@ sub score_edge ($;$) {
       $overlap_correction = 0;
       $brk_pen = 0;
     } else {
-      $overlap_correction = $main::params->{match_award} * $query_overlap;
+
+      if ($query_intersection/$query_union > $main::params->{max_overlap}) {
+        debug_print("score=undef; node 1 and node 2 overlap greater than maximum",4,$qname);
+        return undef;
+      }
+
+      $overlap_correction = $main::params->{match_award} * $query_intersection;
       
       # Add in correction for brksite cassette?
       $brk_pen = $main::params->{brk_pen};

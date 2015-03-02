@@ -111,8 +111,8 @@ $params->{n_base_pen} = 1;
 $params->{read_gap_pen} = "8,4";
 $params->{ref_gap_pen} = "8,4";
 $params->{score_min} = "C,50";
-$params->{D_effort} = 15;
-$params->{R_effort} = 2;
+$params->{D_effort} = 20;
+$params->{R_effort} = 3;
 $params->{seed_mismatch} = 0;
 $params->{seed_length} = 20;
 $params->{seed_interval} = "C,6";
@@ -122,6 +122,9 @@ $params->{genome_alignments} = 20;
 $params->{force_bait} = 1;
 # Bait alignment must be within this many bp if forcing
 $params->{max_brkstart_dif} = 20;
+# Maximum overlap of two adjacent alignments in OCS
+# Calculated by intersection/union
+$params->{max_overlap} = 0.5;
 # OCS junction penalty
 $params->{brk_pen} = 50;
 # Max gap for concordant alignment (between R1 and R2)
@@ -374,7 +377,7 @@ unless ($skip_process) {
   $tlxlfh->print(join("\t", @tlxl_header)."\n");
   $tlxfh->print(join("\t", @tlx_header, @filters)."\n");
 
-  my @mapq_header = qw(Qname Primary Read Rname Rstart Rend Strand Qstart Qend Cigar Overlap);
+  my @mapq_header = qw(Qname Primary Read Rname Rstart Rend Strand Qstart Qend AS Cigar Overlap);
   push(@mapq_header,"Simulation") if defined $simfile;
   $mapqfh->print(join("\t", @mapq_header)."\n");
   $params->{mapqfh} = $mapqfh;
@@ -1025,6 +1028,7 @@ $arg{"--genome-alignments","Number of genome alignments reported",$params->{geno
 
 OQC and Filtering parameters
 $arg{"--max-brkstart-dif","Bait alignment forced to be within this distance of primer start site - not used if force-bait=0",$params->{max_brkstart_dif}}
+$arg{"--max-overlap","Maximum OQC overlap between two segments",$params->{max_overlap}}
 $arg{"--break-pen","Junction penalty incurred for every breakpoint in OQC",$params->{brk_pen}}
 $arg{"--max-pe-gap","Maximum gap allowed between paired-end alignments to be considered concordant",$params->{max_pe_gap}}
 $arg{"--pe-pen","Penalty incurred in OCS by gapped paired-end alignments (scaled to max-gap)",$params->{pe_pen}}
