@@ -40,8 +40,6 @@ suppressPackageStartupMessages(library(data.table, quietly=TRUE))
 suppressPackageStartupMessages(library(dplyr, quietly=TRUE))
 suppressPackageStartupMessages(library(GenomicRanges, quietly=TRUE))
 
-tss.outfile <- paste(outstub,"_dis2TSS.txt",sep="")
-tss.pdffile <- paste(outstub,"_dis2TSS.pdf",sep="")
 
 
 ref.data <- fread(ref.file,header=F,sep="\t")
@@ -92,6 +90,13 @@ if (tlx.labels != "") {
   names(tlx.files) <- tlx.labels
 }
 
+if (grepl("/$",outstub) & length(tlx.files) == 1) {
+  outstub <- paste(outstub,sub(".tlx$","",basename(tlx.files[1])),sep="")
+}
+
+tss.outfile <- paste(outstub,"_dis2TSS.txt",sep="")
+tss.pdffile <- paste(outstub,"_dis2TSS.pdf",sep="")
+
 if (!file.exists(dirname(outstub))) {
   dir.create(dirname(outstub),recursive=T)
 }
@@ -108,11 +113,8 @@ for (tlx.file in names(tlx.files)) {
                                    names = tlx$Qname),
                   strand = tlx$Strand)
 
-#   suppressWarnings(
-#     hits <- as.data.frame(distanceToNearest(tlx.gr,ref.gr))
-#   )
   suppressWarnings(
-    tlx <- tlx %>% mutate(Nearest.IDX = nearest(tlx.gr,ref.gr)) %>%
+    tlx <- tlx %>% mutate(Nearest.IDX = nearest(tlx.gr,ref.gr,ignore.strand=T)) %>%
       filter(!is.na(Nearest.IDX))
   )
   
