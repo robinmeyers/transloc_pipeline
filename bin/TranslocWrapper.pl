@@ -5,6 +5,7 @@ use strict;
 use warnings;
 use Getopt::Long;
 use Carp;
+use File::Spec;
 use IO::File;
 use Text::CSV;
 use Bio::DB::Fasta;
@@ -221,7 +222,7 @@ sub read_in_meta_file {
 
 	debug_print("reading in meta file",1);
 
-  print join("\t",qw(. Library Researcher Genome Chr Start End Strand))."\n";
+  print join("\t",qw(. Library Sequencing Researcher Genome Chr Start End Strand))."\n";
 
 
 	my $metafh = IO::File->new("<$meta_file");
@@ -235,6 +236,7 @@ sub read_in_meta_file {
     $i++;
     
     print join("\t",$i,$expt->{library},
+                      $expt->{sequencing},
                       $expt->{researcher},
                       $expt->{assembly},
                       $expt->{chr},
@@ -248,7 +250,7 @@ sub read_in_meta_file {
 
         # Only proceed with checking metadata and 
         # adding to metahash if library is in @which array
-        next unless $i ~~ @which;
+        next unless grep { $_ == $i } @which;
       }
 
       check_validity_of_metadata($expt);
@@ -283,9 +285,9 @@ sub check_validity_of_metadata ($) {
   my $assembly_obj = Bio::DB::Fasta->new($assembly_fa);
   my @chrlist = $assembly_obj->get_all_ids;
 
-  croak "Metadata error: chr must be valid" unless $expt->{chr} ~~ @chrlist; 
+  croak "Metadata error: chr must be valid" unless grep { $_ eq $expt->{chr} } @chrlist; 
   croak "Metadata error: end must not be less than start" if $expt->{end} < $expt->{start};
-  croak "Metadata error: strand must be one of + or -" unless $expt->{strand} ~~ [qw(+ -)];
+  croak "Metadata error: strand must be one of + or -" unless grep { $_ eq $expt->{strand} } qw(+ -);
 
   if ($expt->{breakseq} ne "") {
     croak "Metadata error: breaksite sequence contains non AGCT characters" unless $expt->{breakseq} =~ /^[AGCTagct]+$/;
@@ -317,7 +319,8 @@ sub prepare_working_directory ($) {
   debug_print("creating working directory",1,$expt_id);
 
 
-  my $seqdir = $expt_hash->{exptdir} . "/sequences";
+  my $seqdir = File::Spec->catfile($expt_hash->{exptdir},
+                                    $expt_id . "_sequences");
 
   unless (-d $seqdir) {
     mkdir $seqdir or croak "Error: could not create sequenes directory for $expt_id";
