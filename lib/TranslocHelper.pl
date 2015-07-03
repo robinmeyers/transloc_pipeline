@@ -493,9 +493,9 @@ sub alignment_matches_simulation ($$) {
     my $sim_end;
     if ($aln->{Strand} == 1) {
       $sim_start = $sim_aln->{Junction};
-      $sim_end = $sim_aln->{Junction} + $sim_aln->{Length} - 1;
+      $sim_end = $sim_aln->{Junction} + $sim_aln->{PreyLen} - 1;
     } else {
-      $sim_start = $sim_aln->{Junction} - $sim_aln->{Length} + 1;
+      $sim_start = $sim_aln->{Junction} - $sim_aln->{PreyLen} + 1;
       $sim_end = $sim_aln->{Junction};
     }
     debug_print("comparing aln ".$aln->{Rstart}."-".$aln->{Rend}." to sim ".$sim_start."-".$sim_end,4,$aln->{QnameShort});

@@ -194,63 +194,65 @@ sub filter_mapqual ($) {
     my $tlx_R1_aln = $R1_alns->{$tlx->{R1_ID}} if defined $tlx->{R1_ID};
     my $tlx_R2_aln = $R2_alns->{$tlx->{R2_ID}} if defined $tlx->{R2_ID};
 
-    if (defined $tlx_R1_aln && defined $tlx_R2_aln) {
+    # if (defined $tlx_R1_aln && defined $tlx_R2_aln) {
 
-      $tlx_R1_aln->{Primary} = 1;
-      $tlx_R1_aln->{Read} = "R1";
-      $tlx_R1_aln->{Overlap} = "";
+    #   $tlx_R1_aln->{Primary} = 1;
+    #   $tlx_R1_aln->{Read} = "R1";
+    #   $tlx_R1_aln->{Overlap} = "";
 
-      $params->{mapqfh}->print(join("\t", @{$tlx_R1_aln}{@{$params->{mapq_header}}})."\n");
+    #   $params->{mapqfh}->print(join("\t", @{$tlx_R1_aln}{@{$params->{mapq_header}}})."\n");
       
-      foreach my $R1_aln_ID (keys $R1_alns) {
-        next if $R1_aln_ID eq $tlx->{R1_ID};
+    #   foreach my $R1_aln_ID (keys $R1_alns) {
+    #     next if $R1_aln_ID eq $tlx->{R1_ID};
 
-        foreach my $R2_aln_ID (keys $R2_alns) {
+    #     foreach my $R2_aln_ID (keys $R2_alns) {
 
-          my $R1_aln = $R1_alns->{$R1_aln_ID};
-          my $R2_aln = $R2_alns->{$R2_aln_ID};
-          next if ($R1_aln->{Rname} eq "Adapter");
-          next unless pair_is_proper($R1_aln,$R2_aln);
+    #       my $R1_aln = $R1_alns->{$R1_aln_ID};
+    #       my $R2_aln = $R2_alns->{$R2_aln_ID};
+    #       next if ($R1_aln->{Rname} eq "Adapter");
+    #       next unless pair_is_proper($R1_aln,$R2_aln);
 
-          $R1_aln->{Primary} = 0;
-          $R1_aln->{Read} = "R1";
+    #       $R1_aln->{Primary} = 0;
+    #       $R1_aln->{Read} = "R1";
 
-          $R1_aln->{Overlap} = calculate_fraction_overlap($tlx_R1_aln,$R1_aln);
+    #       $R1_aln->{Overlap} = calculate_fraction_overlap($tlx_R1_aln,$R1_aln);
 
-          $params->{mapqfh}->print(join("\t", @{$R1_aln}{@{$params->{mapq_header}}})."\n");
-          last;
-        }
-      }
+    #       $params->{mapqfh}->print(join("\t", @{$R1_aln}{@{$params->{mapq_header}}})."\n");
+    #       last;
+    #     }
+    #   }
 
-      $tlx_R2_aln->{Read} = "R2";
-      $tlx_R2_aln->{Primary} = 1;
-      $tlx_R2_aln->{Overlap} = "";
-      $params->{mapqfh}->print(join("\t", @{$tlx_R2_aln}{@{$params->{mapq_header}}})."\n");
+    #   $tlx_R2_aln->{Read} = "R2";
+    #   $tlx_R2_aln->{Primary} = 1;
+    #   $tlx_R2_aln->{Overlap} = "";
+    #   $params->{mapqfh}->print(join("\t", @{$tlx_R2_aln}{@{$params->{mapq_header}}})."\n");
 
-      foreach my $R2_aln_ID (keys $R2_alns) {
-        next if $R2_aln_ID eq $tlx->{R2_ID};
+    #   foreach my $R2_aln_ID (keys $R2_alns) {
+    #     next if $R2_aln_ID eq $tlx->{R2_ID};
 
-        foreach my $R1_aln_ID (keys $R1_alns) {
+    #     foreach my $R1_aln_ID (keys $R1_alns) {
 
-          my $R1_aln = $R1_alns->{$R1_aln_ID};
-          my $R2_aln = $R2_alns->{$R2_aln_ID};
-          next if ($R2_aln->{Rname} eq "Adapter");
+    #       my $R1_aln = $R1_alns->{$R1_aln_ID};
+    #       my $R2_aln = $R2_alns->{$R2_aln_ID};
+    #       next if ($R2_aln->{Rname} eq "Adapter");
 
-          next unless pair_is_proper($R1_aln,$R2_aln);
+    #       next unless pair_is_proper($R1_aln,$R2_aln);
 
-          $R2_aln->{Primary} = 0;
-          $R2_aln->{Read} = "R2";
+    #       $R2_aln->{Primary} = 0;
+    #       $R2_aln->{Read} = "R2";
 
-          $R2_aln->{Overlap} = calculate_fraction_overlap($tlx_R2_aln,$R2_aln);
+    #       $R2_aln->{Overlap} = calculate_fraction_overlap($tlx_R2_aln,$R2_aln);
 
-          $params->{mapqfh}->print(join("\t", @{$R2_aln}{@{$params->{mapq_header}}})."\n");
-          last;
-        }
-      }
+    #       $params->{mapqfh}->print(join("\t", @{$R2_aln}{@{$params->{mapq_header}}})."\n");
+    #       last;
+    #     }
+    #   }
 
 
 
-    } elsif (defined $tlx_R1_aln) {
+    # } elsif (defined $tlx_R1_aln) {
+
+    if (defined $tlx_R1_aln) {
       $tlx_R1_aln->{Primary} = 1;
       $tlx_R1_aln->{Read} = "R1";
       $tlx_R1_aln->{Overlap} = "";
@@ -271,7 +273,11 @@ sub filter_mapqual ($) {
 
         $params->{mapqfh}->print(join("\t", @{$R1_aln}{@{$params->{mapq_header}}})."\n");
       }
-    } else {
+    }
+    # } else {
+    
+    if (defined $tlx_R2_aln) {
+      
       $tlx_R2_aln->{Primary} = 1;
       $tlx_R2_aln->{Read} = "R2";
       $tlx_R2_aln->{Overlap} = "";

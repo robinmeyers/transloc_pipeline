@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 use Getopt::Long;
-use Sys::Hostname;
 use Carp;
 use IO::Handle;
 use IO::File;
@@ -225,27 +224,6 @@ my $bt2_adapt_opt = join(" ","--local --no-1mm-upfront",
                              "--score-min","C,20",
                              "-p",$threads,
                              "--no-unal --reorder -t");
-
-# my $default_bowtie_adapter_opt = "--very-sensitive-local -L 10 --ma 2 --mp 6,2 --np 1 --rdg 5,3 --rfg 5,3 --score-min C,20 --no-unal -p $bowtie_threads --reorder -t";
-# my $default_bowtie_breaksite_opt = "--very-sensitive-local --ma 2 --mp 10,2 --np 2 --rdg 6,4 --rfg 6,4 --score-min C,50 -k 5 --no-unal -p $bowtie_threads  --reorder -t";
-# my $default_bowtie_opt = "--very-sensitive-local --ma 2 --mp 10,2 --np 2 --rdg 6,4 --rfg 6,4 --score-min C,50 -k 20 -p $bowtie_threads --reorder -t";
-
-
-# This may be too complicated -
-# in the future perhaps just change it
-# such that the user inputs full bowtie2 option string
-# my $bt2_break_opt = manage_program_options($default_bowtie_breaksite_opt,$user_bowtie_breaksite_opt);
-# my $bt2_adapt_opt = manage_program_options($default_bowtie_adapter_opt,$user_bowtie_adapter_opt);
-# my $bt2_opt = manage_program_options($default_bowtie_opt,$user_bowtie_opt);
-
-
-# croak "Error: cannot find match award in bowtie2 options" unless $bt2_opt =~ /-ma (\d+)/;
-# my $match_award = $1;
-# croak "Error: cannot find mismatch penalty in bowtie2 options" unless $bt2_opt =~ /-mp (\d+),\d+/;
-# my $mismatch_penalty = $1;
-
-# # I warned you
-# carp "Warning: match award in bowtie2 does not equal OCS overlap penalty" unless $match_award eq $params->{overlap_mult};
 
 
 my $expt = basename($workdir);
@@ -531,7 +509,7 @@ sub process_alignments {
   if (defined $simfile) {
     $simfh = IO::File->new("<$simfile");
     $simcsv = Text::CSV->new({sep_char => "\t"});
-    $simcsv->column_names(qw(Qname Rname Junction Strand Length));
+    $simcsv->column_names(qw(Qname Rname Junction Strand BaitLen PreyLen));
   }
 
   if (defined $read2) {
