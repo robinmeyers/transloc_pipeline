@@ -1,263 +1,6 @@
-use strict;
-use warnings;
+# Source for larger subroutines having to do with major program flow
+
 use Switch::Plain;
-use Time::HiRes qw(time);
-use List::Util qw(min max);
-use List::MoreUtils qw(firstidx);
-use Data::GUID;
-
-sub debug_print ($$;$) {
-
-  my $msg = shift;
-  my $code = shift;
-  my $id = shift;
-
-  return if ! defined $main::debug_level || $main::debug_level < $code;
-
-  my $new_msg = $code . "|";
-  $new_msg = $new_msg . $id . "|" if defined $id;
-  $new_msg = $new_msg . $msg . "\n";
-
-  print $new_msg;
-
-}
-
-
-sub manage_program_options ($$) {
-
-  my $defaultoptstr = shift;
-  my $useroptstr = shift;
-
-  return $defaultoptstr unless $useroptstr =~ /\S/;
-  return $useroptstr unless $defaultoptstr =~ /\S/;
-
-  my @defaultopt = split(/\s+/,$defaultoptstr);
-  my @useropt = split(/\s+/,$useroptstr);
-
-  my %opt_hash;
-  my $optkey;
-  my $optval;
-
-  my @return_opt = ();
-
-  my $i = 0;
-
-  while ($i < @defaultopt) {
-    if ( defined $defaultopt[$i+1] && $defaultopt[$i+1] !~ /^-/ ) {
-      $opt_hash{$defaultopt[$i]} = $defaultopt[$i+1];
-      $i += 2;
-    } else {
-      $opt_hash{$defaultopt[$i]} = "";
-      $i += 1;
-    }
-  }
-
-  $i = 0;
-
-  while ($i < scalar @useropt) {
-    if ( defined $useropt[$i+1] && $useropt[$i+1] !~ /^-/ ) {
-      if ($useropt[$i+1] eq "OFF") {
-        delete $opt_hash{$useropt[$i]};
-      } else {
-        $opt_hash{$useropt[$i]} = $useropt[$i+1];
-      }
-      $i += 2;
-    } else {
-      $i += 1;
-    }
-  }
-  
-  foreach $optkey (sort keys %opt_hash) {
-    $optval = $opt_hash{$optkey};
-    push(@return_opt,$optkey,$optval);
-  }
-
-  return(join(" ",@return_opt));
-
-
-}
-
-sub sam_file_is_empty ($) {
-  my $file = shift;
-  my $fh = IO::File->new("<$file");
-
-  while (my $line = $fh->getline) {
-    next unless $line =~ /\S/;
-    next if $line =~ /^@/;
-    $fh->close;
-    return(0);
-  }
-  $fh->close;
-  return(1);
-
-}
-
-sub tlx_header {
-  my @tlx_header = ( qw(Qname JuncID Rname Junction Strand Rstart Rend),
-                      qw(B_Rname B_Rstart B_Rend B_Strand B_Qstart B_Qend),
-                      qw(Qstart Qend Qlen B_Cigar Cigar Seq J_Seq Barcode) );
-  return (@tlx_header);
-}
-
-sub tlx_filter_header {
-  my @tlx_header = tlx_header();
-  splice(@tlx_header,1,0,("Filter"));
-  return(@tlx_header);
-}
-
-sub tlxl_header {
-  my @tlxl_header = ( qw(Qname OCS_score Rname Strand),
-                      qw(R1_Rstart R1_Rend R1_Qstart R1_Qend R1_Qlen),
-                      qw(R2_Rstart R2_Rend R2_Qstart R2_Qend R2_Qlen),
-                      qw(R1_Cigar R2_Cigar) );
-  return (@tlxl_header);
-}
-
-
-
-sub write_filter_entry ($$$$) {
-  my $fh = shift;
-  my $entry = shift;
-  my $header = shift;
-  my $filters = shift;
-
-  my @part1 = map {check_undef($_,"")} @{$entry}{@$header};
-  my @part2 = map {check_undef($_,"")} @{$entry->{filters}}{@$filters};
-
-  $fh->print(join("\t",@part1,@part2)."\n");
-
-}
-
-sub write_entry ($$$) {
-
-  my $fh = shift;
-  my $entry = shift;
-  my $header = shift;
-
-
-  $fh->print(join("\t",map(check_undef($_,""),@{$entry}{@$header}))."\n");
-  
-}
-
-
-sub stringify_alignment ($) {
-  my $aln = shift;
-
-  return(join(",",$aln->{Rname},
-                  $aln->{Rstart},
-                  $aln->{Rend},
-                  $aln->{Qstart},
-                  $aln->{Qend},
-                  $aln->{Strand}));
-}
-
-sub find_genomic_distance ($$$) {
-  my $aln1 = shift;
-  my $aln2 = shift;
-  my $brk = shift;
-
-  my $chr1 = $aln1->{Rname};
-  my $chr2 = $aln2->{Rname};
-  my $strand1 = $aln1->{Strand};
-  my $strand2 = $aln2->{Strand};
-  my $junc1 = $strand1 == 1 ? $aln1->{Rend} : $aln1->{Rstart};
-  my $junc2 = $strand2 == 1 ? $aln2->{Rstart} : $aln2->{Rend};
-
-
-  my $qend1 = $aln1->{Qend};
-  my $qstart2 = $aln2->{Qstart};
-
-  my $g_dist;
-  my $q_dist;
-  my $r_dist;
-  my $g_dist_to_start_of_brk;
-  my $g_dist_to_end_of_brk;
-
-
-  if ($aln1->{Rname} eq $aln2->{Rname}) {
-
-    $q_dist = $strand1 == $strand2 ? $qstart2 - $qend1 - 1 : 0;
-    $r_dist = $junc2 - $junc1 - 1;
-    $g_dist = $strand1 == 1 ? $r_dist - $q_dist : $r_dist + $q_dist;
-  
-  } elsif ($chr1 eq "Breaksite" && $chr2 eq $brk->{chr}) {
-
-    if ($brk->{strand} eq "+") {
-
-      if ($junc2 >= $brk->{end}) {
-        $junc1 = $brk->{end} - 1 - ($brk->{len} - $junc1);
-      } elsif ($junc2 < $brk->{start}) {
-        $junc1 = $brk->{start} + $junc1;
-      } elsif ($strand2 == 1) {
-        $junc1 = $brk->{end} - 1 - ($brk->{len} - $junc1);
-      } else {
-        $junc1 = $brk->{start} + $junc1;
-      }
-
-    } else {
-
-      if ($junc2 >= $brk->{end}) {
-        $junc1 = $brk->{end} - $junc1;
-      } elsif ($junc2 < $brk->{start}) {
-        $junc1 = $brk->{start} + ($brk->{len} - $junc1);
-      } elsif ($strand2 == 1) {
-        $junc1 = $brk->{end} - $junc1;
-      } else {
-        $junc1 = $brk->{start} + ($brk->{len} - $junc1);
-      }
-
-      $strand1 = -1 * $strand1;
-
-    }
-
-    $q_dist = $strand1 == $strand2 ? $qstart2 - $qend1 - 1 : 0;
-    $r_dist = $junc2 - $junc1;
-    $g_dist = $strand1 == 1 ? $r_dist - $q_dist : $r_dist + $q_dist;
-
-  } elsif ($chr2 eq "Breaksite" && $chr1 eq $brk->{chr}) {
-
-    if ($brk->{strand} eq "+") {
-
-      if ($junc1 >= $brk->{end}) {
-        $junc2 = $brk->{end} - 1 - ($brk->{len} - $junc2);
-      } elsif ($junc1 < $brk->{start}) {
-        $junc2 = $brk->{start} + $junc2;
-      } elsif ($strand1 == 1) {
-        $junc2 = $brk->{end} - 1 - ($brk->{len} - $junc2);
-      } else {
-        $junc2 = $brk->{start} + $junc2;
-      }
-
-    } else {
-
-      if ($junc1 >= $brk->{end}) {
-        $junc2 = $brk->{end} - $junc2;
-      } elsif ($junc1 < $brk->{start}) {
-        $junc2 = $brk->{start} + ($brk->{len} - $junc2);
-      } elsif ($strand1 == 1) {
-        $junc2 = $brk->{end} - $junc2;
-      } else {
-        $junc2 = $brk->{start} + ($brk->{len} - $junc2);
-      }
-
-      $strand2 = -1 * $strand2;
-
-    }
-
-    $q_dist = $strand1 == $strand2 ? $qstart2 - $qend1 - 1 : 0;
-    $r_dist = $junc2 - $junc1;
-    $g_dist = $strand1 == 1 ? $r_dist - $q_dist : $r_dist + $q_dist;
-
-  } else {
-    return undef;
-  }
-
-  $g_dist = max(1,abs($g_dist));
-
-  $g_dist = $strand1 == $strand2 ? $g_dist : -$g_dist;
-
-  return $g_dist;
-}
 
 sub wrap_alignment ($$) {
 
@@ -323,163 +66,11 @@ sub wrap_alignment ($$) {
 
   $wrapper->{Cigar} = cigar_array_to_string($wrapper->{CigarA});
   $wrapper->{Qlen} = length($wrapper->{Seq});
-  $wrapper->{SumBaseQ} = calc_sum_base_Q($wrapper);
 
   return $wrapper;
 
 }
 
-
-sub pair_is_proper ($$) {
-  my $R1 = shift;
-  my $R2 = shift;
-  # my $max_frag_len = shift;
-  # my $max_dovetail = 10;
-
-  return 0 unless $R1->{Rname} eq $R2->{Rname};
-  return 0 unless $R1->{Strand} == $R2->{Strand};
-
-
-  if ($R1->{Strand} == 1) {
-    return 0 unless $R1->{Rstart} < $R2->{Rend};
-    return 0 if $R2->{Rstart} - $R1->{Rend} - 1 > $main::params->{max_pe_gap};
-    return 0 if $R1->{Rstart} > $R2->{Rstart} + $main::params->{max_dovetail};
-    return 0 if $R1->{Rend} > $R2->{Rend} + $main::params->{max_dovetail};
-  } else {
-    return 0 unless $R2->{Rstart} < $R1->{Rend};
-    return 0 if $R1->{Rstart} - $R2->{Rend} - 1 > $main::params->{max_pe_gap};
-    return 0 if $R2->{Rstart} > $R1->{Rstart} + $main::params->{max_dovetail};
-    return 0 if $R2->{Rend} > $R1->{Rend} + $main::params->{max_dovetail};
-  }
-
-  return 1;
-}
-
-sub calc_sum_base_Q ($;$$) {
-
-  my $aln = shift;
-
-  my $qstart = shift;
-  my $qend = shift;
-
-  $qstart = $aln->{Qstart} unless defined $qstart;
-  $qend = $aln->{Qend} unless defined $qend;
-
-  my $Qsum = 0;
-  my @qual = @{$aln->{Qual}};
-  my @cigar = @{$aln->{CigarA}};
-
-  my $qpos = $aln->{Qstart};
-
-  while ($qpos < $qstart) {
-    my $c = shift(@cigar);
-    sswitch ($c->[0]) {
-      case 'M':
-      case 'X':
-      case 'I':
-      case 'N': {
-        $qpos += $c->[1];
-        if ($qpos > $qstart) {
-          unshift(@cigar,[$c->[0],$qpos-$qstart]);
-          $qpos = $qstart;
-        }
-      }
-    }
-
-  }
-
-  while ($qpos <= $qend) {
-    my $c = shift(@cigar);
-
-    sswitch ($c->[0]) {
-      case 'M': {
-        $qpos += $c->[1];
-      }
-      case 'X': {
-        foreach my $i (1..($c->[1])) {
-          $Qsum += $qual[$qpos-1];
-          $qpos++;
-        }
-      }
-      case 'I': {
-        foreach my $i (1..($c->[1])) {
-          $Qsum += $qual[$qpos-1];
-          $qpos++;
-        }
-      }
-      case 'D': {
-        $Qsum += ($qual[$qpos-1] + $qual[$qpos-2])/2 * $c->[1];
-      }
-      case 'S': {
-        next;
-      }
-    }
-  }
-  return $Qsum;
-}
-
-sub aln_reference_length ($) {
-  my $aln = shift;
-  return $aln->{Rend} - $aln->{Rstart} + 1;
-}
-
-sub aln_reference_overlap ($$) {
-  my $aln1 = shift;
-  my $aln2 = shift;
-
-  return 0 unless $aln1->{Rname} eq $aln2->{Rname};
-
-  my $overlap_length = min($aln1->{Rend},$aln2->{Rend}) - max($aln1->{Rstart},$aln2->{Rstart}) + 1;
-
-  if ($overlap_length > 0) {
-    return $overlap_length;
-  } else {
-    return 0;
-  }
-}
-
-sub aln_query_overlap ($$) {
-  my $aln1 = shift;
-  my $aln2 = shift;
-
-  my $overlap_length = min($aln1->{Qend},$aln2->{Qend}) - max($aln1->{Qstart},$aln2->{Qstart}) + 1;
-
-  if ($overlap_length > 0) {
-    return $overlap_length;
-  } else {
-    return 0;
-  }
-}
-
-sub aln_query_length ($) {
-  my $aln = shift;
-  return $aln->{Qend} - $aln->{Qstart} + 1;
-}
-
-
-sub calculate_fraction_overlap ($$;$$) {
-  my $aln1_R1 = shift;
-  my $aln2_R1 = shift;
-  my $aln1_R2 = shift;
-  my $aln2_R2 = shift;
-
-  my $aln1_length = 0;
-  my $overlap_length = 0;
-
-  $aln1_length += aln_query_length($aln1_R1);
-  my $ol = aln_query_overlap($aln1_R1,$aln2_R1);
-  $overlap_length += $ol if $ol > 0;
-
-  if (defined $aln1_R2) {
-
-    $aln1_length += aln_query_length($aln1_R2);
-    my $ol = aln_query_overlap($aln1_R2,$aln2_R2);
-    $overlap_length += $ol if $ol > 0;
-  }
-
-  return($overlap_length/$aln1_length);
-
-}
 
 
 sub alignment_matches_simulation ($$) {
@@ -504,35 +95,153 @@ sub alignment_matches_simulation ($$) {
   return 0;
 }
 
-sub calculate_paired_end_penalty ($$) {
-  my $R1_aln = shift;
-  my $R2_aln = shift;
 
-  my $PE_gap = $R1_aln->{Strand} == 1 ?
-                $R2_aln->{Rstart} - $R1_aln->{Rend} - 1 :
-                $R1_aln->{Rstart} - $R2_aln->{Rend} - 1 ;
+
+sub find_optimal_coverage_set ($$) {
+
+  my $R1_alns_ref = shift;
+  my $R2_alns_ref = shift;
+
+
+  my @graph = ();
+  my $OCS_ptr;
+
+  my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart}} shuffle(values $R1_alns_ref);
+  my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart}} shuffle(values $R2_alns_ref);
+
+  my $qname = $R1_alns[0]->{QnameShort};
+
+  debug_print("finding OCS",2,$qname);
+
+  debug_print("searching through R1 and R1/R2 pairs",3,$qname);
+  foreach my $R1_aln (@R1_alns) {
+
+    next if $R1_aln->{Unmapped};
+
+    # my $graphsize = scalar @graph;
+
+    my $new_node = {R1 => $R1_aln};
+
+    my $init_score = score_edge($new_node);
+    $new_node->{score} = $init_score if defined $init_score;
+
+    foreach my $node (@graph) {
+      my $edge_score = score_edge($node,$new_node);
+      next unless defined $edge_score;
+
+      if (! exists $new_node->{score} || $edge_score > $new_node->{score}) {
+        $new_node->{score} = $edge_score;
+        $new_node->{back_ptr} = $node;
+
+        debug_print("new best edge score for R1 node; set backpointer",3,$qname);
+      }
+    }
+
+    if (defined $new_node->{score}) {
+      push(@graph,$new_node);
+      if (! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score}) {
+        $OCS_ptr = $new_node;
+        debug_print("new top OCS score for R1 node; set OCS pointer",3,$qname);
+      }
+    }
+
+    foreach my $R2_aln (@R2_alns) {
+
+      next unless defined $R2_aln && ! $R2_aln->{Unmapped};
+
+      next unless pair_is_proper($R1_aln,$R2_aln);
+
+      my $new_pe_node = {R1 => $R1_aln, R2 => $R2_aln};
+
+      my $init_score = score_edge($new_pe_node);
+      $new_pe_node->{score} = $init_score if defined $init_score;
+      # if ($graphsize > 0) {
+        # foreach my $node (@graph[0..($graphsize-1)]) {
+        foreach my $node (@graph) {
+
+          my $edge_score = score_edge($node,$new_pe_node);
+          next unless defined $edge_score;
+
+          if (! defined $new_pe_node->{score} || $edge_score > $new_pe_node->{score}) {
+            $new_pe_node->{score} = $edge_score;
+            $new_pe_node->{back_ptr} = $node;
+
+            debug_print("new best edge score for R1/R2 node; set backpointer",3,$qname);
+
+          }
+        }
+      # }
+      if (defined $new_pe_node->{score}) {
+        push(@graph,$new_pe_node);
+        if (! defined $OCS_ptr || $new_pe_node->{score} > $OCS_ptr->{score}) {
+          $OCS_ptr = $new_pe_node;
+          debug_print("new top OCS score for R1/R2 node; set OCS pointer",3,$qname);
+        }
+      }
+    }
+  }
+
+
+  debug_print("searching through R2 alignments",3,$qname);
   
-  my $PE_pen = 0;
+  foreach my $R2_aln (@R2_alns) {
 
-  my $main_penalty = $PE_gap > 0 ? $main::params->{brk_pen} + $main::params->{pe_pen} * $PE_gap/$main::params->{max_pe_gap} : $main::params->{brk_pen};
+    next unless defined $R2_aln && ! $R2_aln->{Unmapped};
 
-  $PE_pen += $main_penalty;
+    my $new_node = {R2 => $R2_aln};
 
-  # Correct for overlap (half credit)
-  # my $overlap_penalty = $main::params->{match_award} * aln_reference_overlap($R1_aln,$R2_aln) / 2;
-  # $PE_pen += $overlap_penalty;
 
-  # Penalize for unused R1
-  my $unused_R1_penalty = $main::params->{match_award} * ($R1_aln->{Qlen} - $R1_aln->{Qend});
-  $PE_pen += $unused_R1_penalty;
+    foreach my $node (@graph) {
+      my $edge_score = score_edge($node,$new_node);
+      next unless defined $edge_score;
 
-  debug_print("paired-end penalties: main:".$main_penalty." unused_R1:".$unused_R1_penalty,4,$R1_aln->{QnameShort});
+      if (! defined $new_node->{score} || $edge_score > $new_node->{score}) {
+        $new_node->{score} = $edge_score;
+        $new_node->{back_ptr} = $node;
+        debug_print("new best edge score for R2 node; set backpointer",3,$qname);
+      }
+    }
 
-  return $PE_pen;
+    if (defined $new_node->{score}) {
+      push(@graph,$new_node) ;
+      if (! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score}) {
+        $OCS_ptr = $new_node;
+        debug_print("new top OCS score for R2 node; set OCS pointer",3,$qname);
+      }
+    }
+
+  }
+
+  if (defined $OCS_ptr) {
+
+    my @OCS = ($OCS_ptr);
+
+    while (defined $OCS_ptr->{back_ptr}) {
+      $OCS_ptr->{back_ptr}->{score} = $OCS_ptr->{score};
+      $OCS_ptr = $OCS_ptr->{back_ptr};
+      unshift(@OCS,$OCS_ptr)
+    }
+    debug_print("found OCS of length ".scalar @OCS,3,$qname);
+    return \@OCS;
+
+  } else {
+
+    debug_print("no defined OCS pointer, returning unmapped OCS",3,$qname);
+    my @unmapped_OCS = ( { R1 => { Qname => $R1_alns[0]->{Qname},
+                                   QnameShort => $R1_alns[0]->{QnameShort},
+                                   Seq => $R1_alns[0]->{Seq},
+                                   Qual => $R1_alns[0]->{Qual},
+                                   Unmapped => 1 },
+                           R2 => { Qname => $R2_alns[0]->{Qname},
+                                   QnameShort => $R2_alns[0]->{QnameShort},
+                                   Seq => $R2_alns[0]->{Seq},
+                                   Qual => $R2_alns[0]->{Qual},
+                                   Unmapped => 1 } } );
+    return \@unmapped_OCS;
+
+  }
 
 }
-
-
 
 sub score_edge ($;$) {
   my $node1 = shift;
@@ -746,149 +455,31 @@ sub score_edge ($;$) {
 }
 
 
-sub find_optimal_coverage_set ($$) {
+sub calculate_paired_end_penalty ($$) {
+  my $R1_aln = shift;
+  my $R2_aln = shift;
 
-  my $R1_alns_ref = shift;
-  my $R2_alns_ref = shift;
-
-
-  my @graph = ();
-  my $OCS_ptr;
-
-  my @R1_alns = sort {$a->{Qstart} <=> $b->{Qstart}} shuffle(values $R1_alns_ref);
-  my @R2_alns = sort {$a->{Qstart} <=> $b->{Qstart}} shuffle(values $R2_alns_ref);
-
-  my $qname = $R1_alns[0]->{QnameShort};
-
-  debug_print("finding OCS",2,$qname);
-
-  debug_print("searching through R1 and R1/R2 pairs",3,$qname);
-  foreach my $R1_aln (@R1_alns) {
-
-    next if $R1_aln->{Unmapped};
-
-    # my $graphsize = scalar @graph;
-
-    my $new_node = {R1 => $R1_aln};
-
-    my $init_score = score_edge($new_node);
-    $new_node->{score} = $init_score if defined $init_score;
-
-    foreach my $node (@graph) {
-      my $edge_score = score_edge($node,$new_node);
-      next unless defined $edge_score;
-
-      if (! exists $new_node->{score} || $edge_score > $new_node->{score}) {
-        $new_node->{score} = $edge_score;
-        $new_node->{back_ptr} = $node;
-
-        debug_print("new best edge score for R1 node; set backpointer",3,$qname);
-      }
-    }
-
-    if (defined $new_node->{score}) {
-      push(@graph,$new_node);
-      if (! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score}) {
-        $OCS_ptr = $new_node;
-        debug_print("new top OCS score for R1 node; set OCS pointer",3,$qname);
-      }
-    }
-
-    foreach my $R2_aln (@R2_alns) {
-
-      next unless defined $R2_aln && ! $R2_aln->{Unmapped};
-
-      next unless pair_is_proper($R1_aln,$R2_aln);
-
-      my $new_pe_node = {R1 => $R1_aln, R2 => $R2_aln};
-
-      my $init_score = score_edge($new_pe_node);
-      $new_pe_node->{score} = $init_score if defined $init_score;
-      # if ($graphsize > 0) {
-        # foreach my $node (@graph[0..($graphsize-1)]) {
-        foreach my $node (@graph) {
-
-          my $edge_score = score_edge($node,$new_pe_node);
-          next unless defined $edge_score;
-
-          if (! defined $new_pe_node->{score} || $edge_score > $new_pe_node->{score}) {
-            $new_pe_node->{score} = $edge_score;
-            $new_pe_node->{back_ptr} = $node;
-
-            debug_print("new best edge score for R1/R2 node; set backpointer",3,$qname);
-
-          }
-        }
-      # }
-      if (defined $new_pe_node->{score}) {
-        push(@graph,$new_pe_node);
-        if (! defined $OCS_ptr || $new_pe_node->{score} > $OCS_ptr->{score}) {
-          $OCS_ptr = $new_pe_node;
-          debug_print("new top OCS score for R1/R2 node; set OCS pointer",3,$qname);
-        }
-      }
-    }
-  }
-
-
-  debug_print("searching through R2 alignments",3,$qname);
+  my $PE_gap = $R1_aln->{Strand} == 1 ?
+                $R2_aln->{Rstart} - $R1_aln->{Rend} - 1 :
+                $R1_aln->{Rstart} - $R2_aln->{Rend} - 1 ;
   
-  foreach my $R2_aln (@R2_alns) {
+  my $PE_pen = 0;
 
-    next unless defined $R2_aln && ! $R2_aln->{Unmapped};
+  my $main_penalty = $PE_gap > 0 ? $main::params->{brk_pen} + $main::params->{pe_pen} * $PE_gap/$main::params->{max_pe_gap} : $main::params->{brk_pen};
 
-    my $new_node = {R2 => $R2_aln};
+  $PE_pen += $main_penalty;
 
+  # Correct for overlap (half credit)
+  # my $overlap_penalty = $main::params->{match_award} * aln_reference_overlap($R1_aln,$R2_aln) / 2;
+  # $PE_pen += $overlap_penalty;
 
-    foreach my $node (@graph) {
-      my $edge_score = score_edge($node,$new_node);
-      next unless defined $edge_score;
+  # Penalize for unused R1
+  my $unused_R1_penalty = $main::params->{match_award} * ($R1_aln->{Qlen} - $R1_aln->{Qend});
+  $PE_pen += $unused_R1_penalty;
 
-      if (! defined $new_node->{score} || $edge_score > $new_node->{score}) {
-        $new_node->{score} = $edge_score;
-        $new_node->{back_ptr} = $node;
-        debug_print("new best edge score for R2 node; set backpointer",3,$qname);
-      }
-    }
+  debug_print("paired-end penalties: main:".$main_penalty." unused_R1:".$unused_R1_penalty,4,$R1_aln->{QnameShort});
 
-    if (defined $new_node->{score}) {
-      push(@graph,$new_node) ;
-      if (! defined $OCS_ptr || $new_node->{score} > $OCS_ptr->{score}) {
-        $OCS_ptr = $new_node;
-        debug_print("new top OCS score for R2 node; set OCS pointer",3,$qname);
-      }
-    }
-
-  }
-
-  if (defined $OCS_ptr) {
-
-    my @OCS = ($OCS_ptr);
-
-    while (defined $OCS_ptr->{back_ptr}) {
-      $OCS_ptr->{back_ptr}->{score} = $OCS_ptr->{score};
-      $OCS_ptr = $OCS_ptr->{back_ptr};
-      unshift(@OCS,$OCS_ptr)
-    }
-    debug_print("found OCS of length ".scalar @OCS,3,$qname);
-    return \@OCS;
-
-  } else {
-
-    debug_print("no defined OCS pointer, returning unmapped OCS",3,$qname);
-    my @unmapped_OCS = ( { R1 => { Qname => $R1_alns[0]->{Qname},
-                                   QnameShort => $R1_alns[0]->{QnameShort},
-                                   Seq => $R1_alns[0]->{Seq},
-                                   Qual => $R1_alns[0]->{Qual},
-                                   Unmapped => 1 },
-                           R2 => { Qname => $R2_alns[0]->{Qname},
-                                   QnameShort => $R2_alns[0]->{QnameShort},
-                                   Seq => $R2_alns[0]->{Seq},
-                                   Qual => $R2_alns[0]->{Qual},
-                                   Unmapped => 1 } } );
-    return \@unmapped_OCS;
-
-  }
+  return $PE_pen;
 
 }
 
@@ -966,166 +557,6 @@ sub create_tlxl_entries ($) {
 
   return \@tlxls;
 
-}
-
-sub find_random_barcode ($$$$) {
-  my $read_obj = shift;
-  my $barcode_length = shift;
-
-  my $tlxs = $read_obj->{tlxs};
-  my $R1_alns = $read_obj->{R1_alns};
-  my $R2_alns = $read_obj->{R2_alns};
-
-
-  my $barcode = "";
-
-
-  if (defined $barcode_length && $barcode_length > 0) {
-    
-    debug_print("searching for barcode",2,$tlxs->[0]->{QnameShort});
-
-    # Search through OCS first
-
-    if (defined $tlxs->[$#$tlxs]->{Rname} && $tlxs->[$#$tlxs]->{Rname} eq "Adapter") {
-      my $adapter_aln = $tlxs->[$#$tlxs];
-      $barcode = substr($adapter_aln->{Seq},$adapter_aln->{Qstart} - $barcode_length - 1,$barcode_length);
-    } else {
-      
-      my $adapter_aln;
-
-      foreach my $R2_aln (values %$R2_alns) {
-        if ($R2_aln->{Unmapped} == 0 && $R2_aln->{Rname} eq "Adapter" && $R2_aln->{Strand} == 1) {
-          $adapter_aln = $R2_aln if ! defined $adapter_aln ||
-                                    $R2_aln->{Qend} > $adapter_aln->{Qend};
-        }
-      }
-
-      foreach my $R1_aln (values %$R1_alns) {
-        if ($R1_aln->{Unmapped} == 0 && $R1_aln->{Rname} eq "Adapter" && $R1_aln->{Strand} == 1) {
-          $adapter_aln = $R1_aln if ! defined $adapter_aln ||
-                                    $R1_aln->{Qend} > $adapter_aln->{Qend};
-        }
-      }
-
-      $barcode = substr($adapter_aln->{Seq},$adapter_aln->{Qstart} - $barcode_length - 1,$barcode_length) if defined $adapter_aln;
-
-    }
-
-  }
-
-  foreach my $tlx (@$tlxs) {
-    $tlx->{Barcode} = $barcode;
-  }
-
-}
-
-
-sub cigar_array_to_string ($) {
-  my $array_ref = shift;
-  my $string = join("",map {join("", reverse @$_)} @$array_ref);
-}
-
-sub cigar_string_to_array ($) {
-  my $string = shift;
-  my @array;
-  while ($string =~ /([0-9]+)([SMXIDN])/g) {
-    push(@array,[$2,$1]);
-  }
-  return \@array;
-}
-
-
-sub soft_clip_cigar ($) {
-  my $cigar_ref = shift;
-  my @cigar = @$cigar_ref;
-  if ($cigar[0]->[0] eq "S") {
-    shift(@cigar);
-  }
-  if ($cigar[$#cigar]->[0] eq "S") {
-    pop(@cigar);
-  }
-  return \@cigar;
-}
-
-sub expand_cigar_array ($) {
-  my $compact_cigar = shift;
-  my @expand_cigar;
-  foreach my $i (@$compact_cigar) {
-    # next if $i->[0] eq "S";
-    push(@expand_cigar, ($i->[0]) x $i->[1]);
-  }
-  return \@expand_cigar;
-}
-
-sub compact_cigar_array ($) {
-  my $expand_cigar = shift;
-  my @compact_cigar = ();
-
-  my $prev_code = $expand_cigar->[0];
-  my $count = 1;
-  return [[$prev_code,$count]] if $#$expand_cigar < 1;
-
-  foreach my $i (1..$#$expand_cigar) {
-    if ($expand_cigar->[$i] eq $prev_code) {
-      $count++;
-    } else {
-      push(@compact_cigar,[$prev_code,$count]);
-      $prev_code = $expand_cigar->[$i];
-      $count = 1;
-    }
-  }
-
-  push(@compact_cigar,[$prev_code,$count]);
-
-  return \@compact_cigar;
-}
-
-
-sub remap_cigar ($$$) {
-  my $cigar_array_ref = shift;
-  my $qseq = shift;
-  my $rseq = shift;
-
-  my @Rseq = split("",uc($rseq));
-  my @Qseq = split("",uc($qseq));
-
-  my $Qpos = 1;
-  my $Rpos = 1;
-  # print Dumper($cigar_array_ref);
-  my @old_cigar = @{ expand_cigar_array($cigar_array_ref) };
-  my @new_cigar;
-
-  debug_print("remapping a cigar string\nold: @old_cigar\nref: $rseq\nqry: $qseq\n",3);
-
-  while ($Qpos <= @Qseq) {
-    # print "$Qpos\n";
-    my $c = shift(@old_cigar);
-    sswitch ($c) {
-      case 'S': {
-        push(@new_cigar,"S");
-        $Qpos++;
-      }
-      case 'M':
-      case 'X': {
-        if ($Qseq[$Qpos-1] eq $Rseq[$Rpos-1]) {
-          push(@new_cigar,"M");
-        } else {
-          push(@new_cigar,"X")
-        }
-        $Qpos++;
-        $Rpos++;
-      }
-      case 'D': {
-        push(@new_cigar,"D");
-        $Rpos++;
-      }
-      case 'I': {
-        push(@new_cigar,"I");
-        $Qpos++;
-      }
-    }
-  }
-  return(compact_cigar_array(\@new_cigar));
 }
 
 
@@ -1361,12 +792,11 @@ sub merge_alignments ($$) {
   my $tlxls = shift;
   my $refs = shift;
 
-  # First decide if we even need a merge
   my $R2_idx = firstidx {defined $_->{R2_Seq}} @$tlxls;
 
   if ($R2_idx < 0) {
     # Return a blank seq and some empty arraryrefs if not
-    return("",[],[]);
+    return("",[],[],[]);
   }
 
   # Pull the element to merge on out of the tlxl array
@@ -1804,13 +1234,58 @@ sub merge_alignments ($$) {
 
 }
 
-sub nearby_quals ($$$) {
-  my $qual_ref = shift;
-  my $pos = shift;
-  my $mar = shift;
 
-  return mean(@$qual_ref[max(0,$pos-$mar)..min($pos+$mar,$#{$qual_ref})]);
+sub find_random_barcode ($$$$) {
+  my $read_obj = shift;
+  my $barcode_length = shift;
+
+  my $tlxs = $read_obj->{tlxs};
+  my $R1_alns = $read_obj->{R1_alns};
+  my $R2_alns = $read_obj->{R2_alns};
+
+
+  my $barcode = "";
+
+
+  if (defined $barcode_length && $barcode_length > 0) {
+    
+    debug_print("searching for barcode",2,$tlxs->[0]->{QnameShort});
+
+    # Search through OCS first
+
+    if (defined $tlxs->[$#$tlxs]->{Rname} && $tlxs->[$#$tlxs]->{Rname} eq "Adapter") {
+      my $adapter_aln = $tlxs->[$#$tlxs];
+      $barcode = substr($adapter_aln->{Seq},$adapter_aln->{Qstart} - $barcode_length - 1,$barcode_length);
+    } else {
+      
+      my $adapter_aln;
+
+      foreach my $R2_aln (values %$R2_alns) {
+        if ($R2_aln->{Unmapped} == 0 && $R2_aln->{Rname} eq "Adapter" && $R2_aln->{Strand} == 1) {
+          $adapter_aln = $R2_aln if ! defined $adapter_aln ||
+                                    $R2_aln->{Qend} > $adapter_aln->{Qend};
+        }
+      }
+
+      foreach my $R1_aln (values %$R1_alns) {
+        if ($R1_aln->{Unmapped} == 0 && $R1_aln->{Rname} eq "Adapter" && $R1_aln->{Strand} == 1) {
+          $adapter_aln = $R1_aln if ! defined $adapter_aln ||
+                                    $R1_aln->{Qend} > $adapter_aln->{Qend};
+        }
+      }
+
+      $barcode = substr($adapter_aln->{Seq},$adapter_aln->{Qstart} - $barcode_length - 1,$barcode_length) if defined $adapter_aln;
+
+    }
+
+  }
+
+  foreach my $tlx (@$tlxs) {
+    $tlx->{Barcode} = $barcode;
+  }
+
 }
+
 
 
 

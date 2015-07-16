@@ -19,10 +19,7 @@ use Cwd qw(abs_path);
 use FindBin;
 use lib abs_path("$FindBin::Bin/../lib");
 
-require "PerlSub.pl";
-require "PipelineHelper.pl";
-
-
+require "TranslocSub.pl";
 
 # Flush output after every write
 select( (select(STDOUT), $| = 1 )[0] );
@@ -371,9 +368,9 @@ sub parse_command_line {
   usage() if (scalar @ARGV==0);
 
   my $result = GetOptions (
-  			"read1=s" => \$read1,
-  			"read2=s" => \$read2,
-  			"indir=s" => \$indir,
+	  			"read1=s" => \$read1,
+	  			"read2=s" => \$read2,
+	  			"indir=s" => \$indir,
 				"threads=i" => \$max_threads,
 				"bc-len=i" => \$bc_len,
 				"bc-mismatch=i" => \$bc_mismatch,

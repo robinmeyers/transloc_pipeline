@@ -1,6 +1,5 @@
 #!/usr/bin/env perl
 
-
 use strict;
 use warnings;
 use Getopt::Long;
@@ -17,14 +16,10 @@ use Cwd qw(abs_path);
 use FindBin;
 use lib abs_path("$FindBin::Bin/../lib");
 
-
-require "TranslocHelper.pl";
-require "PerlSub.pl";
-
+require "TranslocSub.pl";
 
 my $GENOME_DB = $ENV{'GENOME_DB'};
 defined $GENOME_DB or croak "Error: set environment variable GENOME_DB";
-
 
 
 # Flush output after every write
@@ -44,6 +39,7 @@ sub parse_command_line;
 sub read_in_meta_file;
 sub check_existance_of_files;
 sub process_experiment ($);
+sub usage ($);
 
 
 # Global flags and arguments, 
@@ -55,13 +51,11 @@ my $which;
 my $pipeline_threads = 2;
 my $pipeline_opt;
 my $print_only;
-our $debug_level = 0;
 my $simulate;
-
 my $bsub;
-my $user_bsub_opt = "";
-my $default_bsub_opt = "-q mcore -n 4 -W 12:00";
+my $bsub_opt = "";
 
+our $debug_level = 0;
 
 # Global variabless
 my %meta;
@@ -158,7 +152,7 @@ printf("\nFinished all processes in %.2f seconds.\n", $t1);
 # End of program
 #
 
-# Main subroutine to start job
+# Main subroutine to launch job
 sub process_experiment ($) {
 
 	my $expt_id = shift;
@@ -203,12 +197,10 @@ sub process_experiment ($) {
   my $log = $expt_hash->{exptdir} . "/$expt_id.log";
 
   if (defined $bsub) {
-    my $bsubopt = manage_program_options($default_bsub_opt,$user_bsub_opt);
-    $tl_cmd = join(" ","bsub",$bsubopt,"-J",$expt_hash->{library},"-o $log -N",$tl_cmd);
+    $tl_cmd = join(" ","bsub",$bsub_opt,"-J",$expt_hash->{library},"-o $log -N",$tl_cmd);
   } else {
     $tl_cmd .= " >> $log 2>&1";
   }
-
 
   System($tl_cmd);
 
@@ -398,11 +390,11 @@ sub parse_command_line {
 
 	my $help;
 
-	usage() if (scalar @ARGV == 0);
+	usage(0) if (scalar @ARGV == 0);
 
 	my $result = GetOptions ( "which=s" => \$which,
                             "bsub" => \$bsub,
-                            "bsub-opt=s" => \$user_bsub_opt,
+                            "bsub-opt=s" => \$bsub_opt,
 														"threads=i" => \$pipeline_threads,
                             "pipeline-opt=s" => \$pipeline_opt,
                             "print" => \$print_only,
@@ -412,7 +404,7 @@ sub parse_command_line {
 
 				            			);
 	
-	usage() if ($help);
+	usage(1) if ($help);
 
 
 
@@ -422,12 +414,12 @@ sub parse_command_line {
   if ($print_only) {
     if (scalar @ARGV < 1) {
       carp "Error: print option requires metadata argument";
-      usage();
+      usage(0);
     }
   } else {
      if (scalar @ARGV < 3) {
       carp "Error: not enough input arguments";
-      usage();
+      usage(0);
     }
   }
 
@@ -452,8 +444,11 @@ sub parse_command_line {
 }
 
 
-sub usage()
+sub usage ($)
 {
+
+my $full_help = shift;
+
 print<<EOF;
 TranslocWrapper, by Robin Meyers, 2013
 
@@ -469,7 +464,7 @@ $arg{"seqdir","Directory containing all input sequence files"}
 $arg{"outdir","Directory for results output"}
 $arg{"--which","Only run specific jobs, numbered by order in metafile"}
 $arg{"--bsub","Submit as LSF jobs"}
-$arg{"--bsub-opt","Specify bsub options different from default",$default_bsub_opt}
+$arg{"--bsub-opt","Specify bsub options different from default",$bsub_opt}
 $arg{"--threads","Number of libraries to run at once",$pipeline_threads}
 $arg{"--pipeline-opt","Specify pipeline options - see below"}
 $arg{"--print","Do not execute jobs, only print libraries found in metafile"}
@@ -481,7 +476,7 @@ $arg{"--help","This helpful help screen."}
 
 EOF
 
-system("$FindBin::Bin/TranslocPipeline.pl --help");
+system("$FindBin::Bin/TranslocPipeline.pl --help") if $full_help;
 
 exit 1;
 }

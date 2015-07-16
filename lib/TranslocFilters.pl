@@ -1,41 +1,4 @@
-use strict;
-use warnings;
-use POSIX qw(floor ceil);
-use Math::BigFloat;
-
-
-
-
-sub is_a_junction ($) {
-  my $tlx = shift;
-  if (! defined $tlx->{Rname} || $tlx->{Rname} eq "" || $tlx->{Rname} eq "Adapter") {
-    return(0);
-  } else {
-    return(1);
-  }
-}
-
-sub filter_entire_read ($$;$) {
-  my $tlxs = shift;
-  my $filter = shift;
-  my $value = shift;
-  $value = 1 unless defined $value;
-
-  filter_remainder_of_read($tlxs,$filter,0,$value);
-
-}
-
-sub filter_remainder_of_read ($$$;$) {
-  my $tlxs = shift;
-  my $filter = shift;
-  my $i = shift;
-  my $value = shift;
-  $value = 1 unless defined $value;
-
-  foreach my $tlx (@$tlxs[$i..$#$tlxs]) {
-    $tlx->{filters}->{$filter} = $value;
-  }
-}
+# Source of subroutines that calculate and set filters on tlxs
 
 sub filter_unaligned ($) {
   my $read_obj = shift;
@@ -51,7 +14,6 @@ sub filter_unaligned ($) {
   }
 
 }
-
 
 sub filter_baitonly ($) {
   my $read_obj = shift;
@@ -171,8 +133,6 @@ sub filter_largegap ($) {
   }
 
 }
-
-# This is a test
 
 sub filter_mapqual ($) {
 

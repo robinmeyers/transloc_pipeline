@@ -2,18 +2,20 @@
 
 use strict;
 use warnings;
-use Getopt::Long;
 use Carp;
+use Getopt::Long;
 use IO::Handle;
 use IO::File;
 use Text::CSV;
 use File::Basename;
 use File::Which;
 use File::Copy;
+use POSIX qw(floor ceil);
+use List::Util qw(min max shuffle);
+use List::MoreUtils qw(pairwise firstidx);
+use Data::GUID;
 use Bio::SeqIO;
 use Bio::DB::Sam;
-use List::Util qw(min max shuffle);
-use List::MoreUtils qw(pairwise);
 use Interpolation 'arg:@->$' => \&argument;
 use Time::HiRes qw(gettimeofday tv_interval);
 use Data::Dumper;
@@ -21,7 +23,7 @@ use Cwd qw(abs_path);
 use FindBin;
 use lib abs_path("$FindBin::Bin/../lib");
 
-require "PerlSub.pl";
+require "TranslocSub.pl";
 require "TranslocHelper.pl";
 require "TranslocFilters.pl";
 
@@ -98,8 +100,6 @@ our $debug_level = 0;
 
 our $params = {};
 
-
-
 # Bowtie parameters
 $params->{match_award} = 2;
 $params->{mismatch_pen} = "8,2";
@@ -112,9 +112,11 @@ $params->{R_effort} = 3;
 $params->{seed_mismatch} = 0;
 $params->{seed_length} = 20;
 $params->{seed_interval} = "C,6";
-$params->{breaksite_alignments} = 5;
-$params->{genome_alignments} = 20;
+$params->{breaksite_alignments} = 3;
+$params->{genome_alignments} = 10;
 
+
+# OCS parameters
 $params->{force_bait} = 1;
 # Bait alignment must be within this many bp if forcing
 $params->{max_brkstart_dif} = 20;
@@ -125,41 +127,30 @@ $params->{max_overlap} = 0.5;
 $params->{brk_pen} = 50;
 # Max gap for concordant alignment (between R1 and R2)
 # Need to check if it's the gap or the entire aln fragment
-$params->{max_pe_gap} = 1500;
+$params->{max_pe_gap} = 1000;
 $params->{pe_pen} = 50;
 $params->{max_dovetail} = 10;
 
+# Filter parameters
 # uncut filter params
 $params->{max_bp_after_cutsite} = 10;
-
 # misprimed filter params
 $params->{min_bp_after_primer} = 10;
-
 # freqcut filter params
 
 # largegap filter params
 $params->{max_largegap} = 30;
-
 # mapqual filter params
 $params->{mapq_ol_thresh} = 0.9;
 $params->{mapq_score_thresh} = 10;
-# $params->{mapq_mismatch_int} = 1.5;
-# $params->{mapq_mismatch_coef} = 0.01;
-
 # duplicate filter parameters
-$params->{dedup_offset_dist} = 1;
-$params->{dedup_break_dist} = 1;
-
-
-# my $user_bowtie_opt = "";
-# my $user_bowtie_adapter_opt = "";
-# my $user_bowtie_breaksite_opt = "";
+$params->{dedup_offset_dist} = 0;
+$params->{dedup_break_dist} = 0;
 
 # Global variables
 my @tlxl_header = tlxl_header();
 my @tlx_header = tlx_header();
 my @tlx_filter_header = tlx_filter_header();
-
 
 my @dispatch_names = qw(unaligned baitonly uncut misprimed freqcut largegap mapqual breaksite sequential);
 
@@ -805,32 +796,39 @@ sub post_process_junctions {
 sub write_parameters_file {
   my $paramsfh = IO::File->new(">$paramsfile");
 
-  $paramsfh->print("$local_time\t$commandline\n\n");
-  $paramsfh->print(Dumper($params)."\n");
+  $paramsfh->print("$local_time\n\n$0 $commandline\n\n");
 
-  # $paramsfh->print(join("\n", map {join("\t",@$_)}
-  #   (["Alignment Options"],
-  #   ["Genome Bowtie2 Options", $bt2_opt],
-  #   ["Breaksite Bowtie2 Options", $bt2_break_opt],
-  #   ["Adapter Bowtie2 Options", $bt2_adapt_opt],
-  #   [],
-  #   ["Optimal Query Coverage Options"],
-  #   ["Break Penalty",$Brk_pen_default],
-  #   ["PE Gap Penalty",$PE_pen_default],
-  #   ["Overlap Penalty",$OL_mult],
-  #   ["Max Bait Offset",$maximum_brk_start_dif],
-  #   ["Bait Offset Penalty",$Dif_mult],
-  #   [],
-  #   ["Filtering Options"],
-  #   ["Max Bp After Cutsite", $max_bases_after_cutsite],
-  #   ["Min Bp After Primer", $min_bases_after_primer],
-  #   ["MapQuality Overlap Threshold", $mapq_ol_thresh],
-  #   ["MapQuality Mismatch Threshold Intercept", $mapq_mismatch_thresh_int],
-  #   ["MapQuality Mismatch Threshold Coefficient", $mapq_mismatch_thresh_coef],
-  #   [],
-  #   ["Dedup Options"],
-  #   ["Max Prey Offset Distance",$dedup_offset_dist],
-  #   ["Max Bait Junction Distance",$dedup_break_dist])));
+  $paramsfh->print("BOWTIE2 PARAMETERS\n");
+
+  my @bowtie_param_keys = qw(match_award mismatch_pen n_base_pen read_gap_pen
+    ref_gap_pen score_min D_effort R_effort seed_mismatch seed_length
+    seed_interval genome_alignments breaksite_alignments );
+
+  foreach my $bowtie_param_key (@bowtie_param_keys) {
+    $paramsfh->print($bowtie_param_key . ": " .
+                      $params->{$bowtie_param_key} . "\n");
+  }
+
+  $paramsfh->print("\nOCS PARAMETERS\n");
+
+  my @ocs_param_keys = qw(force_bait max_brkstart_dif max_overlap brk_pen
+                          max_pe_gap pe_pen max_dovetail);
+
+  foreach my $ocs_param_key (@ocs_param_keys) {
+    $paramsfh->print($ocs_param_key . ": " .
+                      $params->{$ocs_param_key} . "\n");
+  }
+
+  $paramsfh->print("\nFILTER PARAMETERS\n");
+
+  my @filter_param_keys = qw(max_bp_after_cutsite min_bp_after_primer
+                            max_largegap mapq_ol_thresh mapq_score_thresh
+                            dedup_offset_dist dedup_break_dist);
+
+  foreach my $filter_param_key (@filter_param_keys) {
+    $paramsfh->print($filter_param_key . ": " .
+                      $params->{$filter_param_key} . "\n");
+  }
 
 }
 
