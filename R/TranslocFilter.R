@@ -48,7 +48,7 @@ if (commandArgs()[1] != "RStudio") {
   f.misprimed <- "L10"
   f.freqcut <- "1"
   f.largegap <- "G30"
-  f.mapqual <- "L10"
+  f.mapqual <- "1"
   f.breaksite <- "1"
   f.sequential <- "1"
   f.repeatseq <- "1"

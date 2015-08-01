@@ -143,6 +143,7 @@ $params->{max_largegap} = 30;
 # mapqual filter params
 $params->{mapq_ol_thresh} = 0.9;
 $params->{mapq_score_thresh} = 10;
+$params->{mapq_score_coef} = 0.25;
 # duplicate filter parameters
 $params->{dedup_offset_dist} = 0;
 $params->{dedup_break_dist} = 0;

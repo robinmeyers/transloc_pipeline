@@ -4,13 +4,13 @@
 
 ```
 cd ~
-git clone https://github.com/robinmeyers/transloc_pipeline
+git clone https://github.com/robinmeyers/transloc_pipeline.git
 ```
 
 Add directories to $PATH in ~/.profile or ~/.bash_profile
 
 ```
-echo 'export PATH = ~/transloc_pipeline/bin:~/transloc_pipeline/R:$PATH' >> ~/.bash_profile
+echo 'export PATH=~/transloc_pipeline/bin:~/transloc_pipeline/R:$PATH' >> ~/.bash_profile
 ```
 
 ## Reference Genomes
@@ -27,8 +27,8 @@ bowtie2-inspect hg19 > ~/genomes/hg19/hg19.fa
 Add environment variables to in ~/.profile or ~/.bash_profile
 
 ```
-echo 'export BOWTIE2_INDEXES = ~/genomes/bowtie2_indexes' >> ~/.bash_profile
-echo 'export GENOME_DB = ~/genomes' >> ~/.bash_profile
+echo 'export BOWTIE2_INDEXES=~/genomes/bowtie2_indexes' >> ~/.bash_profile
+echo 'export GENOME_DB=~/genomes' >> ~/.bash_profile
 ```
 
 
@@ -37,7 +37,7 @@ echo 'export GENOME_DB = ~/genomes' >> ~/.bash_profile
 
 ### Bowtie2
 
-Install [Bowtie2](http://bowtie-bio.sourceforge.net//bowtie2/index.shtml)
+Install [Bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml)
 
 ### Perl >= 5.16
 
@@ -75,7 +75,7 @@ Other modules:
 ## Pre-processing libraries
 
 ```
-$ cd data
+$ cd ~/transloc_pipeline/data
 $ TranslocPreprocess.pl metadata.txt preprocess/ --read1 pooled_R1.fq.gz --read2 pooled_R2.fq.gz
 ```
 
