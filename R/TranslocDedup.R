@@ -8,10 +8,10 @@ if (commandArgs()[1] != "RStudio") {
   )
   
   OPTS <- c(
-    "offset.dist","numeric",1," ",
-    "break.dist","numeric",1," ",
+    "offset.dist","numeric",0," ",
+    "break.dist","numeric",0," ",
     "random.barcode","numeric",0," ",
-    "cores","numeric",0,"Number of compute nodes to run on"
+    "cores","numeric",1,"Number of compute nodes to run on"
   )
   
   

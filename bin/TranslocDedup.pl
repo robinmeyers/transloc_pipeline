@@ -9,14 +9,15 @@ use IO::File;
 use Text::CSV;
 use Interpolation 'arg:@->$' => \&argument;
 use Time::HiRes qw(gettimeofday tv_interval);
+use IPC::System::Simple qw(system capture);
 
 use Cwd qw(abs_path);
 use FindBin;
 use lib abs_path("$FindBin::Bin/../lib");
 
 
-require "TranslocHelper.pl";
-require "PerlSub.pl";
+require "TranslocSub.pl";
+
 
 # Flush output after every write
 select( (select(STDOUT), $| = 1 )[0] );
@@ -35,11 +36,12 @@ sub parse_command_line;
 my $tlxfile;
 my $output;
 my $cores = 1;
-my $offset_dist = 1;
-my $bait_dist = 1;
+my $offset_dist = 0;
+my $break_dist = 0;
 
 # Global variabless
-my %filtered_reads;
+my %deduped_reads;
+my $dedup_output;
 
 #
 # Start of Program
@@ -48,13 +50,26 @@ my %filtered_reads;
 parse_command_line;
 
 # Run Rscript to print list of junctions to filter
+($dedup_output = $output) =~ s/\.tlx$/.txt/;
+
+
+my $dedup_cmd = join(" ","$FindBin::Bin/../R/TranslocDedup.R",
+                        $tlxfile,
+                        $dedup_output,
+                        "offset.dist=".$offset_dist,
+                        "break.dist=".$break_dist,
+                        "cores=".$cores);
+
+System($dedup_cmd);
+
+
 
 # Read in filtered junctions
 open JUNC, "<", $dedup_output;
 while (<JUNC>) {
   chomp;
   my @read = split("\t");
-  $filtered_reads{$read[0]} = 1;
+  $deduped_reads{$read[0]} = 1;
 }
 close JUNC;
 
@@ -70,7 +85,7 @@ $csv->column_names(@$header);
 
 
 while (my $tlx = $csv->getline_hr($infh)) {
-  if (defined $filtered_reads{$tlx->{Qname}}) {
+  if (defined $deduped_reads{$tlx->{Qname}}) {
     $tlx->{duplicate} = 1;
   }
   $outfh->print(join("\t",@{$tlx}{@$header})."\n");
@@ -91,6 +106,9 @@ sub parse_command_line {
   usage() if (scalar @ARGV == 0);
 
   my $result = GetOptions ( 
+                            "offset_dist=i" => \$offset_dist,
+                            "break_dist=i" => \$break_dist,
+                            "cores=i" => \$cores,
                             "help" => \$help
 
                           );
@@ -107,9 +125,7 @@ sub parse_command_line {
   $output = shift(@ARGV);
 
   croak "Error: cannot read tlxfile" unless -r $tlxfile;
-  croak "Error: cannot read bedfile" unless -r $bedfile;
-
-
+  
   exit unless $result;
 }
 

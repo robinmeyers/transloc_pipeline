@@ -149,7 +149,7 @@ sub filter_mapqual ($) {
 
   foreach my $tlx (@$tlxs) {
     unless (is_a_junction($tlx)) {
-      $tlx->{filters}->{mapqual} = 255;
+      $tlx->{filters}->{mapqual} = 0;
       next;
     }
 
@@ -204,7 +204,7 @@ sub filter_mapqual ($) {
 
             filter_remainder_of_read($tlxs, "mapqual", $i);
 
-            return 1;
+            return;
           }
 
         }
@@ -243,7 +243,7 @@ sub filter_mapqual ($) {
 
           filter_remainder_of_read($tlxs, "mapqual", $i);
 
-          return 1;
+          return;
         }
       }
     
@@ -279,7 +279,7 @@ sub filter_mapqual ($) {
 
           filter_remainder_of_read($tlxs, "mapqual", $i);
 
-          return 1;
+          return;
         }
 
       }

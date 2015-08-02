@@ -361,7 +361,7 @@ unless ($skip_process) {
 
   unless ($no_dedup) {
 
-  #   mark_duplicate_junctions;
+    mark_duplicate_junctions;
 
   }
 
@@ -705,14 +705,16 @@ sub mark_repeatseq_junctions {
 }
 
 sub mark_duplicate_junctions {
-  (my $duplicate_output = $tlxfile) =~ s/.tlx$/_duplicate.tlx.tmp/;
+  (my $duplicate_output = $tlxfile) =~ s/.tlx$/_duplicate.tlx/;
 
-  my $duplicate_cmd = join(" ","$FindBin::Bin/../R/TranslocDedup.pl",
+  my $duplicate_cmd = join(" ","$FindBin::Bin/TranslocDedup.pl",
                           $tlxfile,
                           $duplicate_output,
                           "--cores $threads",
                           "--offset_dist",$params->{dedup_offset_dist},
                           "--break_dist",$params->{dedup_break_dist}) ;
+
+  System($duplicate_cmd);
 
   rename $duplicate_output, $tlxfile;
 
@@ -738,6 +740,62 @@ sub filter_junctions {
                           "f.sequential=1",
                           "f.repeatseq=1",
                           "f.duplicate=1\"") ;
+
+  System($filter_cmd);
+
+  ($filter_output = $tlxfile) =~ s/.tlx$/_nomapq_dedup.tlx/;
+
+  $filter_cmd = join(" ","$FindBin::Bin/TranslocFilter.pl",
+                          $tlxfile,
+                          $filter_output,
+                          "--filters",
+                          "\"f.unaligned=1",
+                          "f.baitonly=1",
+                          "f.uncut=1",
+                          "f.misprimed=L".$params->{min_bp_after_primer},
+                          "f.freqcut=1",
+                          "f.largegap=G".$params->{max_largegap},
+                          "f.breaksite=1",
+                          "f.sequential=1",
+                          "f.repeatseq=1",
+                          "f.duplicate=1\"") ;
+
+  System($filter_cmd);
+
+  ($filter_output = $tlxfile) =~ s/.tlx$/_mapq_nodedup.tlx/;
+
+  $filter_cmd = join(" ","$FindBin::Bin/TranslocFilter.pl",
+                          $tlxfile,
+                          $filter_output,
+                          "--filters",
+                          "\"f.unaligned=1",
+                          "f.baitonly=1",
+                          "f.uncut=1",
+                          "f.misprimed=L".$params->{min_bp_after_primer},
+                          "f.freqcut=1",
+                          "f.largegap=G".$params->{max_largegap},
+                          "f.mapqual=1",
+                          "f.breaksite=1",
+                          "f.sequential=1",
+                          "f.repeatseq=1\"") ;
+
+  System($filter_cmd);
+
+  ($filter_output = $tlxfile) =~ s/.tlx$/_nomapq_nodedup.tlx/;
+
+  $filter_cmd = join(" ","$FindBin::Bin/TranslocFilter.pl",
+                          $tlxfile,
+                          $filter_output,
+                          "--filters",
+                          "\"f.unaligned=1",
+                          "f.baitonly=1",
+                          "f.uncut=1",
+                          "f.misprimed=L".$params->{min_bp_after_primer},
+                          "f.freqcut=1",
+                          "f.largegap=G".$params->{max_largegap},
+                          "f.breaksite=1",
+                          "f.sequential=1",
+                          "f.repeatseq=1\"") ;
 
   System($filter_cmd);
 
