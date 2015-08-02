@@ -11,6 +11,7 @@ use Bio::DB::Fasta;
 use threads;
 use Interpolation 'arg:@->$' => \&argument;
 use Time::HiRes qw(gettimeofday tv_interval);
+use IPC::System::Simple qw(system capture);
 
 use Cwd qw(abs_path);
 use FindBin;

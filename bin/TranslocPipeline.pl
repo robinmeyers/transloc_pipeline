@@ -17,6 +17,7 @@ use Data::GUID;
 use Bio::SeqIO;
 use Bio::DB::Sam;
 use Interpolation 'arg:@->$' => \&argument;
+use IPC::System::Simple qw(system capture);
 use Time::HiRes qw(gettimeofday tv_interval);
 use Data::Dumper;
 use Cwd qw(abs_path);
@@ -732,7 +733,7 @@ sub filter_junctions {
                           "f.misprimed=L".$params->{min_bp_after_primer},
                           "f.freqcut=1",
                           "f.largegap=G".$params->{max_largegap},
-                          "f.mapqual=L".$params->{mapq_score_thresh},
+                          "f.mapqual=1",
                           "f.breaksite=1",
                           "f.sequential=1",
                           "f.repeatseq=1",

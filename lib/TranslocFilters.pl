@@ -175,7 +175,7 @@ sub filter_mapqual ($) {
 
       my $min_difference = $params->{mapq_score_thresh} + $diff_from_max * $params->{mapq_score_coef};
 
-      my $min_AS_threshold = $$tlx_R1_aln->{AS} + $tlx_R2_aln->{AS} - $min_difference;
+      my $min_AS_threshold = $tlx_R1_aln->{AS} + $tlx_R2_aln->{AS} - $min_difference;
 
       
       foreach my $R1_aln_ID (keys $R1_alns) {
@@ -202,7 +202,7 @@ sub filter_mapqual ($) {
               $R2_aln->{Overlap} > $params->{mapq_ol_thresh} &&
               $R1_aln->{AS} + $R2_aln->{AS} >= $min_AS_threshold) {
 
-            filter_remainder_of_read($tlxs, "mapqual", $i)
+            filter_remainder_of_read($tlxs, "mapqual", $i);
 
             return 1;
           }
@@ -223,7 +223,7 @@ sub filter_mapqual ($) {
 
       my $min_difference = $params->{mapq_score_thresh} + $diff_from_max * $params->{mapq_score_coef};
 
-      my $min_AS_threshold = $$tlx_R1_aln->{AS} - $min_difference;
+      my $min_AS_threshold = $tlx_R1_aln->{AS} - $min_difference;
 
       # only consider R1 alignments
       foreach my $R1_aln_ID (keys $R1_alns) {
@@ -241,7 +241,7 @@ sub filter_mapqual ($) {
         if ($R1_aln->{Overlap} > $params->{mapq_ol_thresh} &&
             $R1_aln->{AS} >= $min_AS_threshold) {
 
-          filter_remainder_of_read($tlxs, "mapqual", $i)
+          filter_remainder_of_read($tlxs, "mapqual", $i);
 
           return 1;
         }
@@ -260,7 +260,7 @@ sub filter_mapqual ($) {
 
       my $min_difference = $params->{mapq_score_thresh} + $diff_from_max * $params->{mapq_score_coef};
 
-      my $min_AS_threshold = $$tlx_R2_aln->{AS} - $min_difference;
+      my $min_AS_threshold = $tlx_R2_aln->{AS} - $min_difference;
 
       # only consider R2 alignments
       foreach my $R2_aln_ID (keys $R2_alns) {
@@ -277,7 +277,7 @@ sub filter_mapqual ($) {
         if ($R2_aln->{Overlap} > $params->{mapq_ol_thresh} &&
             $R2_aln->{AS} >= $min_AS_threshold) {
 
-          filter_remainder_of_read($tlxs, "mapqual", $i)
+          filter_remainder_of_read($tlxs, "mapqual", $i);
 
           return 1;
         }
