@@ -56,9 +56,9 @@ parse_command_line;
 my $dedup_cmd = join(" ","$FindBin::Bin/../R/TranslocDedup.R",
                         $tlxfile,
                         $dedup_output,
-                        "offset.dist=".$offset_dist,
-                        "break.dist=".$break_dist,
-                        "cores=".$cores);
+                        "--offset.dist", $offset_dist,
+                        "--break.dist", $break_dist,
+                        "--cores", $cores);
 
 System($dedup_cmd);
 
