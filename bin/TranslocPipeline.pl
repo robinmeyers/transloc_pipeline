@@ -20,6 +20,7 @@ use Interpolation 'arg:@->$' => \&argument;
 use IPC::System::Simple qw(system capture);
 use Time::HiRes qw(gettimeofday tv_interval);
 use Data::Dumper;
+use Storable qw(store_fd);
 use Cwd qw(abs_path);
 use FindBin;
 use lib abs_path("$FindBin::Bin/../lib");
@@ -64,6 +65,7 @@ sub filter_junctions;
 sub sort_junctions;
 sub post_process_junctions;
 sub clean_up;
+sub usage ($);
 
 
 my $commandline;
@@ -89,6 +91,7 @@ my $threads = 1;
 my $random_barcode;
 my $repeatseq_bedfile;
 my $simfile;
+my $storable;
 
 
 my $skip_alignment;
@@ -259,6 +262,18 @@ my $statsfile = "${expt_stub}_stats.txt";
 my $paramsfile = "${expt_stub}_params.txt";
 my $dedup_output = "${expt_stub}_dedup.txt";
 
+my $storable_dir = "${expt_stub}_storable";
+my $storable_stub = "${storable_dir}/$expt";
+my ($storeR1aln,$storeR2aln,$storeOCS,$storetlxl,$storetlx);
+if (defined $storable) {
+  mkdir $storable_dir;
+  $storeR1aln = IO::File->new(">${storable_stub}_R1aln");
+  $storeR2aln = IO::File->new(">${storable_stub}_R2aln");
+  $storeOCS = IO::File->new(">${storable_stub}_OCS");
+  $storetlxl = IO::File->new(">${storable_stub}_tlxl");
+  $storetlx = IO::File->new(">${storable_stub}_tlx");
+}
+
 
 # Prepare breaksite hash
 my $brksite = {chr => $brk_chr,
@@ -355,6 +370,14 @@ unless ($skip_process) {
 
   $tlxlfh->close;
   $tlxfh->close;
+
+  if (defined $storable) {
+    $storeR1aln->close;
+    $storeR2aln->close;
+    $storeOCS->close;
+    $storetlxl->close;
+    $storetlx->close;
+  }
 
   mark_repeatseq_junctions;
 
@@ -645,11 +668,31 @@ sub process_alignments {
       }
     }
 
+    if (defined $storable) {
+      debug_print("writing storable R1/R2 alignment objects",2,$qname);
+      store_fd \%R1_alns_h, $storeR1aln;
+      store_fd \%R2_alns_h, $storeR2aln;
+      debug_print("done writing R1/R2 alignment objects",2,$qname);
+    }
+
     my $OCS = find_optimal_coverage_set(\%R1_alns_h,\%R2_alns_h);
+
+    if (defined $storable) {
+      debug_print("writing storable OCS object",2,$OCS->[0]->{R1}->{QnameShort});
+      store_fd $OCS, $storeOCS;
+      debug_print("done writing storable OCS object",2,$OCS->[0]->{R1}->{QnameShort});
+    }
+
 
     debug_print("processing OCS",2,$OCS->[0]->{R1}->{QnameShort});
 
     my $tlxls = create_tlxl_entries($OCS);
+
+    if (defined $storable) {
+      debug_print("writing storable tlxl object",2,$tlxls->[0]->{QnameShort});
+      store_fd $tlxls, $storetlxl;
+      debug_print("done writing storable tlxl object",2,$tlxls->[0]->{QnameShort});
+    }
 
     my $tlxs = create_tlx_entries($tlxls, {genome => $R1_samobj,
                                            brk => $R1_brk_samobj,
@@ -659,6 +702,12 @@ sub process_alignments {
       my %filter_init;
       @filter_init{@filters} = (0) x @filters;
       $tlx->{filters} = {%filter_init};
+    }
+
+    if (defined $storable) {
+      debug_print("writing storable tlx object",2,$tlxs->[0]->{QnameShort});
+      store_fd $tlxs, $storetlx;
+      debug_print("done writing storable tlx object",2,$tlxs->[0]->{QnameShort});
     }
 
 
@@ -679,7 +728,7 @@ sub process_alignments {
       write_filter_entry($tlxfh,$tlx,\@tlx_header,\@filters);        
     }
 
-  }
+  } 
 
 }
 
@@ -903,7 +952,7 @@ sub clean_up {
 sub parse_command_line {
 	my $help;
 
-	usage() if (scalar @ARGV == 0);
+	usage(0) if (scalar @ARGV == 0);
 
   $commandline = join(" ",@ARGV);
   $local_time = localtime;
@@ -929,6 +978,7 @@ sub parse_command_line {
                             "skip-dedup" => \$skip_dedup,
                             "no-dedup" => \$no_dedup,
                             "no-clean" => \$no_clean,
+                            "storable" => \$storable,
                             "force-bait=i" => \$params->{force_bait},
                             "match-award=i" => \$params->{match_award},
                             "mismatch-pen=s" => \$params->{mismatch_pen},
@@ -962,7 +1012,7 @@ sub parse_command_line {
 				            			) ;
 
 	
-	usage() if ($help);
+	usage(1) if ($help);
 
   #Check options
 
@@ -1000,12 +1050,15 @@ sub parse_command_line {
 
                             "max-mismatch-pen=i" => \$params->{max_mismatch_pen},
                             "min-mismatch-pen=i" => \$params->{min_mismatch_pen},
-	exit unless $result;
+	exit 1 unless $result;
 }
 
 
-sub usage()
+sub usage($)
 {
+
+my $full_help = shift;
+
 print<<EOF;
 TranslocPipeline.pl, by Robin Meyers, 2013
 
@@ -1043,6 +1096,7 @@ $arg{"--no-dedup","Do not run dedup filter"}
 $arg{"--no-clean","Do not delete temp files at end of process"}
 $arg{"--force-bait","Set to 0 to relax bait alignment restrictions",$params->{force_bait}}
 $arg{"--simfile"," "}
+$arg{"--storable"," "}
 
 Arguments sent to Bowtie2 alignment (see manual)
 $arg{"--match-award","",$params->{match_award}}
@@ -1080,5 +1134,6 @@ $arg{"--help","This helpful help screen."}
 
 EOF
 
+exit 0 if $full_help;
 exit 1;
 }

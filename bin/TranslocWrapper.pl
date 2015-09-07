@@ -479,5 +479,6 @@ EOF
 
 system("$FindBin::Bin/TranslocPipeline.pl --help") if $full_help;
 
+exit 0 if $full_help;
 exit 1;
 }
