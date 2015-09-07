@@ -49,7 +49,7 @@ my $meta_file;
 my $seqdir;
 my $outdir;
 my $which;
-my $pipeline_threads = 2;
+my $pipeline_threads = 1;
 my $pipeline_opt;
 my $print_only;
 my $simulate;
