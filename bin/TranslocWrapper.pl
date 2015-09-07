@@ -365,20 +365,25 @@ sub check_existance_of_files {
 	foreach my $expt_id (sort keys %meta) {
 		my $base = $seqdir."/".$expt_id;
 
-    if (-r $base."_R1.fq.gz") {
-      $meta{$expt_id}->{R1} = $base."_R1.fq.gz";
-      $meta{$expt_id}->{R2} = $base."_R2.fq.gz" if -r $base."_R2.fq.gz";
-    } elsif  (-r $base.".fq.gz") {
-      $meta{$expt_id}->{R1} = $base.".fq.gz";
-    } else {
-      croak "Error: could not locate read 1 file for $expt_id in $seqdir";
+    for my $ext (qw(.fq.gz .fastq.gz .fq .fastq)) {
+      if (-r $base."_R1".$ext) {
+        $meta{$expt_id}->{R1} = $base."_R1".$ext;
+        $meta{$expt_id}->{R2} = $base."_R2".$ext if -r $base."_R2".$ext;
+        carp "Warning: Proceeding with R1 file but couldn't locate R2 file" unless defined $meta{$expt_id}->{R2};
+        last;
+      } elsif (-r $base.$ext) {
+        $meta{$expt_id}->{R1} = $base.$ext;
+        last;
+      }
     }
+
+    croak "Error: could not locate sequence file for $expt_id in $seqdir" unless defined $meta{$expt_id}->{R1};
 
     if (defined $simulate) {
       if (-r $base.".txt") {
         $meta{$expt_id}->{simfile} = $base.".txt";  
       } else {
-        croak "Error could not locate simulated file $base.txt";
+        croak "Error: could not locate simulated file $base.txt";
       }
     }
 
