@@ -89,16 +89,19 @@ $ TranslocWrapper.pl metadata.txt preprocess/ results/ --threads 2
 
 **- unaligned:** No OCS alignments.
 
-- baitonly
-	- Bait alignment is either the only alignent in the OCS or  only followed by adapter alignment.
+**- baitonly:** Bait alignment is either the only alignent in the OCS or  only followed by adapter alignment.
 
-- uncut
-- misprimed
-- freqcut
-- largegap
-- mapqual
-- breaksite
-- sequential
+**- uncut:** Bait alignment runs greater than some number of bases past the cutsite.
+
+**- misprimed:** Bait alignment runs fewer than some number of bases past the primer.
+
+**- freqcut:** Restriction enzyme site within some number of bases from the junction. (Fairly depricated.)
+
+**- largegap:** More than some number of bases between the bait and prey alignments.
+
+**- mapqual:**
+**- breaksite:**
+**- sequential:**
 
 
 ## Re-filtering a library
