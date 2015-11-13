@@ -109,12 +109,20 @@ $ TranslocWrapper.pl metadata.txt preprocess/ results/ --threads 2
 ## Re-filtering a library
 
 ```
-$ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx
+$ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters ""
 ```
 
-### Ex. 1 Don't remove duplicates
+### Ex. 1 Keep duplicate junctions
+
+```
+$ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters ""
+```
 
 ### Ex. 2 Keep all un-translocated reads
 
+```
+$ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters ""
+```
 
+### Using a config file
 
