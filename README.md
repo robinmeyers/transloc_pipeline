@@ -99,9 +99,11 @@ $ TranslocWrapper.pl metadata.txt preprocess/ results/ --threads 2
 
 **- largegap:** More than some number of bases between the bait and prey alignments.
 
-**- mapqual:**
-**- breaksite:**
-**- sequential:**
+**- mapqual:** OCS had a competing prey junction.
+
+**- breaksite:** Prey alignment maps into non-endogenous breaksite cassette. (Fairly depricated.)
+
+**- sequential:** Junction occurs downstream on read from first bait-prey junction.
 
 
 ## Re-filtering a library
