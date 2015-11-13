@@ -85,4 +85,27 @@ $ TranslocPreprocess.pl metadata.txt preprocess/ --read1 pooled_R1.fq.gz --read2
 $ TranslocWrapper.pl metadata.txt preprocess/ results/ --threads 2
 ```
 
+# Filters
+
+1 unaligned
+1 baitonly
+1 uncut
+1 misprimed
+1 freqcut
+1 largegap
+1 mapqual
+1 breaksite
+1 sequential
+
+## Re-filtering a library
+
+```
+$ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx
+```
+
+### Ex. 1 Don't remove duplicates
+
+### Ex. 2 Keep all un-translocated reads
+
+
 
