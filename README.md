@@ -87,15 +87,15 @@ $ TranslocWrapper.pl metadata.txt preprocess/ results/ --threads 2
 
 # Filters
 
-1. unaligned
-1. baitonly
-1. uncut
-1. misprimed
-1. freqcut
-1. largegap
-1. mapqual
-1. breaksite
-1. sequential
+- unaligned
+- baitonly
+- uncut
+- misprimed
+- freqcut
+- largegap
+- mapqual
+- breaksite
+- sequential
 
 
 ## Re-filtering a library
