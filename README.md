@@ -88,7 +88,11 @@ $ TranslocWrapper.pl metadata.txt preprocess/ results/ --threads 2
 # Filters
 
 - unaligned
+	- No OCS alignments.
+
 - baitonly
+	- Bait alignment is either the only alignent in the OCS or  only followed by adapter alignment.
+
 - uncut
 - misprimed
 - freqcut
