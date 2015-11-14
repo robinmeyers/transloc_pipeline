@@ -72,11 +72,23 @@ Other modules:
 
 # Running the Pipeline
 
+
 ## Pre-processing libraries
 
+The Alt Lab primarily uses in-line barcodes (sequenced by the MiSeq at the head of the forward read) and then deconvolutes pooled libraries using this program. This script also calls an external tool to trim Illumina adapter sequence. If using Illumina multi-plex barcoding strategy, this script will not be useful except for trimming adapters, which is still recommended.
+
+### Starting from pooled library fastq files
+Deconvolutes and trims adapters
 ```
 $ cd ~/transloc_pipeline/data
 $ TranslocPreprocess.pl metadata.txt preprocess/ --read1 pooled_R1.fq.gz --read2 pooled_R2.fq.gz
+```
+
+### Starting from deconvoluted fastq files
+Just trims adapters
+```
+$ cd ~/transloc_pipeline/data
+$ TranslocPreprocess.pl metadata.txt preprocess/ --indir ./
 ```
 
 ## Running the pipeline
@@ -85,7 +97,11 @@ $ TranslocPreprocess.pl metadata.txt preprocess/ --read1 pooled_R1.fq.gz --read2
 $ TranslocWrapper.pl metadata.txt preprocess/ results/ --threads 2
 ```
 
-# Filters
+# Filtering
+
+The TranslocPipeline main output is the *.tlx file. One master tlx file will be generated per library. It can be thought of as similar to a sam file for NGS libraries. It contains output for every read in the library, and will serve as the starting point for all down-stream analyses. However, for most analyses, it will need to be filtered into only the required reads for the specific analysis. There is a default filtering that the pipeline will generate automatically. For any other filtering regime, the user will have to re-filter the master tlx file.
+
+## Available filters
 
 **- unaligned:** No OCS alignments.
 
