@@ -1235,7 +1235,17 @@ sub merge_alignments ($$) {
 }
 
 
-sub find_random_barcode ($$$$) {
+sub split_breaksite_reads ($) {
+  my $read_obj = shift;
+  my $params = $main::params;
+
+
+  
+  
+}
+
+
+sub find_random_barcode ($$) {
   my $read_obj = shift;
   my $barcode_length = shift;
 

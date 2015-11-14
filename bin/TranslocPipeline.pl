@@ -135,6 +135,10 @@ $params->{max_pe_gap} = 1000;
 $params->{pe_pen} = 50;
 $params->{max_dovetail} = 10;
 
+# Split Parameters
+$params->{min_del_split} = 2;
+$params->{max_dist_split} = 5;
+
 # Filter parameters
 # uncut filter params
 $params->{max_bp_after_cutsite} = 10;
@@ -993,11 +997,13 @@ sub parse_command_line {
                             "seed-interval=s" => \$params->{seed_interval},
                             "breaksite-alignments=i" => \$params->{breaksite_alignments},
                             "genome-alignments=i" => \$params->{genome_alignments},
-                            "max-brkstart-dif=i" => \$params->{max_brkstart_dif},
                             "break-pen=i" => \$params->{brk_pen},
                             "max-pe-gap=i" => \$params->{max_pe_gap},
                             "pe-pen=i" => \$params->{pe_pen},
                             "max-dovetail=i" => \$params->{max_dovetail},
+                            "max-brkstart-dif=i" => \$params->{max_brkstart_dif},
+                            "min-del-split" => \$params->{min_del_split},
+                            "max-dist-split" => \$params->{max_dist_split},                            
                             "max-uncut-bp=i" => \$params->{max_bp_after_cutsite},
                             "min-priming-bp=i" => \$params->{min_bp_after_primer},
                             "max-largegap=i" => \$params->{max_largegap},
@@ -1120,6 +1126,8 @@ $arg{"--break-pen","Junction penalty incurred for every breakpoint in OQC",$para
 $arg{"--max-pe-gap","Maximum gap allowed between paired-end alignments to be considered concordant",$params->{max_pe_gap}}
 $arg{"--pe-pen","Penalty incurred in OCS by gapped paired-end alignments (scaled to max-gap)",$params->{pe_pen}}
 $arg{"--max-dovetail","Maximum dovetail allowed between concordant alignments",$params->{max_dovetail}}
+$arg{"--min-del-split"," ",$params->{min_del_split}}
+$arg{"--max-dist-split"," ",$params->{max_dist_split}}
 $arg{"--max-uncut-bp","Maximum number of bases allowed to align after cutsite",$params->{max_bp_after_cutsite}}
 $arg{"--min-priming-bp","Minimum number of bases in bait alignment after the primer",$params->{min_bp_after_primer}}
 $arg{"--max-largegap","Maximum distance on query between bait and prey alignments",$params->{max_largegap}}
