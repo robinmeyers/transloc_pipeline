@@ -39,6 +39,12 @@ echo 'export GENOME_DB=~/genomes' >> ~/.bash_profile
 
 Install [Bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml)
 
+If using homebrew:
+```
+brew tap homebrew/science
+brew install bowtie2
+```
+
 ### Perl >= 5.16
 
 Install [Bioperl](http://www.bioperl.org/wiki/Installing_BioPerl_on_Unix)
