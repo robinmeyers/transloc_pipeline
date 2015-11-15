@@ -53,9 +53,9 @@ if (break.dist > 0 || offset.dist > 0) {
 if (cores > 1) {
     suppressPackageStartupMessages(library(doMC))
     registerDoMC(cores=cores)
-    doParallel <- TRUE
+    do_parallel <- TRUE
 } else {
-    doParallel <- FALSE
+    do_parallel <- FALSE
 }
 
 con  <- file(tlxfile, open = "r")
@@ -90,13 +90,14 @@ tlx.juncs <- filter(tlxs, !is.na(Junction) & Rname != "Adapter") %>%
 
 dup.rows <- tlx.juncs %>% group_indices(Rname, Strand, Offset, B_Junction)
 
-out.df <- split(tlx.juncs, dup.rows) %>% ldply(function(d) {
-    if (nrow(d) > 1) {
-        return(as.data.frame(cbind(d$Qname[2:nrow(d)] ,d$Qname[1])))
-    } else {
-        return(NULL)
-    }
-}, .id=NULL, .parallel=doParallel)
+out.df <- split(tlx.juncs, dup.rows) %>%
+    ldply(function(d) {
+        if (nrow(d) > 1) {
+            return(as.data.frame(cbind(d$Qname[2:nrow(d)] ,d$Qname[1])))
+        } else {
+            return(NULL)
+        }
+    }, .id=NULL, .parallel=do_arallel)
 
 write.table(out.df, output, sep="\t", quote=F, row.names=F, col.names=F)
 

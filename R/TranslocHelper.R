@@ -3,38 +3,92 @@ split.by.chr <- function(gr) {
   split(gr,seqnames(gr))
 }
 
-myCountOverlaps <- function(bins,tlx.cumsum) {
-  return(as.numeric(tlx.cumsum[end(bins)] - tlx.cumsum[pmax(start(bins)-1,1)]))
+myCountOverlaps <- function(bins, tlx.cumsum) {
+  return(as.numeric(tlx.cumsum[end(bins)] - tlx.cumsum[pmax(start(bins)-1, 1)]))
 }
 
+calculate_local_significance <- function(bins, tlx.cumsum, bin.width, bg.width) {
+    if (length(bins) < 1) return(numeric())
+    bins.hits <- myCountOverlaps(bins, tlx.cumsum)
+    bg.bins <- suppressWarnings(resize(bins, width=bg.width, fix="center") %>%
+                                    trim())
+    bg.bins.hits <- myCountOverlaps(bg.bins,tlx.cumsum)
+
+    p.local <- maply(cbind(k=bins.hits,
+                           N=bg.bins.hits,
+                           w=pmax(width(bins), bin.width) / width(bg.bins)),
+                     function(k, N, w) {
+                         2 * sum(dbinom(k:N, N, w)) + (k/w - N - 1) * dbinom(k, N, w)
+                     }, .expand=F)
+
+    p.local <- ifelse(p.local < 0 | p.local > 1, 1, p.local)
+    return(p.local)
+}
+
+calculate_chr_significance <- function(bins, tlx.cumsum, bin.width) {
+    if (length(bins) < 1) return(numeric())
+
+    bins.hits <- myCountOverlaps(bins,tlx.cumsum)
+    chr.hits <- as.numeric(tlx.cumsum[length(tlx.cumsum)])
+
+    w.mode <- as.numeric(names(which.max(table(width(bins))))) /
+        seqlengths(bins)[as.character(seqnames(bins)[1])]
+
+    binom.calc.table <- dbinom(1:chr.hits, chr.hits, w.mode)
+    binom.calc.cumsum <- rev(cumsum(rev(binom.calc.table)))
+    scan.stat.table <- 2*binom.calc.cumsum +
+        (1:chr.hits/w.mode - chr.hits - 1) * binom.calc.table
+
+    p.chr <- maply(cbind(k=bins.hits,
+                         N=chr.hits,
+                         w=pmax(width(bins), bin.width) /
+                             seqlengths(bins)[as.character(seqnames(bins))]),
+                   function(k, N, w) {
+                       if (w == w.mode) {
+                           return( scan.stat.table[k] )
+                       } else {
+                           return(2 * sum(dbinom(k:N, N, w)) +
+                                      (k/w - N - 1) * dbinom(k, N, w))
+                       }
+                   }, .expand=F)
+
+    p.chr <- ifelse(p.chr < 0 | p.chr > 1, 1, p.chr)
+
+    return(p.chr)
+}
+
+
 calculate.local.significance <- function(bins,tlx.cumsum,bin.width,bg.width,cores=4) {
-  
+
   if (length(bins) < 1) return(bins)
-  
+
 #   print(as.character(seqnames(bins)[1]))
-  
+
 #   tlx.tree <- GIntervalTree(tlx.gr)
-  
+
   bins$hits <- myCountOverlaps(bins,tlx.cumsum)
 #   bins$hits <- countOverlaps(bins,tlx.tree)
 
-  bg.bins <- suppressWarnings(resize(bins,width=bg.width,fix="center"))
+  bg.bins <- suppressWarnings(resize(bins, width=bg.width, fix="center") %>%
+                                  trim())
   bg.bins$hits <- myCountOverlaps(bg.bins,tlx.cumsum)
   bins$bg.local <- bg.bins$hits
-  
+
+
+
   bins$p.local <- mapply(function(k,N,w) {
-   
+
       return( 2* sum(dbinom(k:N,N,w)) + (k/w - N - 1) * dbinom(k,N,w))
-    
+
   },bins$hits,
   bg.bins$hits,
-  pmax(width(bins),bin.width)/width(bg.bins),
+  pmax(width(bins), bin.width) / width(bg.bins),
 #   mc.cores=cores,
   SIMPLIFY=T)
-  
+
   bins$p.local[bins$p.local < 0 | bins$p.local > 1] <- 1
-  
-  
+
+
   #   bg.bins$prob <- width(bg.bins)/(width(bg.bins)+bg.bins$hits)
   #   bins$p <- pnbinom(bins$hits-1,size=width(bins),prob=bg.bins$prob,lower.tail=F)
   return(bins)
@@ -44,23 +98,23 @@ calculate.local.significance <- function(bins,tlx.cumsum,bin.width,bg.width,core
 calculate.chr.significance <- function(bins,tlx.cumsum,bin.width,cores=4) {
 
   if (length(bins) < 1) return(bins)
-  
+
   bins$hits <- myCountOverlaps(bins,tlx.cumsum)
-  
-  
+
+
   chr.hits <- as.numeric(tlx.cumsum[length(tlx.cumsum)])
   bins$bg.chr <- chr.hits
-  
-  
+
+
   w.mode <- as.numeric(names(which.max(table(width(bins)))))/seqlengths(bins)[as.character(seqnames(bins)[1])]
-  
+
   binom.calc.table <- dbinom(1:chr.hits,chr.hits,w.mode)
   binom.calc.cumsum <- rev(cumsum(rev(binom.calc.table)))
   scan.stat.table <- 2*binom.calc.cumsum + (1:chr.hits/w.mode - chr.hits - 1) * binom.calc.table
-  
+
 #   w.mode <- as.numeric(names(which.max(table(width(bins1)))))/seqlengths(bins1)[as.character(seqnames(bins1)[1])]
 #   binom.calc.table <- rep(NA,nrow = max(bins$hits),ncol = max(chr.hit.table))
-  
+
 
 
   bins$p.chr <- mapply(function(k,N,w) {
@@ -74,28 +128,41 @@ calculate.chr.significance <- function(bins,tlx.cumsum,bin.width,cores=4) {
   pmax(width(bins),bin.width)/seqlengths(bins)[as.character(seqnames(bins))],
 #   mc.cores=cores,
   SIMPLIFY=T)
-  
+
   bins$p.chr[bins$p.chr < 0 | bins$p.chr > 1] <- 1
-  
+
   #   bg.bins$prob <- width(bg.bins)/(width(bg.bins)+bg.bins$hits)
   #   bins$p <- pnbinom(bins$hits-1,size=width(bins),prob=bg.bins$prob,lower.tail=F)
   return(bins)
 }
 
 
-trimPeaks <- function(peaks,tlx.gr) {
-  
-  
-  if (length(peaks) < 1) return(peaks)
-  
-  tlx.tree <- GIntervalTree(tlx.gr)
-  
+trim_peaks <- function(peaks, tlx.gr) {
 
-  
+
+    if (length(peaks) < 1) return(peaks)
+
+    start(peaks) <- start(tlx.gr[findOverlaps(peaks, tlx.gr, select="first")])
+    end(peaks) <- end(tlx.gr[findOverlaps(peaks, tlx.gr, select="last")])
+
+    return(peaks)
+}
+
+
+
+trimPeaks <- function(peaks, tlx.gr) {
+
+
+  if (length(peaks) < 1) return(peaks)
+
+  tlx.tree <- GIntervalTree(tlx.gr)
+
+
+
   start(peaks) <- start(tlx.tree[findOverlaps(peaks,tlx.tree,select="first")])
   end(peaks) <- end(tlx.tree[findOverlaps(peaks,tlx.tree,select="last")])
-  
-  
+
+
 
   return(peaks)
 }
@@ -108,28 +175,30 @@ removeHotSpots <- function(tlxgr,hotspotfile) {
 }
 
 tlxToBW <- function(tlxgr,mapfile,chrlen,binsize,strand=0) {
-  
+
   mapbw <- BigWigFile(normalizePath(mapfile))
   gr <- createGenomicRanges(chrlen,binsize=binsize,strand=strand)
-    
 
-  
+
+
   gr$hits <- countOverlaps(gr,tlxgr)
-  
+
   gr$mapability <- unlist(lapply(split(gr,seqnames(gr)),function(gr,bwf) {
     print(paste("calculating mapability on",seqnames(gr)[1]))
     unlist(mclapply(split(gr,1:length(gr)),calculateMapability,bwf,mc.cores=cores))
   }, mapbw))
-  
+
   gr <- gr[gr$mapability > 0]
-  
-  
+
+
   gr$dens <- gr$hits/(gr$mapability*(end(gr)-start(gr)+1))
   gr$adjHits <- gr$dens*binsize
   gr$score <- gr$adjHits
-  
+
   return(gr)
 }
+
+
 
 readTLX <- function(tlxfile,columnsToRead = c(),columnsToIgnore = c()) {
   if (length(columnsToRead) > 0) {
@@ -149,7 +218,7 @@ readTLX <- function(tlxfile,columnsToRead = c(),columnsToIgnore = c()) {
 
 tlxToGR <- function(tlx,chrlen,strand=0) {
   tlx <- tlx[tlx$Rname %in% names(chrlen),]
-  
+
   if (strand == 1 || strand == -1) {
     tlx <- tlx[tlx$Strand == strand,]
   }
@@ -167,21 +236,21 @@ calculateMapability <- function(range,bwf) {
 plotJunctions <- function (gr,binsize,strand=1,plottype="dot",plotshape="arrow",pal=NULL,rotateVP=0) {
 
   if (sum(gr$hits) < 1) return()
-  
+
   if (plottype == "dot") {
     dots <- data.frame(value=unlist(gr$hitvec),mids=rep(gr$mids,gr$hitveclen),stackpos=unlist(lapply(gr$hitveclen,function(x) { if (x>0) seq(1,x) })))
     if (rotateVP) {
       dotwidth <- convertHeight(-1*unit(binsize,"native"),"mm",valueOnly=T)
       vpheight <- convertWidth(unit(1,"npc"),"mm",valueOnly=T)
       dotheight <- convertWidth(strand*unit(min(dotwidth,vpheight/max(gr$hitveclen)),"mm"),"native",valueOnly=T)
-      
+
     } else {
       dotwidth <- convertWidth(unit(binsize,"native"),"mm",valueOnly=T)
       vpheight <- convertHeight(unit(1,"npc"),"mm",valueOnly=T)
       dotheight <- convertHeight(strand*unit(min(dotwidth,vpheight/max(gr$hitveclen)),"mm"),"native",valueOnly=T)
-      
+
     }
-    
+
     if (plotshape == "arrow") {
       xpoints <- unit(c(dots$mids-strand*binsize/2,dots$mids-strand*binsize/5,dots$mids-strand*binsize/5,dots$mids+strand*binsize/2,dots$mids-strand*binsize/5,dots$mids-strand*binsize/5,dots$mids-strand*binsize/2),"native")
       ypoints <- unit(c(dots$stackpos-1/3,dots$stackpos-1/3,dots$stackpos,dots$stackpos-1/2,dots$stackpos-1,dots$stackpos-2/3,dots$stackpos-2/3)*dotheight,"native")
@@ -197,19 +266,19 @@ plotJunctions <- function (gr,binsize,strand=1,plottype="dot",plotshape="arrow",
                         dots$stackpos-1,dots$stackpos-7/10,dots$stackpos-3/10,dots$stackpos)*dotheight,"native")
       vertices <- 8
     }
-    
-    
+
+
     if (rotateVP) {
       tmp <- xpoints
       xpoints <- ypoints
       ypoints <- tmp
     }
-    
-    grid.polygon(x=xpoints,y=ypoints,id=rep(1:nrow(dots),vertices),gp=gpar(fill=pal[dots$value],lty=0))  
-  
-    
-    
-    
+
+    grid.polygon(x=xpoints,y=ypoints,id=rep(1:nrow(dots),vertices),gp=gpar(fill=pal[dots$value],lty=0))
+
+
+
+
   } else {
     xpoints <- gr$mids
     if (plottype == "linear") {
@@ -233,7 +302,7 @@ plotJunctions <- function (gr,binsize,strand=1,plottype="dot",plotshape="arrow",
 }
 
 plotXScale <- function(chr,rstart,rend) {
-  
+
   sizeArray <- c(50,100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000,1000000,2000000,5000000,10000000,20000000,50000000,100000000,200000000)
   grid.xaxis(at=c(rstart,rend),label=c(" "," "))
   grid.text(label=formatBP(rend-rstart))
@@ -245,17 +314,17 @@ plotXScale <- function(chr,rstart,rend) {
 plotFeatures <- function(features,chr,rstart,rend) {
   grid.text(features$Name,x=unit((features$Start+features$End)/2,"native"),y=unit(1-(((0:(nrow(features)-1))%%3))*0.33,"npc"),just="top",gp=gpar(cex=0.75))
 #   grid.text(features$Name,x=unit((features$Start+features$End)/2,"native"),y=unit(0,"npc"),just="bottom",gp=gpar(cex=0.75))
-  
+
 }
 
 printHeader <- function(tlxfile,tlxdisp,tlxtot,assembly,chr,denom,pal,plottype,plotshape) {
-  
+
   if (plottype == "dot") {
     pushViewport(viewport(x=unit(1,"npc"),width=unit(1.5,"inches"),xscale=c(0,2),just="right"))
     x_legend <- unit(floor((1:length(denom)-1)/3) + 0.5,"native")
     y_legend <- unit((1:length(denom)-1)%%3 + 0.5,"lines")
-    grid.text(label=denom,x=unit(x_legend,"native"),y=unit(y_legend,"lines"),just="left")    
-    
+    grid.text(label=denom,x=unit(x_legend,"native"),y=unit(y_legend,"lines"),just="left")
+
     if (plotshape == "arrow") {
       vertices <- 7
       xpoints <- rep(x_legend-unit(1,"mm"),each=vertices) - unit(c(4,8/3,8/3,0,8/3,8/3,4),"mm")
@@ -265,34 +334,34 @@ printHeader <- function(tlxfile,tlxdisp,tlxtot,assembly,chr,denom,pal,plottype,p
       xpoints <- rep(x_legend-unit(1,"mm"),each=vertices) - unit(c(4,0,4),"mm")
       ypoints <- rep(y_legend,each=vertices) + unit(c(2,0,-2),"mm")
     } else if (plotshape == "octogon") {
-      vertices <- 8      
+      vertices <- 8
       xpoints <- rep(x_legend-unit(1,"mm"),each=vertices) - unit(c(3/10,0,0,3/10,7/10,1,1,7/10)*4,"mm")
       ypoints <- rep(y_legend,each=vertices) + unit(c(1/2,1/5,-1/5,-1/2,-1/2,-1/5,1/5,1/2)*4,"mm")
     }
-    
+
     grid.polygon(x=xpoints,y=ypoints,id=rep(1:length(denom),each=vertices),gp=gpar(fill=pal,lty=0))
     popViewport()
-    
+
     textwidth <- unit(1,"npc")-unit(1.5,"inches")
-    
+
   } else {
-    textwidth <- unit(1,"npc")    
+    textwidth <- unit(1,"npc")
   }
-  
+
   spacer <- unit(3,"mm")
-  
+
   pushViewport(viewport(x=unit(0.5,"npc"),width=unit(0.5,"npc"),just="right"))
   titletext <- sub(".tlx","",basename(tlxfile))
   grid.text(titletext,x=unit(1,"npc")-spacer,just="right",gp=gpar(cex=min(2.5,1/convertHeight(stringHeight(titletext),"npc",valueOnly=T),(1-convertWidth(spacer,"npc",valueOnly=T))/convertWidth(stringWidth(titletext),"npc",valueOnly=T))))
   popViewport()
-  
+
   pushViewport(viewport(x=unit(0.5,"npc"),width=textwidth,y=unit(1,"npc"),height=unit(0.5,"npc"),just=c("left","top")))
   hittext <- paste("Displaying",prettyNum(tlxdisp,big.mark=","),"of",prettyNum(tlxtot,big.mark=","),"hits")
   grid.text(hittext,x=spacer,just="left",gp=gpar(cex=min(1.25,1/convertHeight(stringHeight(hittext),"npc",valueOnly=T),(1-convertWidth(spacer,"npc",valueOnly=T))/convertWidth(stringWidth(hittext),"npc",valueOnly=T))))
   popViewport()
-  
+
   pushViewport(viewport(x=unit(0.5,"npc"),width=unit(0.5,"npc"),y=unit(0,"npc"),height=unit(0.5,"npc"),just=c("left","bottom")))
-  
+
   if (chr != "") {
     displaytext <- paste(assembly,"-",chr,"-",formatBP(binsize,1),"bins")
   } else {
@@ -300,17 +369,17 @@ printHeader <- function(tlxfile,tlxdisp,tlxtot,assembly,chr,denom,pal,plottype,p
   }
   grid.text(displaytext,x=spacer,just="left",gp=gpar(cex=min(1.25,1/convertHeight(stringHeight(displaytext),"npc",valueOnly=T),(1-convertWidth(spacer,"npc",valueOnly=T))/convertWidth(stringWidth(displaytext),"npc",valueOnly=T))))
   popViewport()
-  
-  
-  
-  
-#   
-#   
-#   
+
+
+
+
+#
+#
+#
 #   bintext <- paste(formatBP(binsize,1),"bins")
-#   
-#   
-#   
+#
+#
+#
 #   titletext <- paste(sub(".tlx","",basename(tlxfile))," - Displaying ",prettyNum(tlxdisp,big.mark=",")," of ",prettyNum(tlxtot,big.mark=",")," hits - ",formatBP(binsize,1)," bins",sep="")
 #   grid.text(titletext,gp=gpar(cex=min(2,1/convertHeight(stringHeight(titletext),"npc",valueOnly=T),1/convertWidth(stringWidth(titletext),"npc",valueOnly=T))))
 }
@@ -348,13 +417,13 @@ createGenomicRanges <- function (chrlen,rstart=0,rend=0,rmid=0,rwindow=0,binsize
   }
   seqlevels(gr) <- names(chrlen)
   return(gr)
-} 
+}
 
 getChromLens <- function (assembly) {
   chrlen <- read.delim(paste(Sys.getenv('GENOME_DB'),assembly,'annotation/ChromInfo.txt',sep="/"),header=F,as.is=T,col.names=c('Name','Length'))
   # Convert data frame to vector with element names set as chromosome names
   chrlen <- structure(chrlen$Length,names=as.character(chrlen$Name))
-  
+
   # Organize chromosome names into the correct order
   chrnum <- as.numeric(sub("chr","",names(chrlen[grep("chr[0-9]+",names(chrlen),perl=T)])))
   chrlet <- sub("chr","",names(chrlen[grep("chr[A-Z]+",names(chrlen),perl=T)]))
@@ -382,7 +451,7 @@ getFeatures <- function (assembly,featurefile) {
 
 getCytoColor <- function() {
   cytocolor <- c()
-  
+
   cytocolor["gpos100"]  <- rgb(0,0,0,max=255)
   cytocolor["gpos"]     <- rgb(0,0,0,max=255)
   cytocolor["gpos75"]   <- rgb(130,130,130,max=255)
@@ -394,7 +463,7 @@ getCytoColor <- function() {
   cytocolor["gneg"]     <- rgb(255,255,255,max=255)
   cytocolor["acen"]     <- rgb(217,47,39,max=255)
   cytocolor["stalk"]    <- rgb(100,127,164,max=255)
-  
+
   return(cytocolor)
 }
 
