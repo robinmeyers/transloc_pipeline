@@ -148,3 +148,21 @@ $ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_r
 
 ### Using a config file
 
+# Hotspot Detection
+
+Two methods of detecting hotspots.
+
+## Using MACS2 to do translocaiton peak detection
+
+Must have MACS2 installed.
+
+```
+$ tlx2BED-MACS.pl
+$ macs2
+```
+
+## Using scan statistics script to call peaks
+```
+$ TranslocHotspots.R
+```
+
