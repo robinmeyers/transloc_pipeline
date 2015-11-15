@@ -1,29 +1,26 @@
 #!/usr/bin/env perl
 
-
 use strict;
 use warnings;
 use Getopt::Long;
 use Carp;
+use File::Spec;
 use IO::File;
 use Text::CSV;
 use Bio::DB::Fasta;
 use threads;
 use Interpolation 'arg:@->$' => \&argument;
 use Time::HiRes qw(gettimeofday tv_interval);
+use IPC::System::Simple qw(system capture);
 
 use Cwd qw(abs_path);
 use FindBin;
 use lib abs_path("$FindBin::Bin/../lib");
 
-
-require "TranslocHelper.pl";
-require "PerlSub.pl";
-
+require "TranslocSub.pl";
 
 my $GENOME_DB = $ENV{'GENOME_DB'};
 defined $GENOME_DB or croak "Error: set environment variable GENOME_DB";
-
 
 
 # Flush output after every write
@@ -43,6 +40,7 @@ sub parse_command_line;
 sub read_in_meta_file;
 sub check_existance_of_files;
 sub process_experiment ($);
+sub usage ($);
 
 
 # Global flags and arguments, 
@@ -51,14 +49,14 @@ my $meta_file;
 my $seqdir;
 my $outdir;
 my $which;
-my $pipeline_threads = 2;
+my $pipeline_threads = 1;
 my $pipeline_opt;
 my $print_only;
-
+my $simulate;
 my $bsub;
-my $user_bsub_opt = "";
-my $default_bsub_opt = "-q mcore -n 4 -W 12:00";
+my $bsub_opt = "";
 
+our $debug_level = 0;
 
 # Global variabless
 my %meta;
@@ -122,6 +120,8 @@ unless (defined $print_only) {
             
             # if there are open threads, create a new one, push it onto list, and exit while loop
             if (scalar @running < $pipeline_threads) {
+
+                debug_print("creating new thread",1);
                 my $thr = threads->create( sub {
                             
                             process_experiment($expt_id);
@@ -153,7 +153,7 @@ printf("\nFinished all processes in %.2f seconds.\n", $t1);
 # End of program
 #
 
-# Main subroutine to start job
+# Main subroutine to launch job
 sub process_experiment ($) {
 
 	my $expt_id = shift;
@@ -187,17 +187,21 @@ sub process_experiment ($) {
   $tl_cmd = join(" ", $tl_cmd, "--breaksite", $expt_hash->{breaksite}) if $expt_hash->{breaksite};
   $tl_cmd = join(" ", $tl_cmd, "--cutter", $expt_hash->{cutfa}) if -r $expt_hash->{cutfa};
 
+  $tl_cmd = join(" ", $tl_cmd, "--simfile", $expt_hash->{simfile}) if defined $expt_hash->{simfile};
+
   $tl_cmd = join(" ", $tl_cmd, $pipeline_opt) if defined $pipeline_opt;
+
+  $tl_cmd = join(" ", $tl_cmd, "--debug", $debug_level) if $debug_level > 0;
+
+
 
   my $log = $expt_hash->{exptdir} . "/$expt_id.log";
 
   if (defined $bsub) {
-    my $bsubopt = manage_program_options($default_bsub_opt,$user_bsub_opt);
-    $tl_cmd = join(" ","bsub",$bsubopt,"-J",$expt_hash->{library},"-o $log -N",$tl_cmd);
+    $tl_cmd = join(" ","bsub",$bsub_opt,"-J",$expt_hash->{library},"-o $log -N",$tl_cmd);
   } else {
     $tl_cmd .= " >> $log 2>&1";
   }
-
 
   System($tl_cmd);
 
@@ -209,9 +213,9 @@ sub process_experiment ($) {
 sub read_in_meta_file {
 	System("perl -pi -e 's/\\r/\\n/g' $meta_file",1);
 
-	print "\nReading in meta file...\n";
+	debug_print("reading in meta file",1);
 
-  print join("\t",qw(. Library Researcher Genome Chr Start End Strand))."\n";
+  print join("\t",qw(. Library Sequencing Researcher Genome Chr Start End Strand))."\n";
 
 
 	my $metafh = IO::File->new("<$meta_file");
@@ -225,6 +229,7 @@ sub read_in_meta_file {
     $i++;
     
     print join("\t",$i,$expt->{library},
+                      $expt->{sequencing},
                       $expt->{researcher},
                       $expt->{assembly},
                       $expt->{chr},
@@ -238,7 +243,7 @@ sub read_in_meta_file {
 
         # Only proceed with checking metadata and 
         # adding to metahash if library is in @which array
-        next unless $i ~~ @which;
+        next unless grep { $_ == $i } @which;
       }
 
       check_validity_of_metadata($expt);
@@ -254,6 +259,8 @@ sub read_in_meta_file {
 
 sub check_validity_of_metadata ($) {
   my $expt = shift;
+
+  debug_print("checking validity of metadata",1,$expt->{library});
 
   # Convert all sequence fields to uppercase only
   $expt->{breakseq} = uc($expt->{breakseq});
@@ -271,14 +278,14 @@ sub check_validity_of_metadata ($) {
   my $assembly_obj = Bio::DB::Fasta->new($assembly_fa);
   my @chrlist = $assembly_obj->get_all_ids;
 
-  croak "Metadata error: chr must be valid" unless $expt->{chr} ~~ @chrlist; 
+  croak "Metadata error: chr must be valid" unless grep { $_ eq $expt->{chr} } @chrlist; 
   croak "Metadata error: end must not be less than start" if $expt->{end} < $expt->{start};
-  croak "Metadata error: strand must be one of + or -" unless $expt->{strand} ~~ [qw(+ -)];
+  croak "Metadata error: strand must be one of + or -" unless grep { $_ eq $expt->{strand} } qw(+ -);
 
   if ($expt->{breakseq} ne "") {
     croak "Metadata error: breaksite sequence contains non AGCT characters" unless $expt->{breakseq} =~ /^[AGCTagct]+$/;
     croak "Metadata error: breaksite must be defined if breakseq is" unless $expt->{breaksite};
-    croak "Metadata error: breaksite cannot be greater than the length of breakseq" if $expt->{breaksite} > length($expt->{breakseq});
+    croak "Metadata e for rror: breaksite cannot be greater than the length of breakseq" if $expt->{breaksite} > length($expt->{breakseq});
     croak "Metadata error: primer sequence not found in breakseq"
       unless index($expt->{breakseq},$expt->{primer}) > -1;
   } else {
@@ -299,11 +306,14 @@ sub check_validity_of_metadata ($) {
 
 sub prepare_working_directory ($) {
 
-
   my $expt_id = shift;
   my $expt_hash = $meta{$expt_id};
 
-  my $seqdir = $expt_hash->{exptdir} . "/sequences";
+  debug_print("creating working directory",1,$expt_id);
+
+
+  my $seqdir = File::Spec->catfile($expt_hash->{exptdir},
+                                    $expt_id . "_sequences");
 
   unless (-d $seqdir) {
     mkdir $seqdir or croak "Error: could not create sequenes directory for $expt_id";
@@ -349,38 +359,58 @@ sub prepare_working_directory ($) {
 }
 
 sub check_existance_of_files {
-	print "\nSearching for files\n";
+
+	debug_print("searching for input files",1);
+
 	foreach my $expt_id (sort keys %meta) {
 		my $base = $seqdir."/".$expt_id;
 
-    if (-r $base."_R1.fq.gz") {
-      $meta{$expt_id}->{R1} = $base."_R1.fq.gz";
-      $meta{$expt_id}->{R2} = $base."_R2.fq.gz" if -r $base."_R2.fq.gz";
-    } elsif  (-r $base.".fq.gz") {
-      $meta{$expt_id}->{R1} = $base.".fq.gz";
-    } else {
-      croak "Error: could not locate read 1 file for $expt_id in $seqdir";
+    for my $ext (qw(.fq.gz .fastq.gz .fq .fastq)) {
+      if (-r $base."_R1".$ext) {
+        $meta{$expt_id}->{R1} = $base."_R1".$ext;
+        $meta{$expt_id}->{R2} = $base."_R2".$ext if -r $base."_R2".$ext;
+        carp "Warning: Proceeding with R1 file but couldn't locate R2 file" unless defined $meta{$expt_id}->{R2};
+        last;
+      } elsif (-r $base.$ext) {
+        $meta{$expt_id}->{R1} = $base.$ext;
+        last;
+      }
+    }
+
+    croak "Error: could not locate sequence file for $expt_id in $seqdir" unless defined $meta{$expt_id}->{R1};
+
+    if (defined $simulate) {
+      if (-r $base.".txt") {
+        $meta{$expt_id}->{simfile} = $base.".txt";  
+      } else {
+        croak "Error: could not locate simulated file $base.txt";
+      }
     }
 
   }
 }
 
 sub parse_command_line {
+
+  debug_print("parsing command line",1);
+
 	my $help;
 
-	usage() if (scalar @ARGV == 0);
+	usage(0) if (scalar @ARGV == 0);
 
 	my $result = GetOptions ( "which=s" => \$which,
                             "bsub" => \$bsub,
-                            "bsub-opt=s" => \$user_bsub_opt,
+                            "bsub-opt=s" => \$bsub_opt,
 														"threads=i" => \$pipeline_threads,
                             "pipeline-opt=s" => \$pipeline_opt,
                             "print" => \$print_only,
+                            "debug=i" => \$debug_level,
+                            "simulate" => \$simulate,
 														"help" => \$help
 
 				            			);
 	
-	usage() if ($help);
+	usage(1) if ($help);
 
 
 
@@ -390,12 +420,12 @@ sub parse_command_line {
   if ($print_only) {
     if (scalar @ARGV < 1) {
       carp "Error: print option requires metadata argument";
-      usage();
+      usage(0);
     }
   } else {
      if (scalar @ARGV < 3) {
       carp "Error: not enough input arguments";
-      usage();
+      usage(0);
     }
   }
 
@@ -420,8 +450,11 @@ sub parse_command_line {
 }
 
 
-sub usage()
+sub usage ($)
 {
+
+my $full_help = shift;
+
 print<<EOF;
 TranslocWrapper, by Robin Meyers, 2013
 
@@ -437,17 +470,20 @@ $arg{"seqdir","Directory containing all input sequence files"}
 $arg{"outdir","Directory for results output"}
 $arg{"--which","Only run specific jobs, numbered by order in metafile"}
 $arg{"--bsub","Submit as LSF jobs"}
-$arg{"--bsub-opt","Specify bsub options different from default",$default_bsub_opt}
+$arg{"--bsub-opt","Specify bsub options different from default",$bsub_opt}
 $arg{"--threads","Number of libraries to run at once",$pipeline_threads}
 $arg{"--pipeline-opt","Specify pipeline options - see below"}
 $arg{"--print","Do not execute jobs, only print libraries found in metafile"}
+$arg{"--debug","Print debug info with verbosity at specified level, 1-4"}
+$arg{"--simulate","Indicate that these are simulations"}
 $arg{"--help","This helpful help screen."}
 
 --------------------------------------------
 
 EOF
 
-system('TranslocPipeline.pl --help');
+system("$FindBin::Bin/TranslocPipeline.pl --help") if $full_help;
 
+exit 0 if $full_help;
 exit 1;
 }

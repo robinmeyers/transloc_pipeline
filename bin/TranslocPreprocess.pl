@@ -13,16 +13,14 @@ use POSIX qw(ceil floor);
 use threads;
 use threads::shared;
 use Time::HiRes qw(gettimeofday tv_interval);
+use IPC::System::Simple qw(system capture);
 
 
 use Cwd qw(abs_path);
 use FindBin;
 use lib abs_path("$FindBin::Bin/../lib");
 
-require "PerlSub.pl";
-require "PipelineHelper.pl";
-
-
+require "TranslocSub.pl";
 
 # Flush output after every write
 select( (select(STDOUT), $| = 1 )[0] );
@@ -371,9 +369,9 @@ sub parse_command_line {
   usage() if (scalar @ARGV==0);
 
   my $result = GetOptions (
-  			"read1=s" => \$read1,
-  			"read2=s" => \$read2,
-  			"indir=s" => \$indir,
+	  			"read1=s" => \$read1,
+	  			"read2=s" => \$read2,
+	  			"indir=s" => \$indir,
 				"threads=i" => \$max_threads,
 				"bc-len=i" => \$bc_len,
 				"bc-mismatch=i" => \$bc_mismatch,
@@ -401,10 +399,8 @@ sub parse_command_line {
 		croak "Error: cannot define both input directory and non-de-multiplexed reads" if (defined $read1 || defined $read2);		
 	} else {
 		croak "Error: cannot find read 1 $read1 does not exist" unless (-r $read1);
-		unless (defined $read2) {
+		unless (-r $read2) {
 			$paired_end = 0;
-		} else {
-			croak "Error: cannot find read 2 $read2 does not exist" unless (-r $read2);
 		}
 	}
 	unless (-d $outdir) {

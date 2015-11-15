@@ -178,10 +178,11 @@ sub modify_genome {
 
   $outfh->close unless $multi_file;
 
-  my $fai = Bio::DB::Sam::Fai->load("$output/$output_tag.fa") unless $multi_file;
+  my $sam_fai = Bio::DB::Sam::Fai->load("$output/$output_tag.fa") unless $multi_file;
 
-  print "Building directory.index\n";
+  print "Building index\n";
   my $tmpdb = Bio::DB::Fasta->new($output);
+  my $fasta_fai = Bio::DB::Fasta->new("$output/$output_tag.fa") unless $multi_file;
 
 }
 

@@ -1,374 +1,316 @@
-use strict;
-use warnings;
+# Source of subroutines that calculate and set filters on tlxs
 
+sub filter_unaligned ($) {
+  my $read_obj = shift;
 
+  my $tlxs = $read_obj->{tlxs};
 
-sub filter_unjoined ($$) {
-  my $tlxls = shift;
-  my $brksite = shift;
-
-  my $filter;
-
-  my $junctions = 0;
-
-  return 0 unless defined $tlxls->[0]->{R1_ID};
-
-  if (@$tlxls < 2) {
-    $filter = "Unjoined";
+  if (! defined $tlxs->[0]->{B_Rname}) {
+    # my $junctions = filter_entire_read($tlxs,"unaligned");
+    filter_entire_read($tlxs,"unaligned");
+    # return(1,$junctions);
   } else {
-
-    foreach my $tlxl (@$tlxls[1..$#{$tlxls}]) {
-      last if $tlxl->{Rname} eq "Adapter";
-      next if defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} >= 0 && $tlxl->{R1_Rgap} < 3;
-      next if defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} >= 0 && $tlxl->{R2_Rgap} < 3;
-      $junctions++;
-    }
-
-    $filter = "Unjoined" unless $junctions;
-
-    if ($brksite->{aln_strand} == 1) {
-      $filter = "Unjoined" if $tlxls->[1]->{tlx}->{B_Rend} > $brksite->{joining_threshold};
-    } else {
-      $filter = "Unjoined" if $tlxls->[1]->{tlx}->{B_Rstart} < $brksite->{joining_threshold};
-    }
+    # return(0,0);
   }
-
-  $junctions = 0;
-
-  foreach my $tlxl (@$tlxls) {
-    if (defined $tlxl->{tlx} && ! defined $tlxl->{tlx}->{Filter}) {
-      if (defined $filter) {
-        $tlxl->{tlx}->{Filter} = $filter;
-      } else {
-        $junctions++;
-      }
-    }
-  }
-
-  return $junctions;
 
 }
 
+sub filter_baitonly ($) {
+  my $read_obj = shift;
 
-sub filter_mapping_quality ($$$$$$$$$$){
+  my $tlxs = $read_obj->{tlxs};
 
-  my $tlxls_ref = shift;
-  my $R1_alns_ref = shift;
-  my $R2_alns_ref = shift;
-  my $ol_thresh = shift;
-  my $mismatch_thresh_int = shift;
-  my $mismatch_thresh_coef = shift;
-  my $max_frag_length = shift;
-  my $match_award = shift;
-  my $mismatch_penalty = shift;
-  my $mapqfh = shift;
+  if (defined $tlxs->[0]->{B_Rname} && ! is_a_junction($tlxs->[0])) {
+    # my $junctions = filter_entire_read($tlxs,"baitonly");
+    filter_entire_read($tlxs,"baitonly");
+    # return(1,$junctions)
+  } else {
+    # return(0,0);
+  }
+}
 
-  my @tlxls = @$tlxls_ref;
-  my @R1_alns = @$R1_alns_ref;
-  my @R2_alns = @$R2_alns_ref;
+sub filter_isjunction ($) {
+  my $read_obj = shift;
 
+  my $tlxs = $read_obj->{tlxs};
 
-  my $filter;
+  foreach my $tlx (@$tlxs) {
+    $tlx->{filters}->{isjunction} = 1 if is_a_junction($tlx);
+  }
+}
 
-  my $quality_maps = 0;
+sub filter_uncut ($) {
+  my $read_obj = shift;
 
-  return 0 unless defined $tlxls[0]->{R1_ID};
+  my $params = $main::params;
 
+  my $tlxs = $read_obj->{tlxs};
+  my $tlx = $tlxs->[0];
 
-  TLXL: foreach my $tlxl (@tlxls) {
-    if (defined $filter) {
-      $tlxl->{tlx}->{Filter} = $filter if defined $tlxl->{tlx} && ! defined $tlxl->{tlx}->{Filter};
-      next TLXL;
-    }
-    last TLXL if $tlxl->{Rname} eq "Adapter";
-    my @R1_OL;
-    my @R2_OL;
-    if (defined $tlxl->{R1_ID}) {
-      my $tlxl_R1_length = $tlxl->{R1_Qend} - $tlxl->{R1_Qstart} + 1;
-      my $tlxl_R1_score = $tlxl->{R1_AS};
-      my $score_difference_thresh = ($match_award + $mismatch_penalty) * 
-                                    ($mismatch_thresh_int + $mismatch_thresh_coef * $tlxl_R1_length);
-      # print(join("\t",$tlxl_R1_length,$tlxl_R1_score,$score_difference_thresh)."\n");
-      foreach my $R1_aln (@R1_alns) {
-        next unless defined $R1_aln->{ID} && $R1_aln->{ID} ne $tlxl->{R1_ID};
-        next if $tlxl->{Rname} eq "Breaksite" && $R1_aln->{Rname} eq "Breaksite";
-        my $overlap = min($tlxl->{R1_Qend},$R1_aln->{Qend}) - max($tlxl->{R1_Qstart},$R1_aln->{Qstart}) + 1;
-        my $length = $R1_aln->{Qend} - $R1_aln->{Qstart} + 1;
-        my $score = $R1_aln->{AS};
-
-        if ($overlap >= $ol_thresh * ($tlxl->{R1_Qend} - $tlxl->{R1_Qstart} + 1) 
-              && $score >= $tlxl_R1_score - $score_difference_thresh) {
-          push (@R1_OL,$R1_aln);
-        }
-      }
-    }
-
-    if (defined $tlxl->{R2_ID}) {
-      my $tlxl_R2_length = $tlxl->{R2_Qend} - $tlxl->{R2_Qstart} + 1;
-      my $tlxl_R2_score = $tlxl->{R2_AS};
-      my $score_difference_thresh = ($match_award + $mismatch_penalty) * 
-                                    ($mismatch_thresh_int + $mismatch_thresh_coef * $tlxl_R2_length);
-      foreach my $R2_aln (@R2_alns) {
-        next unless defined $R2_aln->{ID} && $R2_aln->{ID} ne $tlxl->{R2_ID};
-        next if $tlxl->{Rname} eq "Breaksite" && $R2_aln->{Rname} eq "Breaksite";
-        my $overlap = min($tlxl->{R2_Qend},$R2_aln->{Qend}) - max($tlxl->{R2_Qstart},$R2_aln->{Qstart}) + 1;
-        my $length = $R2_aln->{Qend} - $R2_aln->{Qstart} + 1;
-        my $score = $R2_aln->{AS};
-
-
-        if ($overlap >= $ol_thresh * ($tlxl->{R2_Qend} - $tlxl->{R2_Qstart} + 1) 
-              && $score >= $tlxl_R2_score - $score_difference_thresh) {
-          push (@R2_OL,$R2_aln);
-        }
-      }
-    }
-
-    if (defined $tlxl->{R1_ID} && $tlxl->{R2_ID}) {
-      ALN_PAIR: foreach my $R1_aln (@R1_OL) {
-        foreach my $R2_aln (@R2_OL) {
-          if (pair_is_proper($R1_aln,$R2_aln,$max_frag_length)) {
-            $filter = "MappingQuality";
-            $mapqfh->print(join("\t",$tlxl->{Qname},
-                                     $tlxl->{Rname},
-                                     $tlxl->{R1_Rstart},
-                                     $tlxl->{R1_Rend},
-                                     $tlxl->{Strand},
-                                     $tlxl->{R1_Qstart},
-                                     $tlxl->{R1_Qend},
-                                     $tlxl->{R1_AS},
-                                     $tlxl->{R1_Cigar},
-                                     $tlxl->{Rname},
-                                     $tlxl->{R2_Rstart},
-                                     $tlxl->{R2_Rend},
-                                     $tlxl->{Strand},
-                                     $tlxl->{R2_Qstart},
-                                     $tlxl->{R2_Qend},
-                                     $tlxl->{R2_AS},
-                                     $tlxl->{R2_Cigar})."\n");
-            $mapqfh->print(join("\t",$R1_aln->{Qname},
-                                     $R1_aln->{Rname},
-                                     $R1_aln->{Rstart},
-                                     $R1_aln->{Rend},
-                                     $R1_aln->{Strand},
-                                     $R1_aln->{Qstart},
-                                     $R1_aln->{Qend},
-                                     $R1_aln->{AS},
-                                     $R1_aln->{Cigar},
-                                     $R2_aln->{Rname},
-                                     $R2_aln->{Rstart},
-                                     $R2_aln->{Rend},
-                                     $R2_aln->{Strand},
-                                     $R2_aln->{Qstart},
-                                     $R2_aln->{Qend},
-                                     $R2_aln->{AS},
-                                     $R2_aln->{Cigar})."\n");
-            last ALN_PAIR;
-          }
-        }
+  if (defined $tlx->{B_Rname}) {
+    if ($tlx->{B_Strand} == 1) {
+      if ($tlx->{B_Rend} > $params->{brksite}->{breakcoord}) {
+        # my $junctions = filter_entire_read($tlxs,"uncut");
+        filter_entire_read($tlxs,"uncut",$tlx->{B_Rend} - $params->{brksite}->{breakcoord});
+        # return(1,$junctions);
       }
     } else {
-      if (scalar @R1_OL > 0 || scalar @R2_OL > 0) {
-        $filter = "MappingQuality";
-        if (scalar @R1_OL > 0) {
-          $mapqfh->print(join("\t",$tlxl->{Qname},
-                                       $tlxl->{Rname},
-                                       $tlxl->{R1_Rstart},
-                                       $tlxl->{R1_Rend},
-                                       $tlxl->{Strand},
-                                       $tlxl->{R1_Qstart},
-                                       $tlxl->{R1_Qend},
-                                       $tlxl->{R1_AS},
-                                       $tlxl->{R1_Cigar})."\n");
-          foreach my $aln (@R1_OL) {
-            $mapqfh->print(join("\t", $aln->{Qname},
-                                      $aln->{Rname},
-                                      $aln->{Rstart},
-                                      $aln->{Rend},
-                                      $aln->{Strand},
-                                      $aln->{Qstart},
-                                      $aln->{Qend},
-                                      $aln->{AS},
-                                      $aln->{Cigar})."\n");
-          }
-        } else {
-          $mapqfh->print(join("\t",$tlxl->{Qname},
-                                       "",
-                                       "",
-                                       "",
-                                       "",
-                                       "",
-                                       "",
-                                       "",
-                                       "",
-                                       $tlxl->{Rname},
-                                       $tlxl->{R2_Rstart},
-                                       $tlxl->{R2_Rend},
-                                       $tlxl->{Strand},
-                                       $tlxl->{R2_Qstart},
-                                       $tlxl->{R2_Qend},
-                                       $tlxl->{R2_AS},
-                                       $tlxl->{R2_Cigar})."\n");
-          foreach my $aln (@R2_OL) {
-            $mapqfh->print(join("\t", $aln->{Qname},
-                                      "",
-                                      "",
-                                      "",
-                                      "",
-                                      "",
-                                      "",
-                                      "",
-                                      "",
-                                      $aln->{Rname},
-                                      $aln->{Rstart},
-                                      $aln->{Rend},
-                                      $aln->{Strand},
-                                      $aln->{Qstart},
-                                      $aln->{Qend},
-                                      $aln->{AS},
-                                      $aln->{Cigar})."\n");
-          }
-        }
-      }
-    }
+      if ($tlx->{B_Rstart} < $params->{brksite}->{breakcoord}) {
 
-    if (defined $tlxl->{tlx} && ! defined $tlxl->{tlx}->{Filter}) {
-      if (defined $filter) {
-        $tlxl->{tlx}->{Filter} = $filter;
-      } else {
-        $quality_maps++;
+        # my $junctions = filter_entire_read($tlxs,"uncut");
+        filter_entire_read($tlxs,"uncut",$params->{brksite}->{breakcoord} - $tlx->{B_Rstart});
+        # return(1,$junctions);
       }
     }
   }
 
-  return $quality_maps;
+  # return(0,0);
+}
 
+sub filter_misprimed ($) {
+  my $read_obj = shift;
+
+  my $params = $main::params;
+
+  my $tlxs = $read_obj->{tlxs};
+  my $tlx = $tlxs->[0];
+
+  if (defined $tlx->{B_Strand}) {
+    if ($tlx->{B_Strand} == 1) {
+      filter_entire_read($tlxs,"misprimed",
+        $tlx->{B_Rend} - ($params->{brksite}->{start} + $params->{brksite}->{primer}->length - 1));
+      # if ($tlx->{B_Rend} < $params->{brksite}->{misprimed_threshold}) {
+      #   my $junctions = filter_entire_read($tlxs,"misprimed");
+      #   return(1,$junctions);
+      # }
+    } else {
+      filter_entire_read($tlxs,"misprimed",
+        ($params->{brksite}->{end} - $params->{brksite}->{primer}->length) - $tlx->{B_Rstart});
+      # if ($tlx->{B_Rstart} > $params->{brksite}->{misprimed_threshold}) {
+      #   my $junctions = filter_entire_read($tlxs,"misprimed");
+      #   return(1,$junctions);
+      # }
+    }
+  }
+
+  # return(0,0);
 }
 
 
-sub filter_mispriming ($$) {
-  my $tlxls = shift;
-  my $brksite = shift;
+sub filter_freqcut ($) {
+  my $read_obj = shift;
+  
+  my $params = $main::params;
 
-  my $filter;
-  my $priming = 0;
+  my $tlxs = $read_obj->{tlxs};
 
-  return 0 unless defined $tlxls->[0]->{R1_ID};
+  my $i = 0;
 
-  $filter = "Mispriming" if $brksite->{aln_strand} == 1 && $tlxls->[0]->{R1_Rend} < $brksite->{priming_threshold};
-  $filter = "Mispriming" if $brksite->{aln_strand} == -1 && $tlxls->[0]->{R1_Rstart} > $brksite->{priming_threshold};
-
-  foreach my $tlxl (@$tlxls) {
-    if (defined $tlxl->{tlx} && ! defined $tlxl->{tlx}->{Filter}) {
-      if (defined $filter) {
-        $tlxl->{tlx}->{Filter} = $filter;
-      } else {
-        $priming++;
+  if ($params->{cutter} =~ /\S/) {
+    foreach my $tlx (@$tlxs) {
+      if (uc($tlx->{J_Seq}) =~ $params->{cutter} ||
+          uc(substr($tlx->{Seq},0,$tlx->{Qstart}+4)) =~ $params->{cutter}) {
+        filter_remainder_of_read($tlxs,"freqcut",$i);
       }
+      $i++;
     }
   }
+}
 
-  return $priming;
+sub filter_largegap ($) {
+  my $read_obj = shift;
+
+  my $tlxs = $read_obj->{tlxs};
+
+  my $i = 0;
+
+
+  foreach my $tlx (@$tlxs) {
+    if (is_a_junction($tlx)) {
+      $tlx->{filters}->{largegap} = max(0,$tlx->{Qstart} - $tlx->{B_Qend} - 1);
+    }
+    
+  }
 
 }
 
-sub filter_freq_cutter ($$) {
-  my $tlxls = shift;
-  my $cutter = shift;
+sub filter_mapqual ($) {
 
-  my $filter;
+  my $read_obj = shift;
 
-  my $no_cutter = 0;
+  my $params = $main::params;
 
-  return 0 unless defined $tlxls->[0]->{R1_ID};
+  my $tlxs = $read_obj->{tlxs};
 
-  foreach my $tlxl (@$tlxls) {
-    if (defined $tlxl->{tlx} && ! defined $tlxl->{tlx}->{Filter}) {
-      if (defined $filter) {
-        $tlxl->{tlx}->{Filter} = $filter;
-        next;
-      }
+  my $R1_alns = $read_obj->{R1_alns};
+  my $R2_alns = $read_obj->{R2_alns};
 
+  my $i = 0;
 
-      if (defined $cutter && $cutter->seq =~ /\S/) {
-        if (uc($tlxl->{tlx}->{J_Seq}) =~ $cutter->seq || substr($tlxl->{tlx}->{Seq},0,$tlxl->{tlx}->{Qstart}+4) =~ $cutter->seq) {
-          $filter = "FreqCutter";
-          $tlxl->{tlx}->{Filter} = $filter;
-          next;
+  foreach my $tlx (@$tlxs) {
+    unless (is_a_junction($tlx)) {
+      $tlx->{filters}->{mapqual} = 0;
+      next;
+    }
+
+    my $tlx_R1_aln = $R1_alns->{$tlx->{R1_ID}} if defined $tlx->{R1_ID};
+    my $tlx_R2_aln = $R2_alns->{$tlx->{R2_ID}} if defined $tlx->{R2_ID};
+
+    if (defined $tlx_R1_aln && defined $tlx_R2_aln) {
+
+      $tlx_R1_aln->{Primary} = 1;
+      $tlx_R1_aln->{Read} = "R1";
+      $tlx_R1_aln->{Overlap} = "";
+      $params->{mapqfh}->print(join("\t", @{$tlx_R1_aln}{@{$params->{mapq_header}}})."\n");
+
+      $tlx_R2_aln->{Primary} = 1;
+      $tlx_R2_aln->{Read} = "R2";
+      $tlx_R2_aln->{Overlap} = "";
+      $params->{mapqfh}->print(join("\t", @{$tlx_R2_aln}{@{$params->{mapq_header}}})."\n");
+
+      my $max_award = $params->{match_award} * (aln_query_length($tlx_R1_aln) +
+                                                aln_query_length($tlx_R2_aln));
+
+      my $diff_from_max = $max_award - ($tlx_R1_aln->{AS} + $tlx_R2_aln->{AS});
+
+      my $min_difference = $params->{mapq_score_thresh} + $diff_from_max * $params->{mapq_score_coef};
+
+      my $min_AS_threshold = $tlx_R1_aln->{AS} + $tlx_R2_aln->{AS} - $min_difference;
+
+      
+      foreach my $R1_aln_ID (keys $R1_alns) {
+        next if $R1_aln_ID eq $tlx->{R1_ID};
+
+        foreach my $R2_aln_ID (keys $R2_alns) {
+
+          my $R1_aln = $R1_alns->{$R1_aln_ID};
+          my $R2_aln = $R2_alns->{$R2_aln_ID};
+          next if ($R1_aln->{Rname} eq "Adapter");
+          next unless pair_is_proper($R1_aln, $R2_aln);
+
+          $R1_aln->{Primary} = 0;
+          $R1_aln->{Read} = "R1";
+          $R1_aln->{Overlap} = calculate_fraction_overlap($tlx_R1_aln,$R1_aln);
+          $params->{mapqfh}->print(join("\t", @{$R1_aln}{@{$params->{mapq_header}}})."\n");
+          
+          $R2_aln->{Primary} = 0;
+          $R2_aln->{Read} = "R1";
+          $R2_aln->{Overlap} = calculate_fraction_overlap($tlx_R2_aln,$R2_aln);
+          $params->{mapqfh}->print(join("\t", @{$R2_aln}{@{$params->{mapq_header}}})."\n");
+
+          if ($R1_aln->{Overlap} > $params->{mapq_ol_thresh} &&
+              $R2_aln->{Overlap} > $params->{mapq_ol_thresh} &&
+              $R1_aln->{AS} + $R2_aln->{AS} >= $min_AS_threshold) {
+
+            filter_remainder_of_read($tlxs, "mapqual", $i);
+
+            return;
+          }
+
         }
       }
 
-      $no_cutter++;
+    } elsif (defined $tlx_R1_aln) {
+
+      $tlx_R1_aln->{Primary} = 1;
+      $tlx_R1_aln->{Read} = "R1";
+      $tlx_R1_aln->{Overlap} = "";
+      $params->{mapqfh}->print(join("\t", @{$tlx_R1_aln}{@{$params->{mapq_header}}})."\n");
+
+      my $max_award = $params->{match_award} * (aln_query_length($tlx_R1_aln));
+
+      my $diff_from_max = $max_award - $tlx_R1_aln->{AS};
+
+      my $min_difference = $params->{mapq_score_thresh} + $diff_from_max * $params->{mapq_score_coef};
+
+      my $min_AS_threshold = $tlx_R1_aln->{AS} - $min_difference;
+
+      # only consider R1 alignments
+      foreach my $R1_aln_ID (keys $R1_alns) {
+        next if $R1_aln_ID eq $tlx->{R1_ID};
+
+        my $R1_aln = $R1_alns->{$R1_aln_ID};
+        next if ($R1_aln->{Rname} eq "Adapter");
+
+        $R1_aln->{Primary} = 0;
+        $R1_aln->{Read} = "R1";
+        $R1_aln->{Overlap} = calculate_fraction_overlap($tlx_R1_aln,$R1_aln);
+
+        $params->{mapqfh}->print(join("\t", @{$R1_aln}{@{$params->{mapq_header}}})."\n");
+
+        if ($R1_aln->{Overlap} > $params->{mapq_ol_thresh} &&
+            $R1_aln->{AS} >= $min_AS_threshold) {
+
+          filter_remainder_of_read($tlxs, "mapqual", $i);
+
+          return;
+        }
+      }
+    
+    } else {
+      
+      $tlx_R2_aln->{Primary} = 1;
+      $tlx_R2_aln->{Read} = "R2";
+      $tlx_R2_aln->{Overlap} = "";
+      $params->{mapqfh}->print(join("\t", @{$tlx_R2_aln}{@{$params->{mapq_header}}})."\n");
+
+      my $max_award = $params->{match_award} * (aln_query_length($tlx_R2_aln));
+
+      my $diff_from_max = $max_award - $tlx_R2_aln->{AS};
+
+      my $min_difference = $params->{mapq_score_thresh} + $diff_from_max * $params->{mapq_score_coef};
+
+      my $min_AS_threshold = $tlx_R2_aln->{AS} - $min_difference;
+
+      # only consider R2 alignments
+      foreach my $R2_aln_ID (keys $R2_alns) {
+        next if $R2_aln_ID eq $tlx->{R2_ID};
+
+        my $R2_aln = $R2_alns->{$R2_aln_ID};
+        next if ($R2_aln->{Rname} eq "Adapter");
+
+        $R2_aln->{Primary} = 0;
+        $R2_aln->{Read} = "R2";
+        $R2_aln->{Overlap} = calculate_fraction_overlap($tlx_R2_aln,$R2_aln);
+        $params->{mapqfh}->print(join("\t", @{$R2_aln}{@{$params->{mapq_header}}})."\n");
+
+        if ($R2_aln->{Overlap} > $params->{mapq_ol_thresh} &&
+            $R2_aln->{AS} >= $min_AS_threshold) {
+
+          filter_remainder_of_read($tlxs, "mapqual", $i);
+
+          return;
+        }
+
+      }
+
     }
+    $i++;
   }
 
-  return $no_cutter;
 }
 
 sub filter_breaksite ($) {
-  my $tlxls = shift;
-
-  my $filter;
-
-  my $outside_breaksite = 0;
-
-  return 0 unless defined $tlxls->[0]->{R1_ID};
-  return 0 unless defined $tlxls->[1];
-
-  foreach my $i (0..$#{$tlxls}) {
-
-    my $tlxl = $tlxls->[$i];
-
-    if (defined $tlxl->{tlx} && ! defined $tlxl->{tlx}->{Filter}) {
-      if (defined $filter) {
-        $tlxl->{tlx}->{Filter} = $filter;
-        next;
-      }
-
-
-
-      if (($i == 1 && $tlxl->{tlx}->{Rname} eq "Breaksite") ||
-          ($i == 1 && defined $tlxl->{R1_Rgap} && $tlxl->{R1_Rgap} >=0 && $tlxl->{R1_Rgap} < 10) ||
-          ($i == 1 && defined $tlxl->{R2_Rgap} && $tlxl->{R2_Rgap} >=0 && $tlxl->{R2_Rgap} < 10)) {
-        $filter = "Breaksite";
-        $tlxl->{tlx}->{Filter} = $filter;
-        next;
-      }
-
-      $outside_breaksite++;
+  my $read_obj = shift;
+  
+  my $tlxs = $read_obj->{tlxs};
+  my $i = 0;
+  foreach my $tlx (@$tlxs) {
+    if (defined $tlx->{Rname} && $tlx->{Rname} eq "Breaksite") {
+      $tlx->{filters}->{breaksite} = 1;
     }
+    $i++;
   }
-
-  return $outside_breaksite;
 }
 
-sub filter_sequential_junctions ($) {
-  my $tlxls = shift;
+sub filter_sequential ($) {
+  my $read_obj = shift;
 
-  my $filter;
+  my $tlxs = $read_obj->{tlxs};
 
-  my $primary_junction = 0;
-
-  return 0 unless defined $tlxls->[0]->{R1_ID};
-
-  foreach my $tlxl (@$tlxls) {
-
-    if (defined $tlxl->{tlx} && ! defined $tlxl->{tlx}->{Filter}) {
-      if (defined $filter) {
-        $tlxl->{tlx}->{Filter} = $filter;
-        next;
-      }
-
-      $primary_junction++;
-      $filter = "SequentialJunction";
-
-
-    }
+  if (defined $tlxs->[1] && is_a_junction($tlxs->[1])) {
+    filter_remainder_of_read($tlxs,"sequential",1);
   }
-
-  return $primary_junction;
-
-
-
 }
 
 
