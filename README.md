@@ -41,8 +41,8 @@ Install [Bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml)
 
 If using homebrew:
 ```
-brew tap homebrew/science
-brew install bowtie2
+$ brew tap homebrew/science
+$ brew install bowtie2
 ```
 
 ### Perl >= 5.16
