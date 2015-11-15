@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>Translocation Sequencing (HTGTS) Pipeline by robinmeyers</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">Translocation Sequencing (HTGTS) Pipeline</h1>
+      <h2 class="project-tagline">High-Throughput Genome-Wide Translocation Sequencing - Alt Lab</h2>
+      <a href="https://github.com/robinmeyers/transloc_pipeline" class="btn">View on GitHub</a>
+      <a href="https://github.com/robinmeyers/transloc_pipeline/zipball/master" class="btn">Download .zip</a>
+      <a href="https://github.com/robinmeyers/transloc_pipeline/tarball/master" class="btn">Download .tar.gz</a>
+    </section>
+
+    <section class="main-content">
+      <h1>
+<a id="installation" class="anchor" href="#installation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Installation</h1>
+
+<h2>
+<a id="download-code" class="anchor" href="#download-code" aria-hidden="true"><span class="octicon octicon-link"></span></a>Download code</h2>
+
+<pre><code>cd ~
+git clone https://github.com/robinmeyers/transloc_pipeline.git
+</code></pre>
+
+<p>Add directories to $PATH in ~/.profile or ~/.bash_profile</p>
+
+<pre><code>echo 'export PATH=~/transloc_pipeline/bin:~/transloc_pipeline/R:$PATH' &gt;&gt; ~/.bash_profile
+</code></pre>
+
+<h2>
+<a id="reference-genomes" class="anchor" href="#reference-genomes" aria-hidden="true"><span class="octicon octicon-link"></span></a>Reference Genomes</h2>
+
+<pre><code>mkdir -p ~/genomes/bowtie2_indexes
+cd ~/genomes/bowtie2_indexes
+wget ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.zip
+unzip hg19.zip
+mkdir ~/genomes/hg19
+bowtie2-inspect hg19 &gt; ~/genomes/hg19/hg19.fa 
+</code></pre>
+
+<p>Add environment variables to in ~/.profile or ~/.bash_profile</p>
+
+<pre><code>echo 'export BOWTIE2_INDEXES=~/genomes/bowtie2_indexes' &gt;&gt; ~/.bash_profile
+echo 'export GENOME_DB=~/genomes' &gt;&gt; ~/.bash_profile
+</code></pre>
+
+<h2>
+<a id="dependencies" class="anchor" href="#dependencies" aria-hidden="true"><span class="octicon octicon-link"></span></a>Dependencies</h2>
+
+<h3>
+<a id="bowtie2" class="anchor" href="#bowtie2" aria-hidden="true"><span class="octicon octicon-link"></span></a>Bowtie2</h3>
+
+<p>Install <a href="http://bowtie-bio.sourceforge.net/bowtie2/index.shtml">Bowtie2</a></p>
+
+<p>If using homebrew:</p>
+
+<pre><code>$ brew tap homebrew/science
+$ brew install bowtie2
+</code></pre>
+
+<h3>
+<a id="perl--516" class="anchor" href="#perl--516" aria-hidden="true"><span class="octicon octicon-link"></span></a>Perl &gt;= 5.16</h3>
+
+<p>Install <a href="http://www.bioperl.org/wiki/Installing_BioPerl_on_Unix">Bioperl</a></p>
+
+<pre><code>$ cpan
+</code></pre>
+
+<p>Find the most recent version</p>
+
+<pre><code>cpan&gt; d /bioperl/
+Distribution    CJFIELDS/BioPerl-1.6.901.tar.gz
+Distribution    CJFIELDS/BioPerl-1.6.923.tar.gz
+Distribution    CJFIELDS/BioPerl-1.6.924.tar.gz
+</code></pre>
+
+<p>Now install:</p>
+
+<pre><code>cpan&gt; install CJFIELDS/BioPerl-1.6.924.tar.gz
+</code></pre>
+
+<p>or</p>
+
+<pre><code>cpan&gt; force install CJFIELDS/BioPerl-1.6.924.tar.gz
+</code></pre>
+
+<p>Other modules:</p>
+
+<ul>
+<li>
+</ul>
+
+<h1>
+<a id="running-the-pipeline" class="anchor" href="#running-the-pipeline" aria-hidden="true"><span class="octicon octicon-link"></span></a>Running the Pipeline</h1>
+
+<h2>
+<a id="pre-processing-libraries" class="anchor" href="#pre-processing-libraries" aria-hidden="true"><span class="octicon octicon-link"></span></a>Pre-processing libraries</h2>
+
+<p>The Alt Lab primarily uses in-line barcodes (sequenced by the MiSeq at the head of the forward read) and then deconvolutes pooled libraries using this program. This script also calls an external tool to trim Illumina adapter sequence. If using Illumina multi-plex barcoding strategy, this script will not be useful except for trimming adapters, which is still recommended.</p>
+
+<h3>
+<a id="starting-from-pooled-library-fastq-files" class="anchor" href="#starting-from-pooled-library-fastq-files" aria-hidden="true"><span class="octicon octicon-link"></span></a>Starting from pooled library fastq files</h3>
+
+<p>Deconvolutes and trims adapters</p>
+
+<pre><code>$ cd ~/transloc_pipeline/data
+$ TranslocPreprocess.pl metadata.txt preprocess/ --read1 pooled_R1.fq.gz --read2 pooled_R2.fq.gz
+</code></pre>
+
+<h3>
+<a id="starting-from-deconvoluted-fastq-files" class="anchor" href="#starting-from-deconvoluted-fastq-files" aria-hidden="true"><span class="octicon octicon-link"></span></a>Starting from deconvoluted fastq files</h3>
+
+<p>Just trims adapters</p>
+
+<pre><code>$ cd ~/transloc_pipeline/data
+$ TranslocPreprocess.pl metadata.txt preprocess/ --indir ./
+</code></pre>
+
+<h2>
+<a id="running-the-pipeline-1" class="anchor" href="#running-the-pipeline-1" aria-hidden="true"><span class="octicon octicon-link"></span></a>Running the pipeline</h2>
+
+<pre><code>$ TranslocWrapper.pl metadata.txt preprocess/ results/ --threads 2
+</code></pre>
+
+<h1>
+<a id="filtering" class="anchor" href="#filtering" aria-hidden="true"><span class="octicon octicon-link"></span></a>Filtering</h1>
+
+<p>The TranslocPipeline main output is the *.tlx file. One master tlx file will be generated per library. It can be thought of as similar to a sam file for NGS libraries. It contains output for every read in the library, and will serve as the starting point for all down-stream analyses. However, for most analyses, it will need to be filtered into only the required reads for the specific analysis. There is a default filtering that the pipeline will generate automatically. For any other filtering regime, the user will have to re-filter the master tlx file.</p>
+
+<h2>
+<a id="available-filters" class="anchor" href="#available-filters" aria-hidden="true"><span class="octicon octicon-link"></span></a>Available filters</h2>
+
+<p><strong>- unaligned:</strong> No OCS alignments.</p>
+
+<p><strong>- baitonly:</strong> Bait alignment is either the only alignent in the OCS or  only followed by adapter alignment.</p>
+
+<p><strong>- uncut:</strong> Bait alignment runs greater than some number of bases past the cutsite.</p>
+
+<p><strong>- misprimed:</strong> Bait alignment runs fewer than some number of bases past the primer.</p>
+
+<p><strong>- freqcut:</strong> Restriction enzyme site within some number of bases from the junction. (Fairly depricated.)</p>
+
+<p><strong>- largegap:</strong> More than some number of bases between the bait and prey alignments.</p>
+
+<p><strong>- mapqual:</strong> OCS had a competing prey junction.</p>
+
+<p><strong>- breaksite:</strong> Prey alignment maps into non-endogenous breaksite cassette. (Fairly depricated.)</p>
+
+<p><strong>- sequential:</strong> Junction occurs downstream on read from first bait-prey junction.</p>
+
+<h2>
+<a id="re-filtering-a-library" class="anchor" href="#re-filtering-a-library" aria-hidden="true"><span class="octicon octicon-link"></span></a>Re-filtering a library</h2>
+
+<pre><code>$ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters ""
+</code></pre>
+
+<h3>
+<a id="ex-1-keep-duplicate-junctions" class="anchor" href="#ex-1-keep-duplicate-junctions" aria-hidden="true"><span class="octicon octicon-link"></span></a>Ex. 1 Keep duplicate junctions</h3>
+
+<pre><code>$ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters ""
+</code></pre>
+
+<h3>
+<a id="ex-2-keep-all-un-translocated-reads" class="anchor" href="#ex-2-keep-all-un-translocated-reads" aria-hidden="true"><span class="octicon octicon-link"></span></a>Ex. 2 Keep all un-translocated reads</h3>
+
+<pre><code>$ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters ""
+</code></pre>
+
+<h3>
+<a id="using-a-config-file" class="anchor" href="#using-a-config-file" aria-hidden="true"><span class="octicon octicon-link"></span></a>Using a config file</h3>
+
+<h1>
+<a id="hotspot-detection" class="anchor" href="#hotspot-detection" aria-hidden="true"><span class="octicon octicon-link"></span></a>Hotspot Detection</h1>
+
+<p>Two methods of detecting hotspots.</p>
+
+<h2>
+<a id="using-macs2-to-do-translocaiton-peak-detection" class="anchor" href="#using-macs2-to-do-translocaiton-peak-detection" aria-hidden="true"><span class="octicon octicon-link"></span></a>Using MACS2 to do translocaiton peak detection</h2>
+
+<p>Must have MACS2 installed.</p>
+
+<pre><code>$ tlx2BED-MACS.pl
+$ macs2
+</code></pre>
+
+<h2>
+<a id="using-scan-statistics-script-to-call-peaks" class="anchor" href="#using-scan-statistics-script-to-call-peaks" aria-hidden="true"><span class="octicon octicon-link"></span></a>Using scan statistics script to call peaks</h2>
+
+<pre><code>$ TranslocHotspots.R
+</code></pre>
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/robinmeyers/transloc_pipeline">Translocation Sequencing (HTGTS) Pipeline</a> is maintained by <a href="https://github.com/robinmeyers">robinmeyers</a>.</span>
+
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+  
+  </body>
+</html>
