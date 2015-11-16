@@ -1,7 +1,8 @@
 #!/usr/bin/env Rscript
 
-library(argparser)
-library(magrittr)
+suppressPackageStartupMessages(library(argparser))
+suppressPackageStartupMessages(library(magrittr))
+
 
 parser <- arg_parser("detect translocation hotspots using scan statistics",
                      name="TranslocHotSpots.R") %>%
