@@ -1,0 +1,7 @@
+.project
+.Rhistory
+.Rproj.user
+doc/*.aux
+doc/*.out
+doc/*.log
+
