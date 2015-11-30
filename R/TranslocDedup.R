@@ -97,7 +97,7 @@ out.df <- split(tlx.juncs, dup.rows) %>%
         } else {
             return(NULL)
         }
-    }, .id=NULL, .parallel=do_arallel)
+    }, .id=NULL, .parallel=do_parallel)
 
 write.table(out.df, output, sep="\t", quote=F, row.names=F, col.names=F)
 
