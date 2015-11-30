@@ -215,7 +215,7 @@ sub read_in_meta_file {
 
 	debug_print("reading in meta file",1);
 
-  print join("\t",qw(. Library Sequencing Researcher Genome Chr Start End Strand))."\n";
+  print join("\t",qw(. Library Genome Chr Start End Strand))."\n";
 
 
 	my $metafh = IO::File->new("<$meta_file");
@@ -228,9 +228,8 @@ sub read_in_meta_file {
     next unless $expt->{library} =~ /\S/;
     $i++;
     
+
     print join("\t",$i,$expt->{library},
-                      $expt->{sequencing},
-                      $expt->{researcher},
                       $expt->{assembly},
                       $expt->{chr},
                       $expt->{start},
@@ -248,7 +247,9 @@ sub read_in_meta_file {
 
       check_validity_of_metadata($expt);
 
-  		my $expt_id = $expt->{library} . "_" . $expt->{sequencing};
+  		my $expt_id = exists $expt->{sequencing} ?
+          $expt->{library} . "_" . $expt->{sequencing} :
+          $expt->{library} ;
       croak "Error: Experiment ID $expt_id is already taken" if exists $meta{$expt_id};
   		$meta{$expt_id} = $expt;
   		$meta{$expt_id}->{exptdir} = "$outdir/$expt_id";
@@ -262,12 +263,15 @@ sub check_validity_of_metadata ($) {
 
   debug_print("checking validity of metadata",1,$expt->{library});
 
+
+  $expt->{breaksite} = exists $expt->{breaksite} ? $expt->{breaksite} : "";
+  
   # Convert all sequence fields to uppercase only
-  $expt->{breakseq} = uc($expt->{breakseq});
-  $expt->{mid} = uc($expt->{mid});
+  $expt->{breakseq} = exists $expt->{breakseq} ? uc($expt->{breakseq}) : "";
+  $expt->{mid} = exists $expt->{mid} ? uc($expt->{mid}) : "";
   $expt->{primer} = uc($expt->{primer});
   $expt->{adapter} = uc($expt->{adapter});
-  $expt->{cutter} = uc($expt->{cutter});
+  $expt->{cutter} = exists $expt->{cutter} ? uc($expt->{cutter}) : "";
 
 
   my $assembly = $expt->{assembly};

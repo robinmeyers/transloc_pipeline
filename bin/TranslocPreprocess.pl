@@ -181,7 +181,8 @@ sub read_in_meta_file {
 
 		next unless $expt->{library} =~ /\S/;
 
-		my $name = $expt->{library} . "_" . $expt->{sequencing};
+		my $name = exists $expt->{sequencing} ?
+			$expt->{library} . "_" . $expt->{sequencing} : $expt->{library};
 
 		$meta{$name} = $expt;
 		
@@ -206,6 +207,9 @@ sub create_barcode_file {
 		} else {
 			$meta{$expt}->{R1} = "$outdir/multx/$expt.fq.gz";
 		}
+
+		$meta{$expt}->{mid} = exists $meta{$expt}->{mid} ? $meta{$expt}->{mid} : "";
+
 		my $barcode = uc(substr($meta{$expt}->{mid}.$meta{$expt}->{primer},0,$bc_len));
 		$bcfh->print(join("\t",$expt,$barcode)."\n");
 		print "$expt $barcode\n";
