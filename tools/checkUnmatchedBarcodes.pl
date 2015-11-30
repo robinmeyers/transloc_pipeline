@@ -8,6 +8,7 @@ use Carp;
 use Bio::SeqIO;
 use Interpolation 'arg:@->$' => \&argument;
 use Time::HiRes qw(gettimeofday tv_interval);
+use IPC::System::Simple qw(system capture);
 
 use Cwd qw(abs_path);
 use FindBin;
@@ -65,7 +66,9 @@ printf("\nFinished all processes in %.2f seconds.\n", $t1);
 
 sub read_in_unmatched {
 
-  my $file = $fastq =~ /\.gz$/ ? "gunzip -c $fastq |" : $fastq;
+  my $gunzippath = catpure("which gunzip");
+  chomp $gunzippath;
+  my $file = $fastq =~ /\.gz$/ ? "gunzippath -c $fastq |" : $fastq;
 
   my $fh = Bio::SeqIO->new(-file => $file,
                            -format => 'fastq');
