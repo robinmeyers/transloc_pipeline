@@ -13,7 +13,7 @@ use Cwd qw(abs_path);
 use FindBin;
 use lib abs_path("$FindBin::Bin/../lib");
 
-require "PerlSub.pl";
+require "TranslocSub.pl";
 
 
 # Flush output after every write

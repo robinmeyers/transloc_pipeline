@@ -221,11 +221,15 @@ sub create_barcode_file {
 sub check_existance_of_files {
 	print "\nSearching for files\n";
 	foreach my $expt (sort keys %meta) {
-		$meta{$expt}->{R1} = "$indir/${expt}_R1.fq.gz";
-		$meta{$expt}->{R2} = "$indir/${expt}_R2.fq.gz";
-		croak "Error: Could not locate $expt read 1 file" unless (-r $meta{$expt}->{R1});
-		croak "Error: Could not locate $expt read 2 file " unless (-r $meta{$expt}->{R2});
 
+	    for my $ext (qw(.fq.gz .fastq.gz .fq .fastq)) {
+			if (-r $indir."/".$expt."_R1".$ext) {
+				$meta{$expt}->{R1} = $indir."/".$expt."_R1".$ext;
+				$meta{$expt}->{R2} = $indir."/".$expt."_R2".$ext;
+	    	}
+		}
+		croak "Error: Could not locate $expt read 1 file" unless defined $meta{$expt}->{R1} && -r $meta{$expt}->{R1};
+		croak "Error: Could not locate $expt read 2 file " unless defined $meta{$expt}->{R2} && -r $meta{$expt}->{R2};
 	}
 }
 
