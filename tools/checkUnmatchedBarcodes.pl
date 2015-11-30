@@ -66,7 +66,7 @@ printf("\nFinished all processes in %.2f seconds.\n", $t1);
 
 sub read_in_unmatched {
 
-  my $gunzippath = catpure("which gunzip");
+  my $gunzippath = capture("which gunzip");
   chomp $gunzippath;
   my $file = $fastq =~ /\.gz$/ ? "gunzippath -c $fastq |" : $fastq;
 
