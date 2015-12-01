@@ -70,7 +70,7 @@ sub read_in_unmatched {
   chomp $gunzippath;
   my $file = $fastq =~ /\.gz$/ ? "$gunzippath -c $fastq |" : $fastq;
 
-  my $fh = Bio::SeqIO->new(-file => $file,
+  my $fh = Bio::SeqIO->new(-fh => IO::File->new($file),
                            -format => 'fastq');
 
   my $i = 0;
