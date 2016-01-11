@@ -97,8 +97,23 @@ Distribution    CJFIELDS/BioPerl-1.6.924.tar.gz
 <li>
 </ul>
 
+<h3>
+<a id="seqprep" class="anchor" href="#seqprep" aria-hidden="true"><span class="octicon octicon-link"></span></a>SeqPrep</h3>
+
+<pre><code>$ git clone https://github.com/jstjohn/SeqPrep.git
+$ cd SeqPrep
+$ make
+</code></pre>
+
+<p>Then add SeqPrep to your $PATH.</p>
+
 <h1>
 <a id="running-the-pipeline" class="anchor" href="#running-the-pipeline" aria-hidden="true"><span class="octicon octicon-link"></span></a>Running the Pipeline</h1>
+
+<h2>
+<a id="download-sample-data" class="anchor" href="#download-sample-data" aria-hidden="true"><span class="octicon octicon-link"></span></a>Download Sample Data</h2>
+
+<p><a href="https://github.com/robinmeyers/transloc_pipeline/zipball/tutorial-data">Sample Data</a></p>
 
 <h2>
 <a id="pre-processing-libraries" class="anchor" href="#pre-processing-libraries" aria-hidden="true"><span class="octicon octicon-link"></span></a>Pre-processing libraries</h2>
@@ -110,8 +125,7 @@ Distribution    CJFIELDS/BioPerl-1.6.924.tar.gz
 
 <p>Deconvolutes and trims adapters</p>
 
-<pre><code>$ cd ~/transloc_pipeline/data
-$ TranslocPreprocess.pl metadata.txt preprocess/ --read1 pooled_R1.fq.gz --read2 pooled_R2.fq.gz
+<pre><code>$ TranslocPreprocess.pl tutorial_metadata.txt preprocess/ --read1 pooled_R1.fq.gz --read2 pooled_R2.fq.gz
 </code></pre>
 
 <h3>
@@ -120,13 +134,13 @@ $ TranslocPreprocess.pl metadata.txt preprocess/ --read1 pooled_R1.fq.gz --read2
 <p>Just trims adapters</p>
 
 <pre><code>$ cd ~/transloc_pipeline/data
-$ TranslocPreprocess.pl metadata.txt preprocess/ --indir ./
+$ TranslocPreprocess.pl tutorial_metadata.txt preprocess/ --indir ./
 </code></pre>
 
 <h2>
 <a id="running-the-pipeline-1" class="anchor" href="#running-the-pipeline-1" aria-hidden="true"><span class="octicon octicon-link"></span></a>Running the pipeline</h2>
 
-<pre><code>$ TranslocWrapper.pl metadata.txt preprocess/ results/ --threads 2
+<pre><code>$ TranslocWrapper.pl tutorial_metadata.txt preprocess/ results/ --threads 2
 </code></pre>
 
 <h1>
