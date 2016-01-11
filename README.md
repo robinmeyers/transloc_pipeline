@@ -75,8 +75,20 @@ Other modules:
 
 - 
 
+### SeqPrep
+```
+$ git clone https://github.com/jstjohn/SeqPrep.git
+$ cd SeqPrep
+$ make
+```
+Then add SeqPrep to your $PATH.
+
 
 # Running the Pipeline
+
+## Download Sample Data
+
+[Sample Data](https://github.com/robinmeyers/transloc_pipeline/zipball/tutorial-data)
 
 
 ## Pre-processing libraries
@@ -86,21 +98,20 @@ The Alt Lab primarily uses in-line barcodes (sequenced by the MiSeq at the head 
 ### Starting from pooled library fastq files
 Deconvolutes and trims adapters
 ```
-$ cd ~/transloc_pipeline/data
-$ TranslocPreprocess.pl metadata.txt preprocess/ --read1 pooled_R1.fq.gz --read2 pooled_R2.fq.gz
+$ TranslocPreprocess.pl tutorial_metadata.txt preprocess/ --read1 pooled_R1.fq.gz --read2 pooled_R2.fq.gz
 ```
 
 ### Starting from deconvoluted fastq files
 Just trims adapters
 ```
 $ cd ~/transloc_pipeline/data
-$ TranslocPreprocess.pl metadata.txt preprocess/ --indir ./
+$ TranslocPreprocess.pl tutorial_metadata.txt preprocess/ --indir ./
 ```
 
 ## Running the pipeline
 
 ```
-$ TranslocWrapper.pl metadata.txt preprocess/ results/ --threads 2
+$ TranslocWrapper.pl tutorial_metadata.txt preprocess/ results/ --threads 2
 ```
 
 # Filtering
