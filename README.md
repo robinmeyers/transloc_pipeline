@@ -88,8 +88,14 @@ Then add SeqPrep to your $PATH.
 
 ## Download Sample Data
 
-[Sample Data](https://github.com/robinmeyers/transloc_pipeline/zipball/tutorial-data)
+[Download .zip](https://github.com/robinmeyers/transloc_pipeline/zipball/tutorial-data)
 
+or
+
+```
+$ git clone -b tutorial-data https://github.com/robinmeyers/transloc_pipeline.git tutorial_data
+$ cd ./tutorial_data
+```
 
 ## Pre-processing libraries
 
