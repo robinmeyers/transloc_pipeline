@@ -1,0 +1,16 @@
+---
+title: "Download"
+output: html_document
+---
+
+<br>
+<br>
+
+<a href="https://github.com/robinmeyers/transloc_pipeline" class="btn btn-primary btn-lg">View on GitHub</a>
+<a href="https://github.com/robinmeyers/transloc_pipeline/zipball/master" class="btn btn-primary btn-lg">Download .zip</a>
+<a href="https://github.com/robinmeyers/transloc_pipeline/tarball/master" class="btn btn-primary btn-lg">Download .tar.gz</a>
+  
+<br>
+<br>
+
+<a href="https://github.com/robinmeyers/transloc_pipeline/zipball/tutorial-data" class="btn btn-primary btn-lg">Download Sample Data</a>

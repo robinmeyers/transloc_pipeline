@@ -1,0 +1,9 @@
+---
+output: html_document
+---
+
+<div class="jumbotron">
+  <h1>Translocation Sequencing (HTGTS) Pipeline</h1>
+  <p>This is the home of the High-Throughput Genome-Wide Translocation Sequencing pipeline - provided by the <a href="http://www.idi.harvard.edu/investigators_research/investigator/alt_lab/">Alt Lab</a></p>
+  <p><a href="thedocs.html" class="btn btn-primary btn-lg">Read The Docs</a></p>
+</div>

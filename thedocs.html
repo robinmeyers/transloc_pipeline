@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+
+<title>The Docs</title>
+
+<script src="libs/jquery-1.11.3/jquery.min.js"></script>
+<script src="libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="libs/tocify-1.9.1/jquery.tocify.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="libs/bootstrap-3.3.5/css/spacelab.min.css" rel="stylesheet" />
+<script src="libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+
+
+
+
+
+</head>
+
+<body>
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+  height: auto;
+}
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+</style>
+
+<style type="text/css">
+/* padding for bootstrap navbar */
+body {
+  padding-top: 52px;
+  padding-bottom: 40px;
+}
+/* offset scroll position for anchor links (for fixed navbar)  */
+.section h1 {
+  padding-top: 57px;
+  margin-top: -57px;
+}
+
+.section h2 {
+  padding-top: 57px;
+  margin-top: -57px;
+}
+.section h3 {
+  padding-top: 57px;
+  margin-top: -57px;
+}
+.section h4 {
+  padding-top: 57px;
+  margin-top: -57px;
+}
+.section h5 {
+  padding-top: 57px;
+  margin-top: -57px;
+}
+.section h6 {
+  padding-top: 57px;
+  margin-top: -57px;
+}
+</style>
+
+<script>
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.parent().addClass('active');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+});
+</script>
+
+
+<div class="container-fluid main-container">
+
+<!-- tabsets -->
+<script src="libs/navigation-1.0/tabsets.js"></script>
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+</script>
+
+<!-- code folding -->
+
+
+
+
+<script>
+$(document).ready(function ()  {
+    // establish options
+    var options = {
+      selectors: "h1,h2",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+      },
+      ignoreSelector: "h1.title, .toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = false;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.9em;
+  padding-left: 5px;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+.tocify-subheader {
+  display: inline;
+}
+.tocify-subheader .tocify-item {
+  font-size: 0.95em;
+  padding-left: 10px;
+}
+
+</style>
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default navbar-inverse navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <!-- NOTE: add "navbar-inverse" class for an alternate navbar background -->
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">HTGTS Pipeline</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="download.html">Download</a></li>
+        <li><a href="thedocs.html">The Docs</a></li>
+        <li><a href="publications.html">Publications</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li><a href="https://github.com/robinmeyers/transloc_pipeline">GitHub</a></li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div class="fluid-row" id="header">
+
+
+<h1 class="title">The Docs</h1>
+
+</div>
+
+
+<div id="installation" class="section level1">
+<h1>Installation</h1>
+<div id="download-code" class="section level2">
+<h2>Download code</h2>
+<pre><code>cd ~
+git clone https://github.com/robinmeyers/transloc_pipeline.git</code></pre>
+<p>Add directories to $PATH in ~/.profile or ~/.bash_profile</p>
+<pre><code>echo &#39;export PATH=~/transloc_pipeline/bin:~/transloc_pipeline/R:$PATH&#39; &gt;&gt; ~/.bash_profile</code></pre>
+</div>
+<div id="reference-genomes" class="section level2">
+<h2>Reference Genomes</h2>
+<pre><code>mkdir -p ~/genomes/bowtie2_indexes
+cd ~/genomes/bowtie2_indexes
+wget ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.zip
+unzip hg19.zip
+mkdir ~/genomes/hg19
+bowtie2-inspect hg19 &gt; ~/genomes/hg19/hg19.fa </code></pre>
+<p>Add environment variables to in ~/.profile or ~/.bash_profile</p>
+<pre><code>echo &#39;export BOWTIE2_INDEXES=~/genomes/bowtie2_indexes&#39; &gt;&gt; ~/.bash_profile
+echo &#39;export GENOME_DB=~/genomes&#39; &gt;&gt; ~/.bash_profile</code></pre>
+</div>
+<div id="dependencies" class="section level2">
+<h2>Dependencies</h2>
+<div id="bowtie2" class="section level3">
+<h3>Bowtie2</h3>
+<p>Install <a href="http://bowtie-bio.sourceforge.net/bowtie2/index.shtml">Bowtie2</a></p>
+<p>If using homebrew:</p>
+<pre><code>$ brew tap homebrew/science
+$ brew install bowtie2</code></pre>
+</div>
+<div id="perl-5.16" class="section level3">
+<h3>Perl &gt;= 5.16</h3>
+<p>Install <a href="http://www.bioperl.org/wiki/Installing_BioPerl_on_Unix">Bioperl</a></p>
+<pre><code>$ cpan</code></pre>
+<p>Find the most recent version</p>
+<pre><code>cpan&gt; d /bioperl/
+Distribution    CJFIELDS/BioPerl-1.6.901.tar.gz
+Distribution    CJFIELDS/BioPerl-1.6.923.tar.gz
+Distribution    CJFIELDS/BioPerl-1.6.924.tar.gz</code></pre>
+<p>Now install:</p>
+<pre><code>cpan&gt; install CJFIELDS/BioPerl-1.6.924.tar.gz</code></pre>
+<p>or</p>
+<pre><code>cpan&gt; force install CJFIELDS/BioPerl-1.6.924.tar.gz</code></pre>
+<p>Other modules:</p>
+<ul>
+<li></li>
+</ul>
+</div>
+<div id="seqprep" class="section level3">
+<h3>SeqPrep</h3>
+<pre><code>$ git clone https://github.com/jstjohn/SeqPrep.git
+$ cd SeqPrep
+$ make</code></pre>
+<p>Then add SeqPrep to your $PATH.</p>
+</div>
+</div>
+</div>
+<div id="running-the-pipeline" class="section level1">
+<h1>Running the Pipeline</h1>
+<div id="download-sample-data" class="section level2">
+<h2>Download Sample Data</h2>
+<p><a href="https://github.com/robinmeyers/transloc_pipeline/zipball/tutorial-data">Download .zip</a></p>
+<p>or</p>
+<pre><code>$ git clone -b tutorial-data https://github.com/robinmeyers/transloc_pipeline.git tutorial_data
+$ cd ./tutorial_data</code></pre>
+</div>
+<div id="pre-processing-libraries" class="section level2">
+<h2>Pre-processing libraries</h2>
+<p>The Alt Lab primarily uses in-line barcodes (sequenced by the MiSeq at the head of the forward read) and then deconvolutes pooled libraries using this program. This script also calls an external tool to trim Illumina adapter sequence. If using Illumina multi-plex barcoding strategy, this script will not be useful except for trimming adapters, which is still recommended.</p>
+<div id="starting-from-pooled-library-fastq-files" class="section level3">
+<h3>Starting from pooled library fastq files</h3>
+<p>Deconvolutes and trims adapters</p>
+<pre><code>$ TranslocPreprocess.pl tutorial_metadata.txt preprocess/ --read1 pooled_R1.fq.gz --read2 pooled_R2.fq.gz</code></pre>
+</div>
+<div id="starting-from-deconvoluted-fastq-files" class="section level3">
+<h3>Starting from deconvoluted fastq files</h3>
+<p>Just trims adapters</p>
+<pre><code>$ cd ~/transloc_pipeline/data
+$ TranslocPreprocess.pl tutorial_metadata.txt preprocess/ --indir ./</code></pre>
+</div>
+</div>
+<div id="running-the-pipeline-1" class="section level2">
+<h2>Running the pipeline</h2>
+<pre><code>$ TranslocWrapper.pl tutorial_metadata.txt preprocess/ results/ --threads 2</code></pre>
+</div>
+</div>
+<div id="filtering" class="section level1">
+<h1>Filtering</h1>
+<p>The TranslocPipeline main output is the *.tlx file. One master tlx file will be generated per library. It can be thought of as similar to a sam file for NGS libraries. It contains output for every read in the library, and will serve as the starting point for all down-stream analyses. However, for most analyses, it will need to be filtered into only the required reads for the specific analysis. There is a default filtering that the pipeline will generate automatically. For any other filtering regime, the user will have to re-filter the master tlx file.</p>
+<div id="available-filters" class="section level2">
+<h2>Available filters</h2>
+<p><strong>- unaligned:</strong> No OCS alignments.</p>
+<p><strong>- baitonly:</strong> Bait alignment is either the only alignent in the OCS or only followed by adapter alignment.</p>
+<p><strong>- uncut:</strong> Bait alignment runs greater than some number of bases past the cutsite.</p>
+<p><strong>- misprimed:</strong> Bait alignment runs fewer than some number of bases past the primer.</p>
+<p><strong>- freqcut:</strong> Restriction enzyme site within some number of bases from the junction. (Fairly depricated.)</p>
+<p><strong>- largegap:</strong> More than some number of bases between the bait and prey alignments.</p>
+<p><strong>- mapqual:</strong> OCS had a competing prey junction.</p>
+<p><strong>- breaksite:</strong> Prey alignment maps into non-endogenous breaksite cassette. (Fairly depricated.)</p>
+<p><strong>- sequential:</strong> Junction occurs downstream on read from first bait-prey junction.</p>
+</div>
+<div id="re-filtering-a-library" class="section level2">
+<h2>Re-filtering a library</h2>
+<pre><code>$ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters &quot;&quot;</code></pre>
+<div id="ex.-1-keep-duplicate-junctions" class="section level3">
+<h3>Ex. 1 Keep duplicate junctions</h3>
+<pre><code>$ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters &quot;&quot;</code></pre>
+</div>
+<div id="ex.-2-keep-all-un-translocated-reads" class="section level3">
+<h3>Ex. 2 Keep all un-translocated reads</h3>
+<pre><code>$ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters &quot;&quot;</code></pre>
+</div>
+<div id="using-a-config-file" class="section level3">
+<h3>Using a config file</h3>
+</div>
+</div>
+</div>
+<div id="hotspot-detection" class="section level1">
+<h1>Hotspot Detection</h1>
+<p>Two methods of detecting hotspots.</p>
+<div id="using-macs2-to-do-translocaiton-peak-detection" class="section level2">
+<h2>Using MACS2 to do translocaiton peak detection</h2>
+<p>Must have MACS2 installed.</p>
+<pre><code>$ tlx2BED-MACS.pl
+$ macs2</code></pre>
+</div>
+<div id="using-scan-statistics-script-to-call-peaks" class="section level2">
+<h2>Using scan statistics script to call peaks</h2>
+<pre><code>$ TranslocHotspots.R</code></pre>
+</div>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+$(document).ready(function () {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+});
+
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
