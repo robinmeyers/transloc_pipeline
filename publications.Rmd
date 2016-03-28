@@ -2,3 +2,14 @@
 title: "Publications"
 output: html_document
 ---
+
+<br>
+<br>
+
+## Nature Protocols
+
+- *Coming soon*
+
+## Nature Biotechnology
+
+- Frock, R.L. *et al.* Genome-wide detection of DNA double-stranded breaks induced by engineered nucleases. *Nat. Biotechnol.* **33,** 179–186 (2015).  [Article](http://dx.doi.org/10.1038/nbt.3101)   [PubMed](http://www.ncbi.nlm.nih.gov/pubmed/25503383)

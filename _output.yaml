@@ -3,5 +3,8 @@ html_document:
   highlight: monochrome
   self_contained: false
   lib_dir: libs
+  css: sticky-footer-navbar.css
+  includes:
+    in_header: _footer.html
 
 
