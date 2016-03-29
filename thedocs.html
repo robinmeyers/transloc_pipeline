@@ -278,29 +278,37 @@ div.tocify {
 </div>
 
 
+<p><br></p>
 <div id="installation" class="section level1">
 <h1>Installation</h1>
-<div id="download-code" class="section level2">
-<h2>Download code</h2>
+<p><br></p>
+<div id="get-the-code" class="section level2">
+<h2>Get The Code</h2>
+<p>Either visit our <a href="download.html">download</a> page or clone our git repo using the commands below.</p>
 <pre><code>cd ~
 git clone https://github.com/robinmeyers/transloc_pipeline.git</code></pre>
 <p>Add directories to $PATH in ~/.profile or ~/.bash_profile</p>
 <pre><code>echo &#39;export PATH=~/transloc_pipeline/bin:~/transloc_pipeline/R:$PATH&#39; &gt;&gt; ~/.bash_profile</code></pre>
+<p><br></p>
 </div>
 <div id="reference-genomes" class="section level2">
 <h2>Reference Genomes</h2>
-<pre><code>mkdir -p ~/genomes/bowtie2_indexes
-cd ~/genomes/bowtie2_indexes
+<p>The pipeline requires both a fasta file and a bowtie2 index of your reference genome. The pipeline will search for these elements in the locations specified by two environment variables: <code>$GENOME_DB</code> and <code>$BOWTIE2_INDEXES</code>. The pipeline will throw an error if it cannot find the bowtie2 index files at <code>$BOWTIE2_INDEXES/&lt;reference id&gt;</code> and the genome fasta at <code>$GENOME_DB/&lt;reference id&gt;/&lt;reference id&gt;.fa</code>.</p>
+<p>First decide on your paths (e.g. <code>~/genomes</code> or <code>/usr/local/genomes</code> for <code>$GENOME_DB</code>) and then add required environment variables to in ~/.profile or ~/.bash_profile</p>
+<pre><code>echo &#39;export GENOME_DB=~/genomes&#39; &gt;&gt; ~/.bash_profile
+echo &#39;export BOWTIE2_INDEXES=~/genomes/bowtie2_indexes&#39; &gt;&gt; ~/.bash_profile
+source ~/.bash_profile</code></pre>
+<p>The code below is one way to set up the pipeline to run against the <strong>hg19</strong> reference genome. Running this will take some time to download the bowtie2 index and write the fasta file.</p>
+<pre><code>mkdir -p $BOWTIE2_INDEXES
+cd $BOWTIE2_INDEXES
 wget ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.zip
 unzip hg19.zip
-mkdir ~/genomes/hg19
-bowtie2-inspect hg19 &gt; ~/genomes/hg19/hg19.fa </code></pre>
-<p>Add environment variables to in ~/.profile or ~/.bash_profile</p>
-<pre><code>echo &#39;export BOWTIE2_INDEXES=~/genomes/bowtie2_indexes&#39; &gt;&gt; ~/.bash_profile
-echo &#39;export GENOME_DB=~/genomes&#39; &gt;&gt; ~/.bash_profile</code></pre>
+mkdir -p $GENOME_DB/hg19
+bowtie2-inspect hg19 &gt; $GENOME_DB/hg19/hg19.fa </code></pre>
+<p><br></p>
 </div>
-<div id="dependencies" class="section level2">
-<h2>Dependencies</h2>
+<div id="software-dependencies" class="section level2">
+<h2>Software Dependencies</h2>
 <div id="bowtie2" class="section level3">
 <h3>Bowtie2</h3>
 <p>Install <a href="http://bowtie-bio.sourceforge.net/bowtie2/index.shtml">Bowtie2</a></p>

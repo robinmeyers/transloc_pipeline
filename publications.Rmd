@@ -6,10 +6,24 @@ output: html_document
 <br>
 <br>
 
-## Nature Protocols
+### HTGTS Protocol in Nature Protocols, 2016
 
 - *Coming soon*
 
-## Nature Biotechnology
+### HTGTS Paper in Nature Biotechnology, 2015
 
-- Frock, R.L. *et al.* Genome-wide detection of DNA double-stranded breaks induced by engineered nucleases. *Nat. Biotechnol.* **33,** 179–186 (2015).  [Article](http://dx.doi.org/10.1038/nbt.3101)   [PubMed](http://www.ncbi.nlm.nih.gov/pubmed/25503383)
+- Frock, R.L. *et al.* Genome-wide detection of DNA double-stranded breaks induced by engineered nucleases. *Nat. Biotechnol.* **33,** 179–186 (2015). [Article](http://dx.doi.org/10.1038/nbt.3101) [PubMed](http://www.ncbi.nlm.nih.gov/pubmed/25503383)
+
+### Original method in Cell, 2011
+
+- Chiarle, R. *et al.* Genome-wide translocation sequencing reveals mechanisms of chromosome breaks and rearrangements in B cells. *Cell* **147,** 107–119 (2011). [Article]() [PubMed]()
+
+### Selected publications using HTGTS
+
+- Wei, P.C. *et al.* Long neural genes harbor recurrent DNA break clusters in neural stem/progenitor cells. *Cell* **164,** 644–655. [Article]() [PubMed]()
+- Hu, J. *et al.* Chromosomal loop domains direct the recombination of antigen receptor genes. *Cell* **163,** 947–959 (2015). [Article]() [PubMed]()
+- Dong, J. *et al.* Orientation-specific joining of AID-initiated DNA breaks promotes antibody class switching. *Nature* **525,** 134–139 (2015). [Article]() [PubMed]()
+- Meng, F.-L. *et al.* Convergent transcription at intragenic super-enhancers targets AID-initiated genomic instability. *Cell* **159,** 1538–1548 (2014). [Article]() [PubMed]()
+- Gostissa, M. *et al.* IgH class switching exploits a general property
+of two DNA breaks to be joined in cis over long chromosomal distances. *Proc. Natl. Acad. Sci. USA* **111,** 2644–2649 (2014). [Article]() [PubMed]()
+- Zhang, Y. *et al.* Spatial organization of the mouse genome and its role in recurrent chromosomal translocations. *Cell* **148,** 908–921 (2012). [Article]() [PubMed]()

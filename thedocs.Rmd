@@ -9,9 +9,15 @@ output:
             smooth_scroll: true
 ---
 
+<br>
+
 # Installation
 
-## Download code
+<br>
+
+## Get The Code
+
+Either visit our [download](download.html) page or clone our git repo using the commands below.
 
 ```
 cd ~
@@ -24,27 +30,34 @@ Add directories to $PATH in ~/.profile or ~/.bash_profile
 echo 'export PATH=~/transloc_pipeline/bin:~/transloc_pipeline/R:$PATH' >> ~/.bash_profile
 ```
 
+<br>
+
 ## Reference Genomes
 
+The pipeline requires both a fasta file and a bowtie2 index of your reference genome. The pipeline will search for these elements in the locations specified by two environment variables: `$GENOME_DB` and `$BOWTIE2_INDEXES`. The pipeline will throw an error if it cannot find the bowtie2 index files at `$BOWTIE2_INDEXES/<reference id>` and the genome fasta at `$GENOME_DB/<reference id>/<reference id>.fa`.
+
+First decide on your paths (e.g. `~/genomes` or `/usr/local/genomes` for `$GENOME_DB`) and then add required environment variables to in ~/.profile or ~/.bash_profile
+
 ```
-mkdir -p ~/genomes/bowtie2_indexes
-cd ~/genomes/bowtie2_indexes
+echo 'export GENOME_DB=~/genomes' >> ~/.bash_profile
+echo 'export BOWTIE2_INDEXES=~/genomes/bowtie2_indexes' >> ~/.bash_profile
+source ~/.bash_profile
+```
+
+The code below is one way to set up the pipeline to run against the **hg19** reference genome. Running this will take some time to download the bowtie2 index and write the fasta file.
+
+```
+mkdir -p $BOWTIE2_INDEXES
+cd $BOWTIE2_INDEXES
 wget ftp://ftp.ccb.jhu.edu/pub/data/bowtie2_indexes/hg19.zip
 unzip hg19.zip
-mkdir ~/genomes/hg19
-bowtie2-inspect hg19 > ~/genomes/hg19/hg19.fa 
+mkdir -p $GENOME_DB/hg19
+bowtie2-inspect hg19 > $GENOME_DB/hg19/hg19.fa 
 ```
 
-Add environment variables to in ~/.profile or ~/.bash_profile
+<br>
 
-```
-echo 'export BOWTIE2_INDEXES=~/genomes/bowtie2_indexes' >> ~/.bash_profile
-echo 'export GENOME_DB=~/genomes' >> ~/.bash_profile
-```
-
-
-
-## Dependencies
+## Software Dependencies
 
 ### Bowtie2
 
