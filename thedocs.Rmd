@@ -62,6 +62,8 @@ $ bowtie2-inspect hg19 > $GENOME_DB/hg19/hg19.fa
 
 ## Software Dependencies
 
+There are lots. Sorry about that.
+
 ### Bowtie2
 
 Install [Bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml)
@@ -151,8 +153,9 @@ Install required packages:
 > source("https://bioconductor.org/biocLite.R")
 > biocLite(c("GenomicRanges", "BSGenome"))
 ```
-***
 
+<br>
+***
 <br>
 
 # Running the Pipeline
@@ -192,7 +195,7 @@ $ TranslocPreprocess.pl tutorial_metadata.txt preprocess/ --indir ./
 ```
 $ TranslocWrapper.pl tutorial_metadata.txt preprocess/ results/ --threads 2
 ```
-
+<br>
 ***
 <br>
 
@@ -262,5 +265,7 @@ $ macs2
 ```
 $ TranslocHotspots.R
 ```
-***
+
 <br>
+***
+
