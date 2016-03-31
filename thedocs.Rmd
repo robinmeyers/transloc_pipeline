@@ -151,6 +151,7 @@ Install required packages:
 > source("https://bioconductor.org/biocLite.R")
 > biocLite(c("GenomicRanges", "BSGenome"))
 ```
+***
 
 <br>
 
@@ -192,11 +193,18 @@ $ TranslocPreprocess.pl tutorial_metadata.txt preprocess/ --indir ./
 $ TranslocWrapper.pl tutorial_metadata.txt preprocess/ results/ --threads 2
 ```
 
-# Filtering
+***
+<br>
+
+# Post-processing
+
+<br>
+
+## Filtering
 
 The TranslocPipeline main output is the *.tlx file. One master tlx file will be generated per library. It can be thought of as similar to a sam file for NGS libraries. It contains output for every read in the library, and will serve as the starting point for all down-stream analyses. However, for most analyses, it will need to be filtered into only the required reads for the specific analysis. There is a default filtering that the pipeline will generate automatically. For any other filtering regime, the user will have to re-filter the master tlx file.
 
-## Available filters
+### Available filters
 
 **- unaligned:** No OCS alignments.
 
@@ -217,31 +225,31 @@ The TranslocPipeline main output is the *.tlx file. One master tlx file will be 
 **- sequential:** Junction occurs downstream on read from first bait-prey junction.
 
 
-## Re-filtering a library
+### Re-filtering a library
 
 ```
 $ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters ""
 ```
 
-### Ex. 1 Keep duplicate junctions
+#### Ex. 1 Keep duplicate junctions
 
 ```
 $ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters ""
 ```
 
-### Ex. 2 Keep all un-translocated reads
+#### Ex. 2 Keep all un-translocated reads
 
 ```
 $ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters ""
 ```
 
-### Using a config file
+#### Using a config file
 
-# Hotspot Detection
+## Hotspot Detection
 
 Two methods of detecting hotspots.
 
-## Using MACS2 to do translocaiton peak detection
+### Using MACS2 to do translocaiton peak detection
 
 Must have MACS2 installed.
 
@@ -250,8 +258,9 @@ $ tlx2BED-MACS.pl
 $ macs2
 ```
 
-## Using scan statistics script to call peaks
+### Using scan statistics script to call peaks
 ```
 $ TranslocHotspots.R
 ```
-
+***
+<br>

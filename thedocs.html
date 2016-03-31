@@ -361,6 +361,7 @@ $ make</code></pre>
 <pre><code>&gt; install.packages(c(&quot;magrittr&quot;, &quot;readr&quot;, &quot;stringr&quot;, &quot;plyr&quot;, &quot;dplyr&quot;, &quot;data.table&quot;, ))
 &gt; source(&quot;https://bioconductor.org/biocLite.R&quot;)
 &gt; biocLite(c(&quot;GenomicRanges&quot;, &quot;BSGenome&quot;))</code></pre>
+<hr />
 <p><br></p>
 </div>
 </div>
@@ -393,13 +394,18 @@ $ TranslocPreprocess.pl tutorial_metadata.txt preprocess/ --indir ./</code></pre
 <div id="running-the-pipeline-1" class="section level2">
 <h2>Running the pipeline</h2>
 <pre><code>$ TranslocWrapper.pl tutorial_metadata.txt preprocess/ results/ --threads 2</code></pre>
+<hr />
+<p><br></p>
 </div>
 </div>
-<div id="filtering" class="section level1">
-<h1>Filtering</h1>
+<div id="post-processing" class="section level1">
+<h1>Post-processing</h1>
+<p><br></p>
+<div id="filtering" class="section level2">
+<h2>Filtering</h2>
 <p>The TranslocPipeline main output is the *.tlx file. One master tlx file will be generated per library. It can be thought of as similar to a sam file for NGS libraries. It contains output for every read in the library, and will serve as the starting point for all down-stream analyses. However, for most analyses, it will need to be filtered into only the required reads for the specific analysis. There is a default filtering that the pipeline will generate automatically. For any other filtering regime, the user will have to re-filter the master tlx file.</p>
-<div id="available-filters" class="section level2">
-<h2>Available filters</h2>
+<div id="available-filters" class="section level3">
+<h3>Available filters</h3>
 <p><strong>- unaligned:</strong> No OCS alignments.</p>
 <p><strong>- baitonly:</strong> Bait alignment is either the only alignent in the OCS or only followed by adapter alignment.</p>
 <p><strong>- uncut:</strong> Bait alignment runs greater than some number of bases past the cutsite.</p>
@@ -410,34 +416,37 @@ $ TranslocPreprocess.pl tutorial_metadata.txt preprocess/ --indir ./</code></pre
 <p><strong>- breaksite:</strong> Prey alignment maps into non-endogenous breaksite cassette. (Fairly depricated.)</p>
 <p><strong>- sequential:</strong> Junction occurs downstream on read from first bait-prey junction.</p>
 </div>
-<div id="re-filtering-a-library" class="section level2">
-<h2>Re-filtering a library</h2>
+<div id="re-filtering-a-library" class="section level3">
+<h3>Re-filtering a library</h3>
 <pre><code>$ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters &quot;&quot;</code></pre>
-<div id="ex.-1-keep-duplicate-junctions" class="section level3">
-<h3>Ex. 1 Keep duplicate junctions</h3>
-<pre><code>$ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters &quot;&quot;</code></pre>
-</div>
-<div id="ex.-2-keep-all-un-translocated-reads" class="section level3">
-<h3>Ex. 2 Keep all un-translocated reads</h3>
+<div id="ex.-1-keep-duplicate-junctions" class="section level4">
+<h4>Ex. 1 Keep duplicate junctions</h4>
 <pre><code>$ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters &quot;&quot;</code></pre>
 </div>
-<div id="using-a-config-file" class="section level3">
-<h3>Using a config file</h3>
+<div id="ex.-2-keep-all-un-translocated-reads" class="section level4">
+<h4>Ex. 2 Keep all un-translocated reads</h4>
+<pre><code>$ TranslocFilter.pl results/RF204_Alt055/RF204_Alt055.tlx results/RF204_Alt055_refiltered.tlx --filters &quot;&quot;</code></pre>
+</div>
+<div id="using-a-config-file" class="section level4">
+<h4>Using a config file</h4>
 </div>
 </div>
 </div>
-<div id="hotspot-detection" class="section level1">
-<h1>Hotspot Detection</h1>
+<div id="hotspot-detection" class="section level2">
+<h2>Hotspot Detection</h2>
 <p>Two methods of detecting hotspots.</p>
-<div id="using-macs2-to-do-translocaiton-peak-detection" class="section level2">
-<h2>Using MACS2 to do translocaiton peak detection</h2>
+<div id="using-macs2-to-do-translocaiton-peak-detection" class="section level3">
+<h3>Using MACS2 to do translocaiton peak detection</h3>
 <p>Must have MACS2 installed.</p>
 <pre><code>$ tlx2BED-MACS.pl
 $ macs2</code></pre>
 </div>
-<div id="using-scan-statistics-script-to-call-peaks" class="section level2">
-<h2>Using scan statistics script to call peaks</h2>
+<div id="using-scan-statistics-script-to-call-peaks" class="section level3">
+<h3>Using scan statistics script to call peaks</h3>
 <pre><code>$ TranslocHotspots.R</code></pre>
+<hr />
+<p><br></p>
+</div>
 </div>
 </div>
 
