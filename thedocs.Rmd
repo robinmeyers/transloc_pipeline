@@ -155,7 +155,9 @@ Install required packages:
 ```
 
 <br>
+
 ***
+
 <br>
 
 # Running the Pipeline
@@ -195,8 +197,11 @@ $ TranslocPreprocess.pl tutorial_metadata.txt preprocess/ --indir ./
 ```
 $ TranslocWrapper.pl tutorial_metadata.txt preprocess/ results/ --threads 2
 ```
+
 <br>
+
 ***
+
 <br>
 
 # Post-processing
@@ -267,5 +272,6 @@ $ TranslocHotspots.R
 ```
 
 <br>
+
 ***
 
