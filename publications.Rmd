@@ -8,7 +8,8 @@ output: html_document
 
 ### HTGTS Protocol in Nature Protocols, 2016
 
-- *Coming soon*
+- Hu, J. & Meyers, R.M. *et al.* Detecting DNA double-stranded breaks in mammalian genomes by linear amplification-mediated high-throughput genome-wide translocation sequencing. *Nat Protoc* **11,** 853–871 (2016). [Article](http://dx.doi.org/10.1038/nprot.2016.043) [PubMed](http://www.ncbi.nlm.nih.gov/pubmed/27031497) 
+
 
 ### HTGTS Paper in Nature Biotechnology, 2015
 
