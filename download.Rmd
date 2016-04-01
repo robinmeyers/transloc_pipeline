@@ -8,13 +8,13 @@ output: html_document
 
 ### Get the code!
 
-<a href="https://github.com/robinmeyers/transloc_pipeline" class="btn btn-primary btn-lg">View on GitHub</a>
-<a href="https://github.com/robinmeyers/transloc_pipeline/zipball/master" class="btn btn-primary btn-lg">Download .zip</a>
-<a href="https://github.com/robinmeyers/transloc_pipeline/tarball/master" class="btn btn-primary btn-lg">Download .tar.gz</a>
+<a href="https://github.com/robinmeyers/transloc_pipeline" class="btn btn-primary">View on GitHub</a>
+<a href="https://github.com/robinmeyers/transloc_pipeline/zipball/master" class="btn btn-primary">Download .zip</a>
+<a href="https://github.com/robinmeyers/transloc_pipeline/tarball/master" class="btn btn-primary">Download .tar.gz</a>
   
 <br>
 <br>
 
 ### Get some sample data!
 
-<a href="https://github.com/robinmeyers/transloc_pipeline/zipball/tutorial-data" class="btn btn-primary btn-lg">Download Sample Data</a>
+<a href="https://github.com/robinmeyers/transloc_pipeline/zipball/tutorial-data" class="btn btn-primary">Download Sample Data</a>

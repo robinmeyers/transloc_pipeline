@@ -286,16 +286,16 @@ div.tocify {
 <p><br></p>
 <div id="get-the-code" class="section level2">
 <h2>Get The Code</h2>
-<p>Either visit our <a href="download.html">download</a> page or clone our git repo.2</p>
+<p>Either visit our <a href="download.html">download</a> page or clone our git repo.</p>
 <pre><code>$ git clone https://github.com/robinmeyers/transloc_pipeline.git</code></pre>
-<p>Add directories to $PATH in ~/.profile or ~/.bash_profile</p>
+<p>Add directories to $PATH in <code>~/.profile</code> or <code>~/.bash_profile</code></p>
 <pre><code>$ echo &#39;export PATH=~/transloc_pipeline/bin:~/transloc_pipeline/R:$PATH&#39; &gt;&gt; ~/.bash_profile</code></pre>
 <p><br></p>
 </div>
 <div id="reference-genomes" class="section level2">
 <h2>Reference Genomes</h2>
 <p>The pipeline requires both a fasta file and a bowtie2 index of your reference genome. The pipeline will search for these elements in the locations specified by two environment variables: <code>$GENOME_DB</code> and <code>$BOWTIE2_INDEXES</code>. The pipeline will throw an error if it cannot find the bowtie2 index files at <code>$BOWTIE2_INDEXES/&lt;reference id&gt;</code> and the genome fasta at <code>$GENOME_DB/&lt;reference id&gt;/&lt;reference id&gt;.fa</code>.</p>
-<p>First decide on your paths (e.g. <code>~/genomes</code> or <code>/usr/local/genomes</code> for <code>$GENOME_DB</code>) and then add required environment variables to in ~/.profile or ~/.bash_profile</p>
+<p>First decide on your paths (e.g. <code>~/genomes</code> or <code>/usr/local/genomes</code> for <code>$GENOME_DB</code>) and then add required environment variables to in <code>~/.profile</code> or <code>~/.bash_profile</code></p>
 <pre><code>$ echo &#39;export GENOME_DB=~/genomes&#39; &gt;&gt; ~/.bash_profile
 $ echo &#39;export BOWTIE2_INDEXES=~/genomes/bowtie2_indexes&#39; &gt;&gt; ~/.bash_profile
 $ source ~/.bash_profile</code></pre>
