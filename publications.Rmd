@@ -14,7 +14,7 @@ output: html_document
 <div class="col-md-8">
 - Hu, J. & Meyers, R.M. *et al.* Detecting DNA double-stranded breaks in mammalian genomes by linear amplification-mediated high-throughput genome-wide translocation sequencing. *Nat Protoc* **11,** 853–871 (2016).
 </div>
-<div class="col-md-2">
+<div class="col-md-2" align="right">
 [Article](http://dx.doi.org/10.1038/nprot.2016.043) |
 [PubMed](http://www.ncbi.nlm.nih.gov/pubmed/27031497)
 </div>
@@ -27,7 +27,7 @@ output: html_document
 <div class="col-md-8">
 - Frock, R.L. *et al.* Genome-wide detection of DNA double-stranded breaks induced by engineered nucleases. *Nat. Biotechnol.* **33,** 179–186 (2015).
 </div>
-<div class="col-md-2">
+<div class="col-md-2" align="right">
 [Article](http://dx.doi.org/10.1038/nbt.3101) |
 [PubMed](http://www.ncbi.nlm.nih.gov/pubmed/25503383)
 </div>
@@ -39,7 +39,7 @@ output: html_document
 <div class="col-md-8">
 - Chiarle, R. *et al.* Genome-wide translocation sequencing reveals mechanisms of chromosome breaks and rearrangements in B cells. *Cell* **147,** 107–119 (2011). 
 </div>
-<div class="col-md-2">
+<div class="col-md-2" align="right">
 [Article](http://dx.doi.org/10.1016/j.cell.2011.07.049) |
 [PubMed](http://www.ncbi.nlm.nih.gov/pubmed/21962511)
 </div>
@@ -51,7 +51,7 @@ output: html_document
 <div class="col-md-8">
 - Wei, P.C. *et al.* Long neural genes harbor recurrent DNA break clusters in neural stem/progenitor cells. *Cell* **164,** 644–655. 
 </div>
-<div class="col-md-2">
+<div class="col-md-2" align="right">
 [Article](http://dx.doi.org/10.1016/j.cell.2015.12.039) | 
 [PubMed](http://www.ncbi.nlm.nih.gov/pubmed/26871630)
 </div>
@@ -61,7 +61,7 @@ output: html_document
 <div class="col-md-8">
 - Hu, J. *et al.* Chromosomal loop domains direct the recombination of antigen receptor genes. *Cell* **163,** 947–959 (2015).
 </div>
-<div class="col-md-2">
+<div class="col-md-2" align="right">
 [Article](http://dx.doi.org/10.1016/j.cell.2015.10.016) | 
 [PubMed](http://www.ncbi.nlm.nih.gov/pubmed/26593423)
 </div>
@@ -71,7 +71,7 @@ output: html_document
 <div class="col-md-8">
 - Dong, J. *et al.* Orientation-specific joining of AID-initiated DNA breaks promotes antibody class switching. *Nature* **525,** 134–139 (2015).
 </div>
-<div class="col-md-2">
+<div class="col-md-2" align="right">
 [Article](http://dx.doi.org/10.1038/nature14970) |
 [PubMed](http://www.ncbi.nlm.nih.gov/pubmed/26308889)
 </div>
@@ -81,7 +81,7 @@ output: html_document
 <div class="col-md-8">
 - Meng, F.-L. *et al.* Convergent transcription at intragenic super-enhancers targets AID-initiated genomic instability. *Cell* **159,** 1538–1548 (2014).
 </div>
-<div class="col-md-2">
+<div class="col-md-2" align="right">
 [Article](http://dx.doi.org/10.1016/j.cell.2014.11.014) |
 [PubMed](http://www.ncbi.nlm.nih.gov/pubmed/25483776)
 </div>
@@ -92,7 +92,7 @@ output: html_document
 - Gostissa, M. *et al.* IgH class switching exploits a general property
 of two DNA breaks to be joined in cis over long chromosomal distances. *Proc. Natl. Acad. Sci. USA* **111,** 2644–2649 (2014).
 </div>
-<div class="col-md-2">
+<div class="col-md-2" align="right">
 [Article](http://dx.doi.org/10.1073/pnas.1324176111) |
 [PubMed](http://www.ncbi.nlm.nih.gov/pubmed/24550291)
 </div>
@@ -102,7 +102,7 @@ of two DNA breaks to be joined in cis over long chromosomal distances. *Proc. Na
 <div class="col-md-8">
 - Zhang, Y. *et al.* Spatial organization of the mouse genome and its role in recurrent chromosomal translocations. *Cell* **148,** 908–921 (2012).
 </div>
-<div class="col-md-2">
+<div class="col-md-2" align="right">
 [Article](http://dx.doi.org/10.1016/j.cell.2012.02.002) |  [PubMed](http://www.ncbi.nlm.nih.gov/pubmed/22341456)
 </div>
 </div>
