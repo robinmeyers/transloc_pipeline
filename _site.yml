@@ -1,0 +1,30 @@
+name: "HTGTS"
+output_dir: "."
+output:
+  html_document:
+    theme: spacelab
+    highlight: monochrome
+    self_contained: false
+    css: includes/sticky-footer-navbar.css
+    includes:
+      in_header: includes/footer.html
+navbar:
+  title: "HTGTS"
+  type: inverse
+  left:
+    - text: "Home"
+      icon: fa-home
+      href: index.html
+    - text: "Download"
+      icon: fa-arrow-circle-down
+      href: download.html
+    - text: "The Docs"
+      icon: fa-info-circle
+      href: thedocs.html
+    - text: "Publications"
+      icon: fa-book
+      href: publications.html
+  right:
+    - text: "GitHub"
+      icon: fa-github
+      href: "https://github.com/robinmeyers/transloc_pipeline"
