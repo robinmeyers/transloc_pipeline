@@ -1,16 +1,23 @@
+
+<br>
+
+*Under Construction! (Spring 2016)*
+
+<br>
+
 # Installation
 
 <br>
 
 ## Get The Code
 
-Either visit our [download](download.html) page or clone our git repo.2
+Either visit our [download](download.html) page or clone our git repo.
 
 ```
 $ git clone https://github.com/robinmeyers/transloc_pipeline.git
 ```
 
-Add directories to $PATH in ~/.profile or ~/.bash_profile
+Add directories to $PATH in `~/.profile` or `~/.bash_profile`
 
 ```
 $ echo 'export PATH=~/transloc_pipeline/bin:~/transloc_pipeline/R:$PATH' >> ~/.bash_profile
@@ -22,7 +29,7 @@ $ echo 'export PATH=~/transloc_pipeline/bin:~/transloc_pipeline/R:$PATH' >> ~/.b
 
 The pipeline requires both a fasta file and a bowtie2 index of your reference genome. The pipeline will search for these elements in the locations specified by two environment variables: `$GENOME_DB` and `$BOWTIE2_INDEXES`. The pipeline will throw an error if it cannot find the bowtie2 index files at `$BOWTIE2_INDEXES/<reference id>` and the genome fasta at `$GENOME_DB/<reference id>/<reference id>.fa`.
 
-First decide on your paths (e.g. `~/genomes` or `/usr/local/genomes` for `$GENOME_DB`) and then add required environment variables to in ~/.profile or ~/.bash_profile
+First decide on your paths (e.g. `~/genomes` or `/usr/local/genomes` for `$GENOME_DB`) and then add required environment variables to in `~/.profile` or `~/.bash_profile`
 
 ```
 $ echo 'export GENOME_DB=~/genomes' >> ~/.bash_profile
