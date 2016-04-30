@@ -82,11 +82,11 @@ Install [Samtools](http://samtools.sourceforge.net/)
 **IMPT:** The perl module that uses the samtools installation requires an older version of samtools. From the (README)[http://cpansearch.perl.org/src/LDS/Bio-SamTools-1.43/README], *"This is a Perl interface to the SAMtools sequence alignment
 interface. It ONLY works on versions of Samtools up to 0.1.17. It does
 not work on version 1.0 or higher due to major changes in the library
-structure."*
+structure."* Also, on some machines you may have to edit the Makefile and add `-fPIC` to `CFLAGS` variable (`CFLAGS = -g -Wall -O2 -fPIC`) so that it plays nice with the Perl module.
 
 ### Perl >= 5.16
 
-On **OS X**, I have had good success with the [ActivePerl](http://www.activestate.com/activeperl/downloads) distribution. [Perlbrew](http://perlbrew.pl/) is a good option for a **Linux** machine, especially without root access.
+On **OS X**, I have had good success with the [ActivePerl](http://www.activestate.com/activeperl/downloads) distribution. [Perlbrew](http://perlbrew.pl/) is a good option if you are on a **Linux** machine without root access. 
 
 ### Bioperl
 
@@ -117,13 +117,19 @@ or
 cpan> force install CJFIELDS/BioPerl-1.6.924.tar.gz
 ```
 
+The Samtools module is installed separately. When prompted enter the path where you installed Samtools earlier.
+
+```
+cpan > install Bio::DB::Sam
+```
+
 Other modules (all of which can be installed using cpan install commands)
 
 ```
 cpan > install Getopt::Long Text::CSV List::MoreUtils Data::GUID Interpolation IPC::System::Simple Storable Switch::Plain
 ```
 
-I have missed a few. Missing modules can be installed the same as above.
+I may have missed a few. Missing modules can be installed the same as above.
 
 ### SeqPrep
 

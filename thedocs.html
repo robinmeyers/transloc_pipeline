@@ -361,11 +361,11 @@ $ brew install bowtie2</code></pre>
 <div id="samtools" class="section level3">
 <h3>Samtools</h3>
 <p>Install <a href="http://samtools.sourceforge.net/">Samtools</a></p>
-<p><strong>IMPT:</strong> The perl module that uses the samtools installation requires an older version of samtools. From the (README)[<a href="http://cpansearch.perl.org/src/LDS/Bio-SamTools-1.43/README" class="uri">http://cpansearch.perl.org/src/LDS/Bio-SamTools-1.43/README</a>], <em>“This is a Perl interface to the SAMtools sequence alignment interface. It ONLY works on versions of Samtools up to 0.1.17. It does not work on version 1.0 or higher due to major changes in the library structure.”</em></p>
+<p><strong>IMPT:</strong> The perl module that uses the samtools installation requires an older version of samtools. From the (README)[<a href="http://cpansearch.perl.org/src/LDS/Bio-SamTools-1.43/README" class="uri">http://cpansearch.perl.org/src/LDS/Bio-SamTools-1.43/README</a>], <em>“This is a Perl interface to the SAMtools sequence alignment interface. It ONLY works on versions of Samtools up to 0.1.17. It does not work on version 1.0 or higher due to major changes in the library structure.”</em> Also, on some machines you may have to edit the Makefile and add <code>-fPIC</code> to <code>CFLAGS</code> variable (<code>CFLAGS = -g -Wall -O2 -fPIC</code>) so that it plays nice with the Perl module.</p>
 </div>
 <div id="perl-5.16" class="section level3">
 <h3>Perl &gt;= 5.16</h3>
-<p>On <strong>OS X</strong>, I have had good success with the <a href="http://www.activestate.com/activeperl/downloads">ActivePerl</a> distribution. <a href="http://perlbrew.pl/">Perlbrew</a> is a good option for a <strong>Linux</strong> machine, especially without root access.</p>
+<p>On <strong>OS X</strong>, I have had good success with the <a href="http://www.activestate.com/activeperl/downloads">ActivePerl</a> distribution. <a href="http://perlbrew.pl/">Perlbrew</a> is a good option if you are on a <strong>Linux</strong> machine without root access.</p>
 </div>
 <div id="bioperl" class="section level3">
 <h3>Bioperl</h3>
@@ -381,9 +381,11 @@ Distribution    CJFIELDS/BioPerl-1.6.924.tar.gz</code></pre>
 <pre><code>cpan&gt; install CJFIELDS/BioPerl-1.6.924.tar.gz</code></pre>
 <p>or</p>
 <pre><code>cpan&gt; force install CJFIELDS/BioPerl-1.6.924.tar.gz</code></pre>
+<p>The Samtools module is installed separately. When prompted enter the path where you installed Samtools earlier.</p>
+<pre><code>cpan &gt; install Bio::DB::Sam</code></pre>
 <p>Other modules (all of which can be installed using cpan install commands)</p>
 <pre><code>cpan &gt; install Getopt::Long Text::CSV List::MoreUtils Data::GUID Interpolation IPC::System::Simple Storable Switch::Plain</code></pre>
-<p>I have missed a few. Missing modules can be installed the same as above.</p>
+<p>I may have missed a few. Missing modules can be installed the same as above.</p>
 </div>
 <div id="seqprep" class="section level3">
 <h3>SeqPrep</h3>
