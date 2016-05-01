@@ -169,7 +169,7 @@ $ R
 Install required packages:
 
 ```
-> install.packages(c("magrittr", "readr", "stringr", "plyr", "dplyr"))
+> install.packages(c("argparser", "magrittr", "readr", "stringr", "plyr", "dplyr"))
 > source("https://bioconductor.org/biocLite.R")
 > biocLite(c("GenomicRanges", "BSgenome"))
 ```
