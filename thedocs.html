@@ -387,12 +387,20 @@ Distribution    CJFIELDS/BioPerl-1.6.924.tar.gz</code></pre>
 <pre><code>cpan &gt; install Getopt::Long Text::CSV List::MoreUtils Data::GUID Interpolation IPC::System::Simple Storable Switch::Plain</code></pre>
 <p>I may have missed a few. Missing modules can be installed the same as above.</p>
 </div>
+<div id="ea-utils" class="section level3">
+<h3>ea-utils</h3>
+<p><a href="https://code.google.com/archive/p/ea-utils/">ea-utils</a> is used during library pre-processing. Install to somewhere in your <code>$PATH</code>. In this example I use <code>~/local/bin</code>.</p>
+<pre><code>$ wget https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/ea-utils/ea-utils.1.1.2-537.tar.gz
+$ tar xzvf ea-utils.1.1.2-537.tar.gz
+$ PREFIX=~/local/bin make</code></pre>
+</div>
 <div id="seqprep" class="section level3">
 <h3>SeqPrep</h3>
-<p><a href="https://github.com/jstjohn/SeqPrep">SeqPrep</a> is used in the pre-processing of the libraries.</p>
+<p><a href="https://github.com/jstjohn/SeqPrep">SeqPrep</a> is also used during library pre-processing. Make sure the executable ends up in your path as well.</p>
 <pre><code>$ git clone https://github.com/jstjohn/SeqPrep.git
 $ cd SeqPrep
-$ make</code></pre>
+$ make
+$ cp SeqPrep ~/local/bin/</code></pre>
 <p>Then add SeqPrep to your <code>$PATH</code>.</p>
 </div>
 <div id="r-3.1.2" class="section level3">

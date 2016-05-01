@@ -131,16 +131,30 @@ cpan > install Getopt::Long Text::CSV List::MoreUtils Data::GUID Interpolation I
 
 I may have missed a few. Missing modules can be installed the same as above.
 
+### ea-utils
+
+[ea-utils](https://code.google.com/archive/p/ea-utils/) is used during library pre-processing. Install to somewhere in your `$PATH`. In this example I use `~/local/bin`.
+
+```
+$ wget https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/ea-utils/ea-utils.1.1.2-537.tar.gz
+$ tar xzvf ea-utils.1.1.2-537.tar.gz
+$ PREFIX=~/local/bin make
+```
+
 ### SeqPrep
 
-[SeqPrep](https://github.com/jstjohn/SeqPrep) is used in the pre-processing of the libraries.
+[SeqPrep](https://github.com/jstjohn/SeqPrep) is also used during library pre-processing. Make sure the executable ends up in your path as well.
 
 ```
 $ git clone https://github.com/jstjohn/SeqPrep.git
 $ cd SeqPrep
 $ make
+$ cp SeqPrep ~/local/bin/
 ```
 Then add SeqPrep to your `$PATH`.
+
+
+
 
 ### R >= 3.1.2
 
