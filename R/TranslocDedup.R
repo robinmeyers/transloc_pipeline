@@ -41,7 +41,7 @@ suppressPackageStartupMessages(library(plyr))
 suppressPackageStartupMessages(library(dplyr))
 
 l_ply(names(argv), function(i) {
-  if (i != "help" && i != "opts") {
+  if (i != "help" && i != "opts" && i != "") {
       assign(i, argv[[i]], envir=.GlobalEnv)
   }
 })
