@@ -41,7 +41,7 @@ if (commandArgs()[1] != "RStudio") {
   
 }
 
-suppressPackageStartupMessages(library(data.table, quietly=TRUE))
+suppressPackageStartupMessages(library(readr, quietly=TRUE))
 suppressPackageStartupMessages(library(dplyr, quietly=TRUE))
 suppressPackageStartupMessages(library(GenomicRanges, quietly=TRUE))
 suppressPackageStartupMessages(library(ggplot2, quietly=TRUE))
@@ -72,7 +72,7 @@ by.distance <- sort(as.numeric(unlist(strsplit(by.distance,","))))
 by.percent <- sort(as.numeric(unlist(strsplit(by.percent,","))))
 
 if (metafile != "") {
-  meta <- fread(metafile,sep="\t",header=T)
+  meta <- read_tsv(metafile)
   meta <- mutate(meta,Name = paste(Library,"_",Sequencing,sep=""))
 }
 
@@ -95,7 +95,7 @@ for (tlxfile in names(tlxfiles)) {
     dir.create(file.path(outdir,tlxfile))
   }
   
-  tlx <- fread(tlxfiles[tlxfile],sep="\t",header=T)
+  tlx <- read_tsv(tlxfiles[tlxfile])
   
   tlx.off <- filter(tlx,Rname != brk.chr)
   tlx <- filter(tlx,Rname == brk.chr)

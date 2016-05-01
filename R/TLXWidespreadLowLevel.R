@@ -40,7 +40,7 @@ if (commandArgs()[1] != "RStudio") {
   
 }
 
-suppressPackageStartupMessages(library(data.table, quietly=TRUE))
+suppressPackageStartupMessages(library(readr, quietly=TRUE))
 suppressPackageStartupMessages(library(dplyr, quietly=TRUE))
 suppressPackageStartupMessages(library(GenomicRanges, quietly=TRUE))
 suppressPackageStartupMessages(library(ggplot2, quietly=TRUE))
@@ -76,7 +76,7 @@ for (tlxfile in names(tlxfiles)) {
     dir.create(file.path(outdir,tlxfile))
   }
   
-  tlx <- fread(tlxfiles[tlxfile],sep="\t",header=T)
+  tlx <- read_tsv(tlxfiles[tlxfile])
   
   gr <-  with(tlx,GRanges(seqnames=Rname,ranges=IRanges(start=Junction,width=1,names=Qname),strand=Strand))
   hits <- distanceToNearest(gr,ignore.strand=ignore.strand)

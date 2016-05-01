@@ -46,7 +46,7 @@ my $filter_output;
 parse_command_line;
 
 # Run Rscript to print list of junctions to filter
-($filter_output = $output) =~ s/\.tlx$/.txt/;
+($filter_output = $output) =~ s/\.tlx$/_filter.txt/;
 
 my $filter_cmd = join(" ","$FindBin::Bin/../R/TranslocFilter.R",
                         $tlxfile,

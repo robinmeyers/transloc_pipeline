@@ -29,14 +29,19 @@ if (commandArgs()[1] != "RStudio") {
   bedfile <- "/Volumes/AltLab/Genomes/mm9/annotation/repeatSeq.bed"
 }
 
-suppressPackageStartupMessages(library(data.table, quietly=TRUE))
+suppressPackageStartupMessages(library(readr, quietly=TRUE))
 suppressPackageStartupMessages(library(dplyr, quietly=TRUE))
 suppressPackageStartupMessages(library(GenomicRanges, quietly=TRUE))
 suppressPackageStartupMessages(library(rtracklayer, quietly=TRUE))
 
 bed <- import.bed(bedfile)
 
-tlx <- fread(tlxfile,sep="\t",header=T,select=c("Qname","JuncID","Rname","Junction"))
+
+tlx <- read_tsv(tlxfile,
+                col_types=cols_only("Qname"="c",
+                                    "JuncID"="i",
+                                    "Rname"="c",
+                                    "Junction"="i"))
 
 tlx <- filter(tlx, ! is.na(Rname) & ! is.na(Junction))
 

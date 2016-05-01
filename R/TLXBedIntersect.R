@@ -36,7 +36,7 @@ if (commandArgs()[1] != "RStudio") {
   
 }
 
-suppressPackageStartupMessages(library(data.table, quietly=TRUE))
+suppressPackageStartupMessages(library(readr, quietly=TRUE))
 suppressPackageStartupMessages(library(dplyr, quietly=TRUE))
 suppressPackageStartupMessages(library(GenomicRanges, quietly=TRUE))
 suppressPackageStartupMessages(library(rtracklayer, quietly=TRUE))
@@ -71,7 +71,7 @@ bed <- import.bed(bedfile)
 for (tlxfile in names(tlxfiles)) {
 
   
-  tlx <- fread(tlxfiles[tlxfile],sep="\t",header=T)
+  tlx <- read_tsv(tlxfiles[tlxfile])
   
   gr <-  with(tlx,GRanges(seqnames=Rname,ranges=IRanges(start=Junction,width=1,names=Qname),strand=Strand))
 

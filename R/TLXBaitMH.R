@@ -49,7 +49,7 @@ if (commandArgs()[1] != "RStudio") {
   
 }
 
-suppressPackageStartupMessages(library(data.table, quietly=TRUE))
+suppressPackageStartupMessages(library(readr, quietly=TRUE))
 suppressPackageStartupMessages(library(dplyr, quietly=TRUE))
 suppressPackageStartupMessages(library(grid, quietly=TRUE))
 suppressPackageStartupMessages(library(ggplot2, quietly=TRUE))
@@ -74,7 +74,14 @@ if (tlxlabels != "") {
 tlx <- list()
 
 for (tlxfile in names(tlxfiles)) {
-  tlx[[tlxfile]] <- fread(tlxfiles[tlxfile],sep="\t",header=T,select=c("Qname","B_Rstart","B_Rend","B_Strand","B_Qend","Qstart")) %>% mutate(tlxlabel=tlxfile)
+  tlx[[tlxfile]] <- read_tsv(tlxfiles[tlxfile],
+                           col_types=cols_only("Qname" = "c",
+                                               "B_Rstart" = "i",
+                                               "B_Rend" = "i",
+                                               "B_Strand" = "i",
+                                               "B_Qend"="i",
+                                               "Qstart"="i")) %>% 
+    mutate(tlxlabel=tlxfile)
 }
 
 tlx <- rbind_all(tlx)

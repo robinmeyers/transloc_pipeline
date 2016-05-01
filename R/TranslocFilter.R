@@ -1,12 +1,12 @@
 #!/usr/bin/env Rscript
 
 if (commandArgs()[1] != "RStudio") {
-  
+
   ARGS <- c(
     "tlxfile", "character", "",
     "output","character",""
   )
-  
+
   OPTS <- c(
     "as.filter","logical",TRUE,"set to FALSE to use filters as selectors instead",
     "remove.adapter","logical",TRUE,"remove adapter junctions (not when first junction - baitonly)",
@@ -28,17 +28,17 @@ if (commandArgs()[1] != "RStudio") {
     base_dir <- dirname(substring(argv[grep("--file=", argv)], 8))
     source(paste(base_dir, fname, sep="/"))
   }
-  
+
   source_local("Rsub.R")
   parseArgs("TranslocFilter.R", ARGS, OPTS)
-  
-} else {
-  source("~/TranslocPipeline/R/Rsub.R")
-  source("~/TranslocPipeline/R/TranslocHelper.R")
-  
 
-  tlxfile <- "~/Working/TranslocTesting/results_mid/RF204_Alt055//RF204_Alt055.tlx"
-  output <- "~/Working/TranslocTesting/results_mid/RF204_Alt055/RF204_Alt055_filtered.txt"
+} else {
+  source("~/AltLab/transloc_pipeline/R/Rsub.R")
+  source("~/AltLab/transloc_pipeline/R/TranslocHelper.R")
+
+
+  tlxfile <- "~/AltLab/Data/Alt055/results-new3/RF204_Alt055/RF204_Alt055.tlx"
+  output <- "~/AltLab/Data/Alt055/results-new3/RF204_Alt055/RF204_Alt055_filtered.txt"
 
   as.filter <- TRUE
   remove.adapter <- TRUE
@@ -55,7 +55,7 @@ if (commandArgs()[1] != "RStudio") {
   f.duplicate <- "1"
 }
 
-suppressPackageStartupMessages(library(data.table, quietly=TRUE))
+suppressPackageStartupMessages(library(readr, quietly=TRUE))
 suppressPackageStartupMessages(library(dplyr, quietly=TRUE))
 
 stats.file <- sub(paste(".",file_ext(output),sep=""),"_stats.txt",output)
@@ -65,21 +65,21 @@ filter.names <- c("unaligned","baitonly","uncut","misprimed","freqcut","largegap
 filter.values <- c()
 
 for (filter.name in filter.names) {
-  
+
   tmp.value <- get(paste("f.",filter.name,sep=""))
-  
+
   if (grepl("^[0-9]+$",tmp.value)) {
-    
+
     filter.values[filter.name] <- paste("==",tmp.value,sep="")
-    
+
   } else if (grepl("^[GL]?[E]?[0-9]+$",tmp.value)) {
-    
+
     tmp.value <- sub("[Gg][Ee]",">=",tmp.value)
     tmp.value <- sub("[Ll][Ee]","<=",tmp.value)
     tmp.value <- sub("[Gg]",">",tmp.value)
     tmp.value <- sub("[Ll]","<",tmp.value)
     tmp.value <- sub("[Ee]","==",tmp.value)
-    
+
     filter.values[filter.name] <- tmp.value
 
   } else if (tmp.value == "") {
@@ -89,8 +89,16 @@ for (filter.name in filter.names) {
   }
 }
 
+# tlx <- fread(tlxfile,sep="\t",header=T,select=c("Qname","JuncID","Rname",filter.names))
 
-tlx <- fread(tlxfile,sep="\t",header=T,select=c("Qname","JuncID","Rname",filter.names))
+filter.cols <- rep("i", length(filter.names))
+names(filter.cols) <- filter.names
+tlx <- read_tsv(tlxfile,
+                col_types=do.call(cols_only, c(list("Qname"="c",
+                                                    "JuncID"="i",
+                                                    "Rname"="c"),
+                                               filter.cols)))
+
 
 if (remove.adapter) {
   tlx <- filter(tlx,!(JuncID > 1 & Rname == "Adapter"))
@@ -98,32 +106,32 @@ if (remove.adapter) {
 
 stats.names <- c("total",filter.names,"result")
 filter.stats <- data.frame(reads=rep(0,length(stats.names)),junctions=rep(0,length(stats.names)),row.names=stats.names)
-                           
-reads.total <- as.integer(summarize(tlx,n_distinct(Qname)))
-junctions.total <- nrow(filter(tlx,Rname != "" & Rname != "Adapter"))
+
+reads.total <- n_distinct(tlx$Qname)
+junctions.total <- nrow(filter(tlx, Rname != "" & Rname != "Adapter"))
 
 filter.stats["total",] <- c(reads.total,junctions.total)
 
 tlx.filt.list <- list()
 
 for (filter.name in filter.names) {
-  
-  
+
+
   filter.value <- filter.values[filter.name]
   if (filter.value == "") next
 
   filter.text <- paste(filter.name,filter.value,sep="")
 
-  tlx.filt.list[[filter.name]] <- filter(tlx,eval(parse(text=filter.text))) %>% select(Qname,JuncID,Rname)
-  
+  tlx.filt.list[[filter.name]] <- filter_(tlx, filter.text) %>% select(Qname,JuncID,Rname)
+
   junctions.count <- nrow(filter(tlx.filt.list[[filter.name]],Rname != "" & Rname != "Adapter"))
   reads.count <- as.integer(summarize(tlx.filt.list[[filter.name]],n_distinct(Qname)))
-  
+
   filter.stats[filter.name,] <- c(reads.count,junctions.count)
 
 }
 
-tlx.filt <- as.data.table(rbind_all(tlx.filt.list))
+tlx.filt <- bind_rows(tlx.filt.list)
 
 if (as.filter) {
   tlx <- anti_join(tlx,tlx.filt,by=c("Qname","JuncID"))
@@ -136,8 +144,10 @@ reads.count <- as.integer(summarize(tlx,n_distinct(Qname)))
 junctions.count <- nrow(filter(tlx,Rname != "" & Rname != "Adapter"))
 filter.stats["result",] <- c(reads.count,junctions.count)
 
+filter.stats <- filter.stats %>% mutate(filter = rownames(.)) %>%
+    select(filter, reads, junctions)
+
 tlx <- select(tlx,Qname,JuncID)
 
-write.table(tlx,output,sep="\t",col.names=F,row.names=F,quote=F,na="")
-write.table(filter.stats,stats.file,sep="\t",col.names=NA,row.names=T,quote=F,na="")
-
+write_tsv(tlx, output, col_names=F)
+write_tsv(filter.stats, stats.file)
