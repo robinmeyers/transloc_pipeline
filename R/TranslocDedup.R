@@ -21,7 +21,7 @@ parser <- arg_parser("mark duplicate juntions",
                  type="integer") %>%
     add_argument("--barcode",
                  "",
-                 default=NA,
+                 default=0,
                  type="integer") %>%
     add_argument("--cores",
                  "",
