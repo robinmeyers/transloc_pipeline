@@ -178,10 +178,10 @@ sub filter_mapqual ($) {
       my $min_AS_threshold = $tlx_R1_aln->{AS} + $tlx_R2_aln->{AS} - $min_difference;
 
       
-      foreach my $R1_aln_ID (keys $R1_alns) {
+      foreach my $R1_aln_ID (keys %$R1_alns) {
         next if $R1_aln_ID eq $tlx->{R1_ID};
 
-        foreach my $R2_aln_ID (keys $R2_alns) {
+        foreach my $R2_aln_ID (keys %$R2_alns) {
 
           my $R1_aln = $R1_alns->{$R1_aln_ID};
           my $R2_aln = $R2_alns->{$R2_aln_ID};
@@ -226,7 +226,7 @@ sub filter_mapqual ($) {
       my $min_AS_threshold = $tlx_R1_aln->{AS} - $min_difference;
 
       # only consider R1 alignments
-      foreach my $R1_aln_ID (keys $R1_alns) {
+      foreach my $R1_aln_ID (keys %$R1_alns) {
         next if $R1_aln_ID eq $tlx->{R1_ID};
 
         my $R1_aln = $R1_alns->{$R1_aln_ID};
@@ -263,7 +263,7 @@ sub filter_mapqual ($) {
       my $min_AS_threshold = $tlx_R2_aln->{AS} - $min_difference;
 
       # only consider R2 alignments
-      foreach my $R2_aln_ID (keys $R2_alns) {
+      foreach my $R2_aln_ID (keys %$R2_alns) {
         next if $R2_aln_ID eq $tlx->{R2_ID};
 
         my $R2_aln = $R2_alns->{$R2_aln_ID};
